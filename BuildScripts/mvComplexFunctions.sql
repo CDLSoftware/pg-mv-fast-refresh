@@ -49,7 +49,7 @@ OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
 SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ***********************************************************************************************************************************/
 
--- psql -h localhost -p 5432 -d postgres -U mike_pgmview -q -f mvComplexFunctions.sql
+-- psql -h localhost -p 5432 -d postgres -U pgrs_mview -q -f mvComplexFunctions.sql
 
 -- -------------------- Write DROP-FUNCTION-stage scripts ----------------------
 
@@ -60,7 +60,7 @@ DROP FUNCTION IF EXISTS mv$clearAllPgMviewLogBit;
 DROP FUNCTION IF EXISTS mv$clearPgMviewLogBit;
 DROP FUNCTION IF EXISTS mv$createPgMv$Table;
 DROP FUNCTION IF EXISTS mv$insertMaterializedViewRows;
-DROP FUNCTION IF EXISTS mv$insertMike$PgMview;
+DROP FUNCTION IF EXISTS mv$insertPgMview;
 DROP FUNCTION IF EXISTS mv$insertOuterJoinRows;
 DROP FUNCTION IF EXISTS mv$executeMVFastRefresh;
 DROP FUNCTION IF EXISTS mv$refreshMaterializedViewFast;
@@ -113,8 +113,8 @@ Copyright 2018 Amazon.com, Inc. or its affiliates. All Rights Reserved. SPDX-Lic
 DECLARE
 
     cResult         CHAR(1);
-    aViewLog        pg$mview_logs;
-    aPgMview        pg$mviews;
+    aViewLog        pgmview_logs;
+    aPgMview        pgmviews;
 
 BEGIN
     aPgMview := mv$getPgMviewTableData( pConst, pOwner, pViewName );
@@ -186,8 +186,8 @@ DECLARE
 
     cResult     CHAR(1);
     iBitValue   INTEGER     := NULL;
-    aViewLog    pg$mview_logs;
-    aPgMview    pg$mviews;
+    aViewLog    pgmview_logs;
+    aPgMview    pgmviews;
 
 BEGIN
     aPgMview    := mv$getPgMviewTableData( pConst, pOwner, pViewName );
@@ -198,7 +198,7 @@ BEGIN
 
         iBitValue := mv$getBitValue( pConst, aPgMview.bit_array[i] );
 
-        UPDATE  pg$mview_logs
+        UPDATE  pgmview_logs
         SET     pg_mview_bitmap = pg_mview_bitmap - iBitValue
         WHERE   owner           = aViewLog.owner
         AND     table_name      = aViewLog.table_name;
@@ -357,7 +357,7 @@ Copyright 2018 Amazon.com, Inc. or its affiliates. All Rights Reserved. SPDX-Lic
 DECLARE
 
     tSqlStatement   TEXT;
-    aPgMview        pg$mviews;
+    aPgMview        pgmviews;
 
 BEGIN
 
@@ -403,7 +403,7 @@ LANGUAGE    plpgsql
 SECURITY    DEFINER;
 ------------------------------------------------------------------------------------------------------------------------------------
 CREATE OR REPLACE
-FUNCTION    mv$insertMike$PgMview
+FUNCTION    mv$insertPgMview
             (
                 pConst              IN      mv$allConstants,
                 pOwner              IN      TEXT,
@@ -424,7 +424,7 @@ FUNCTION    mv$insertMike$PgMview
 AS
 $BODY$
 /* ---------------------------------------------------------------------------------------------------------------------------------
-Routine Name: mv$insertMike$PgMview
+Routine Name: mv$insertPgMview
 Author:       Mike Revitt
 Date:         12/011/2018
 ------------------------------------------------------------------------------------------------------------------------------------
@@ -436,7 +436,7 @@ Date        | Name          | Description
 11/03/2018  | M Revitt      | Initial version
 ------------+---------------+-------------------------------------------------------------------------------------------------------
 Description:    Every time a new materialized view is created, a record of that view is also created in the data dictionary table
-                pg$mviews.
+                pgmviews.
 
                 This table holds all of the pertinent information about the materialized view which is later used in the management
                 of that view.
@@ -459,7 +459,7 @@ Copyright 2018 Amazon.com, Inc. or its affiliates. All Rights Reserved. SPDX-Lic
 ***********************************************************************************************************************************/
 DECLARE
 
-    aPgMviewLogData pg$mview_logs;
+    aPgMviewLogData pgmview_logs;
 
     iBit            SMALLINT    := NULL;
     tLogArray       TEXT[];
@@ -484,7 +484,7 @@ BEGIN
     END IF;
 
     INSERT
-    INTO    pg$mviews
+    INTO    pgmviews
     (
             owner,
             view_name,
@@ -523,7 +523,7 @@ BEGIN
     EXCEPTION
     WHEN OTHERS
     THEN
-        RAISE INFO      'Exception in function mv$insertMike$PgMview';
+        RAISE INFO      'Exception in function mv$insertPgMview';
         RAISE INFO      'Error %:- %:',     SQLSTATE, SQLERRM;
         RAISE EXCEPTION '%',                SQLSTATE;
 
@@ -678,7 +678,7 @@ DECLARE
     uRowID          UUID;
     uRowIDArray     UUID[];
 
-    aViewLog        pg$mview_logs;
+    aViewLog        pgmview_logs;
 
 BEGIN
 
@@ -805,7 +805,7 @@ Copyright 2018 Amazon.com, Inc. or its affiliates. All Rights Reserved. SPDX-Lic
 DECLARE
 
     cResult     CHAR(1);
-    aPgMview    pg$mviews;
+    aPgMview    pgmviews;
 
 BEGIN
 
@@ -866,7 +866,7 @@ Copyright 2018 Amazon.com, Inc. or its affiliates. All Rights Reserved. SPDX-Lic
 DECLARE
 
     cResult         CHAR(1);
-    aPgMview        pg$mviews;
+    aPgMview        pgmviews;
     bOuterJoined    BOOLEAN;
 
 BEGIN
@@ -928,7 +928,6 @@ Date        | Name          | Description
             |               |
 19/06/2019  | M Revitt      | Fixed issue with Delete statment that added superious WHERE Clause when there was not WHERE statment
 11/03/2018  | M Revitt      | Initial version
-19/06/2019  | M Revitt      | Fixed issue with Delete statment that added superious WHERE Clause when there was not WHERE statment
 ------------+---------------+-------------------------------------------------------------------------------------------------------
 Description:    When inserting data into a complex materialized view, it is possible that a previous insert has already inserted
                 the row that we are about to insert if that row is the subject of an outer join or is a parent of multiple new rows
@@ -949,7 +948,7 @@ DECLARE
 
     tFromClause     TEXT;
     tSqlStatement   TEXT;
-    aPgMview        pg$mviews;
+    aPgMview        pgmviews;
 
 BEGIN
 
@@ -984,6 +983,7 @@ BEGIN
     USING   pRowIDs;
 
     RETURN;
+
     EXCEPTION
     WHEN OTHERS
     THEN
@@ -1040,7 +1040,7 @@ BEGIN
     iBit                := mv$findFirstFreeBit( pConst, pPbMviewBitmap );
     iBitValue           := mv$getBitValue( pConst, iBit );
 
-    UPDATE  pg$mview_logs
+    UPDATE  pgmview_logs
     SET     pg_mview_bitmap = pg_mview_bitmap + iBitValue
     WHERE   owner           = pOwner
     AND     pglog$_name     = pPgLog$Name;
@@ -1095,10 +1095,10 @@ Copyright 2018 Amazon.com, Inc. or its affiliates. All Rights Reserved. SPDX-Lic
 ***********************************************************************************************************************************/
 DECLARE
 
-    bBaseRowExists  BOOLEAN     := FALSE;
     cResult         CHAR(1)     := NULL;
     tSqlStatement   TEXT;
-    aPgMview        pg$mviews;
+    aPgMview        pgmviews;
+    bBaseRowExists  BOOLEAN := FALSE;
 
 BEGIN
 

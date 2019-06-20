@@ -45,7 +45,7 @@ LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRA
 CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ***********************************************************************************************************************************/
 
--- psql -h localhost -p 5432 -d postgres -U mike_pgmview -q -f mvSimpleFunctions.sql
+-- psql -h localhost -p 5432 -d postgres -U pgrs_mview -q -f mvSimpleFunctions.sql
 
 ----------------------- Write DROP-FUNCTION-stage scripts ----------------------
 SET     CLIENT_MIN_MESSAGES = ERROR;
@@ -61,8 +61,8 @@ DROP FUNCTION IF EXISTS mv$createMvLogTrigger;
 DROP FUNCTION IF EXISTS mv$createRow$Column;
 DROP FUNCTION IF EXISTS mv$deconstructSqlStatement;
 DROP FUNCTION IF EXISTS mv$deleteMaterializedViewRows;
-DROP FUNCTION IF EXISTS mv$deleteMike$PgMview;
-DROP FUNCTION IF EXISTS mv$deleteMike$PgMviewLog;
+DROP FUNCTION IF EXISTS mv$deletePgMview;
+DROP FUNCTION IF EXISTS mv$deletePgMviewLog;
 DROP FUNCTION IF EXISTS mv$dropTable;
 DROP FUNCTION IF EXISTS mv$dropTrigger;
 DROP FUNCTION IF EXISTS mv$extractCompoundViewTables;
@@ -73,7 +73,7 @@ DROP FUNCTION IF EXISTS mv$getPgMviewTableData;
 DROP FUNCTION IF EXISTS mv$getPgMviewViewColumns;
 DROP FUNCTION IF EXISTS mv$getSourceTableSchema;
 DROP FUNCTION IF EXISTS mv$grantSelectPrivileges;
-DROP FUNCTION IF EXISTS mv$insertMikePgMviewLogs;
+DROP FUNCTION IF EXISTS mv$insertPgMviewLogs;
 DROP FUNCTION IF EXISTS mv$removeRow$FromSourceTable;
 DROP FUNCTION IF EXISTS mv$replaceCommandWithToken;
 DROP FUNCTION IF EXISTS mv$truncateMaterializedView;
@@ -815,7 +815,7 @@ LANGUAGE    plpgsql
 SECURITY    DEFINER;
 ------------------------------------------------------------------------------------------------------------------------------------
 CREATE OR REPLACE
-FUNCTION    mv$deleteMike$PgMview
+FUNCTION    mv$deletePgMview
             (
                 pOwner      IN      TEXT,
                 pViewName   IN      TEXT
@@ -824,7 +824,7 @@ FUNCTION    mv$deleteMike$PgMview
 AS
 $BODY$
 /* ---------------------------------------------------------------------------------------------------------------------------------
-Routine Name: mv$deleteMike$PgMview
+Routine Name: mv$deletePgMview
 Author:       Mike Revitt
 Date:         04/06/2019
 ------------------------------------------------------------------------------------------------------------------------------------
@@ -859,7 +859,7 @@ BEGIN
     EXCEPTION
     WHEN OTHERS
     THEN
-        RAISE INFO      'Exception in function mv$deleteMike$PgMview';
+        RAISE INFO      'Exception in function mv$deletePgMview';
         RAISE INFO      'Error %:- %:',     SQLSTATE, SQLERRM;
         RAISE EXCEPTION '%',                SQLSTATE;
 END;
@@ -868,7 +868,7 @@ LANGUAGE    plpgsql
 SECURITY    DEFINER;
 ------------------------------------------------------------------------------------------------------------------------------------
 CREATE OR REPLACE
-FUNCTION    mv$deleteMike$PgMviewLog
+FUNCTION    mv$deletePgMviewLog
             (
                 pOwner      IN      TEXT,
                 pTableName  IN      TEXT
@@ -877,7 +877,7 @@ FUNCTION    mv$deleteMike$PgMviewLog
 AS
 $BODY$
 /* ---------------------------------------------------------------------------------------------------------------------------------
-Routine Name: mv$deleteMike$PgMviewLog
+Routine Name: mv$deletePgMviewLog
 Author:       Mike Revitt
 Date:         04/06/2019
 ------------------------------------------------------------------------------------------------------------------------------------
@@ -888,8 +888,8 @@ Date        | Name          | Description
             |               |
 04/06/2019  | M Revitt      | Initial version
 ------------+---------------+-------------------------------------------------------------------------------------------------------
-Description:    Every time a new materialized view is created, a record of that view is also created in the data dictionary table
-                pgmviews.
+Description:    Every time a new materialized view log is created, a record of that log is also created in the data dictionary table
+                pgmview_logs.
 
                 This function removes that row when a materialized view log is removed.
 
@@ -903,7 +903,7 @@ Copyright 2019 Amazon.com, Inc. or its affiliates. All Rights Reserved. SPDX-Lic
 BEGIN
 
     DELETE
-    FROM    pg$mview_logs
+    FROM    pgmview_logs
     WHERE
             owner       = pOwner
     AND     table_name  = pTableName;
@@ -913,7 +913,7 @@ BEGIN
     EXCEPTION
     WHEN OTHERS
     THEN
-        RAISE INFO      'Exception in function mv$deleteMike$PgMviewLog';
+        RAISE INFO      'Exception in function mv$deletePgMviewLog';
         RAISE INFO      'Error %:- %:',     SQLSTATE, SQLERRM;
         RAISE EXCEPTION '%',                SQLSTATE;
 END;
@@ -1330,7 +1330,7 @@ FUNCTION    mv$getPgMviewLogTableData
                 pOwner      IN      TEXT,
                 pTableName  IN      TEXT
             )
-    RETURNS pg$mview_logs
+    RETURNS pgmview_logs
 AS
 $BODY$
 /* ---------------------------------------------------------------------------------------------------------------------------------
@@ -1355,27 +1355,27 @@ Copyright 2019 Amazon.com, Inc. or its affiliates. All Rights Reserved. SPDX-Lic
 ***********************************************************************************************************************************/
 DECLARE
 
-    aMikePgMviewLog            pg$mview_logs;
+    aPgMviewLog            pgmview_logs;
 
     cgetPgMviewLogTableData    CURSOR
     FOR
     SELECT
             *
-    FROM    pg$mview_logs
+    FROM    pgmview_logs
     WHERE   owner       = pOwner
     AND     table_name  = pTableName;
 
 BEGIN
     OPEN    cgetPgMviewLogTableData;
     FETCH   cgetPgMviewLogTableData
-    INTO    aMikePgMviewLog;
+    INTO    aPgMviewLog;
     CLOSE   cgetPgMviewLogTableData;
 
-    IF aMikePgMviewLog.table_name IS NULL
+    IF aPgMviewLog.table_name IS NULL
     THEN
         RAISE EXCEPTION 'Materialised View ''%'' does not have a PgMview Log', pOwner || pConst.DOT_CHARACTER || pTableName;
     ELSE
-        RETURN( aMikePgMviewLog );
+        RETURN( aPgMviewLog );
     END IF;
 END;
 $BODY$
@@ -1388,7 +1388,7 @@ FUNCTION    mv$getPgMviewLogTableData
                 pConst      IN      mv$allConstants,
                 pTableName  IN      TEXT
             )
-    RETURNS pg$mview_logs
+    RETURNS pgmview_logs
 AS
 $BODY$
 /* ---------------------------------------------------------------------------------------------------------------------------------
@@ -1438,7 +1438,7 @@ FUNCTION    mv$getPgMviewTableData
                 pOwner      IN      TEXT,
                 pViewName   IN      TEXT
             )
-    RETURNS pg$Mviews
+    RETURNS PgMviews
 AS
 $BODY$
 /* ---------------------------------------------------------------------------------------------------------------------------------
@@ -1463,26 +1463,26 @@ Returns:                RECORD              The row of data from the data dictio
 Copyright 2019 Amazon.com, Inc. or its affiliates. All Rights Reserved. SPDX-License-Identifier: MIT-0
 ***********************************************************************************************************************************/
 DECLARE
-    aMikePgMview           pg$Mviews;
+    aPgMview           PgMviews;
 
     cgetPgMviewTableData   CURSOR
     FOR
     SELECT
             *
-    FROM    pg$Mviews
+    FROM    PgMviews
     WHERE   owner       = pOwner
     AND     view_name   = pViewName;
 BEGIN
     OPEN    cgetPgMviewTableData;
     FETCH   cgetPgMviewTableData
-    INTO    aMikePgMview;
+    INTO    aPgMview;
     CLOSE   cgetPgMviewTableData;
 
-    IF 0 = cardinality( aMikePgMview.table_array )
+    IF 0 = cardinality( aPgMview.table_array )
     THEN
         RAISE EXCEPTION 'Materialised View ''%'' does not have a base table', pOwner || pConst.DOT_CHARACTER || pViewName;
     ELSE
-        RETURN( aMikePgMview );
+        RETURN( aPgMview );
     END IF;
 END;
 $BODY$
@@ -1690,7 +1690,7 @@ LANGUAGE    plpgsql
 SECURITY    DEFINER;
 ------------------------------------------------------------------------------------------------------------------------------------
 CREATE OR REPLACE
-FUNCTION    mv$insertMikePgMviewLogs
+FUNCTION    mv$insertPgMviewLogs
             (
                 pConst          IN      mv$allConstants,
                 pOwner          IN      TEXT,
@@ -1702,7 +1702,7 @@ FUNCTION    mv$insertMikePgMviewLogs
 AS
 $BODY$
 /* ---------------------------------------------------------------------------------------------------------------------------------
-Routine Name: mv$insertMikePgMviewLogs
+Routine Name: mv$insertPgMviewLogs
 Author:       Mike Revitt
 Date:         12/11/2018
 ------------------------------------------------------------------------------------------------------------------------------------
@@ -1726,7 +1726,7 @@ Copyright 2019 Amazon.com, Inc. or its affiliates. All Rights Reserved. SPDX-Lic
 BEGIN
 
     INSERT  INTO
-            pg$mview_logs
+            pgmview_logs
             (
                 owner,  pglog$_name, table_name, trigger_name
             )
@@ -1739,7 +1739,7 @@ BEGIN
     EXCEPTION
     WHEN OTHERS
     THEN
-        RAISE INFO      'Exception in function mv$insertMikePgMviewLogs';
+        RAISE INFO      'Exception in function mv$insertPgMviewLogs';
         RAISE INFO      'Error %:- %:',     SQLSTATE, SQLERRM;
         RAISE EXCEPTION '%',                SQLSTATE;
 END;

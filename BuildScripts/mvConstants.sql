@@ -59,16 +59,16 @@ OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
 SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ************************************************************************************/
 
--- psql -h localhost -p 5432 -d postgres -U mike_pgmview -q -f SaveSet/mvConstants.sql
+-- psql -h localhost -p 5432 -d postgres -U pgrs_mview -q -f SaveSet/mvConstants.sql
 
 -- -------------------- Write DROP-FUNCTION-stage scripts ----------------------
 
 SET     CLIENT_MIN_MESSAGES = ERROR;
 
+DROP TYPE     IF EXISTS mv$allConstants CASCADE;
 DROP FUNCTION IF EXISTS mv$buildAllConstants;
 DROP FUNCTION IF EXISTS mv$buildTriggerConstants;
 DROP FUNCTION IF EXISTS mv$help;
-DROP TYPE     IF EXISTS mv$allConstants;
 
 SET CLIENT_MIN_MESSAGES = NOTICE;
 
@@ -350,7 +350,7 @@ BEGIN
 
 -- Database Role used to access materialized views
 ------------------------------------------------------------------------------------------------------------------------------------
-    rMvConstants.PGMV_SELECT_ROLE               := 'pgmv$_view';
+    rMvConstants.PGMV_SELECT_ROLE               := 'pgmv$_role';
 
 -- Characters used FOR string delimination
 ------------------------------------------------------------------------------------------------------------------------------------

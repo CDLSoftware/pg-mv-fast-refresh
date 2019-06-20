@@ -17,7 +17,7 @@ Description:    This script creates the SCHEMA and USER to hold the Materialized
                 data dictionary views, then it calls the create function scripts in the correct order
 
 Notes:          There are 2 data dictionary tables
-                o   pg$mview_logs
+                o   pgmview_logs
                 o   pgmviews
 
                 Access is controlled via database role
@@ -112,7 +112,7 @@ GRANT   :MODULEOWNER   TO  :PGUSERNAME;
 
 CREATE  SCHEMA IF NOT EXISTS :MODULEOWNER    AUTHORIZATION   :MODULEOWNER;
 
-CREATE TABLE IF NOT EXISTS :MODULEOWNER.pg$mview_logs
+CREATE TABLE IF NOT EXISTS :MODULEOWNER.pgmview_logs
 (
 	owner           TEXT        NOT NULL,
 	pglog$_name     TEXT        NOT NULL,
@@ -128,7 +128,7 @@ CREATE TABLE IF NOT EXISTS :MODULEOWNER.pg$mview_logs
 		)
 );
 
-CREATE TABLE IF NOT EXISTS :MODULEOWNER.pg$mviews
+CREATE TABLE IF NOT EXISTS :MODULEOWNER.pgmviews
 (
 	owner               TEXT        NOT NULL,
 	view_name           TEXT        NOT NULL,
@@ -142,8 +142,8 @@ CREATE TABLE IF NOT EXISTS :MODULEOWNER.pg$mviews
 	log_array           TEXT[],
 	bit_array           SMALLINT[],
 	outer_table_array   TEXT[],
-	parent_alias_array  TEXT[],
-	parent_rowid_array  TEXT[],
+	inner_alias_array  TEXT[],
+	inner_rowid_array  TEXT[],
 	CONSTRAINT
 		pk$_pgmviews
 		PRIMARY KEY
@@ -156,8 +156,8 @@ CREATE TABLE IF NOT EXISTS :MODULEOWNER.pg$mviews
 GRANT   USAGE   ON                      SCHEMA  :MODULEOWNER    TO  pgmv$_role;
 GRANT   SELECT  ON  ALL TABLES      IN  SCHEMA  :MODULEOWNER    TO  pgmv$_role;
 
-ALTER TABLE :MODULEOWNER.pg$mviews      OWNER TO :MODULEOWNER;
-ALTER TABLE :MODULEOWNER.pg$mview_logs  OWNER TO :MODULEOWNER;
+ALTER TABLE :MODULEOWNER.pgmviews       OWNER TO :MODULEOWNER;
+ALTER TABLE :MODULEOWNER.pgmview_logs   OWNER TO :MODULEOWNER;
 
 ALTER EXTENSION "uuid-ossp" SET SCHEMA public;
 

@@ -49,7 +49,7 @@ OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
 SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ***********************************************************************************************************************************/
 
--- psql -h localhost -p 5432 -d postgres -U mike_pgmview -q -f mvComplexFunctions.sql
+-- psql -h localhost -p 5432 -d postgres -U pgrs_mview -q -f mvApplicationFunctions.sql
 
 -- -------------------- Write DROP-FUNCTION-stage scripts ----------------------
 
@@ -59,7 +59,7 @@ DROP FUNCTION IF EXISTS mv$createMaterializedView;
 DROP FUNCTION IF EXISTS mv$createMaterializedViewlog;
 DROP FUNCTION IF EXISTS mv$refreshMaterializedView;
 DROP FUNCTION IF EXISTS mv$help;
-DROP FUNCTION IF EXISTS mv$insertMaterializedViewLogRow;
+DROP FUNCTION IF EXISTS mv$insertMaterializedViewLogRow CASCADE;
 DROP FUNCTION IF EXISTS mv$removeMaterializedView;
 DROP FUNCTION IF EXISTS mv$removeMaterializedViewLog;
 
@@ -191,7 +191,7 @@ BEGIN
         tViewColumns,
         tSelectColumns;
 
-    cResult :=  mv$insertMike$PgMview
+    cResult :=  mv$insertPgMview
                 (
                     rConst,
                     pOwner,
@@ -277,7 +277,7 @@ BEGIN
     cResult :=  mv$createMvLog$Table(       rConst, pOwner, tLog$Name,  pStorageClause );
     cResult :=  mv$addIndexToMvLog$Table(   rConst, pOwner, tLog$Name                  );
     cResult :=  mv$createMvLogTrigger(      rConst, pOwner, pTableName, tTriggerName   );
-    cResult :=  mv$insertMikePgMviewLogs
+    cResult :=  mv$insertPgMviewLogs
                 (
                     rConst,
                     pOwner,
@@ -379,7 +379,7 @@ DECLARE
 
     tSqlStatement       TEXT;
     uRow$               UUID;
-    aMikePgMviewLogs    pg$mview_logs;
+    aMikePgMviewLogs    pgmview_logs;
     rConst              mv$allConstants;
 
 BEGIN
@@ -517,7 +517,7 @@ Copyright 2019 Amazon.com, Inc. or its affiliates. All Rights Reserved. SPDX-Lic
 ***********************************************************************************************************************************/
 DECLARE
 
-    aPgMview    pg$mviews;
+    aPgMview    pgmviews;
     rConst      mv$allConstants;
 
     cResult     CHAR(1);
@@ -529,7 +529,7 @@ BEGIN
     cResult     := mv$clearAllPgMvLogTableBits( rConst, pOwner, pViewName           );
     cResult     := mv$clearPgMviewLogBit(       rConst, pOwner, pViewName           );
     cResult     := mv$dropTable(                rConst, pOwner, aPgMview.view_name  );
-    cResult     := mv$deleteMike$PgMview(               pOwner, pViewName           );
+    cResult     := mv$deletePgMview(               pOwner, pViewName           );
 
     RETURN;
 END;
@@ -578,12 +578,12 @@ Copyright 2019 Amazon.com, Inc. or its affiliates. All Rights Reserved. SPDX-Lic
 DECLARE
 
     rConst          mv$allConstants;
-    aViewLog        pg$mview_logs;
+    aViewLog        pgmview_logs;
 
-    tSqlStatement   TEXT;
-    tLog$Name       TEXT        := NULL;
-    tMvTriggerName  TEXT        := NULL;
-    cResult         CHAR(1)     := NULL;
+    tSqlStatement       TEXT;
+    tLog$Name           TEXT        := NULL;
+    tMvTriggerName      TEXT        := NULL;
+    cResult             CHAR(1)     := NULL;
 
 BEGIN
 
@@ -595,7 +595,7 @@ BEGIN
         cResult  := mv$dropTrigger(                 rConst, pOwner, aViewLog.trigger_name, pTableName   );
         cResult  := mv$dropTable(                   rConst, pOwner, aViewLog.pglog$_name                );
         cResult  := mv$removeRow$FromSourceTable(   rConst, pOwner, pTableName                          );
-        cResult  := mv$deleteMike$PgMviewLog(               pOwner, pTableName                          );
+        cResult  := mv$deletePgMviewLog(               pOwner, pTableName                          );
     ELSE
         RAISE EXCEPTION 'The Materialized View Log on Table % is still in use', pTableName;
     END IF;
@@ -615,9 +615,9 @@ SECURITY    DEFINER;
 
 ------------------------------------------------------------------------------------------------------------------------------------
 
-GRANT   EXECUTE ON  FUNCTION    mv$createMaterializedViewlog    TO  pgmv$_execute;
-GRANT   EXECUTE ON  FUNCTION    mv$createMaterializedView       TO  pgmv$_execute;
-GRANT   EXECUTE ON  FUNCTION    mv$refreshMaterializedView      TO  pgmv$_execute;
-GRANT   EXECUTE ON  FUNCTION    mv$removeMaterializedView       TO  pgmv$_execute;
-GRANT   EXECUTE ON  FUNCTION    mv$removeMaterializedViewLog    TO  pgmv$_execute;
-GRANT   EXECUTE ON  FUNCTION    mv$help                         TO  pgmv$_execute;
+GRANT   EXECUTE ON  FUNCTION    mv$createMaterializedViewlog    TO  pgmv$_role;
+GRANT   EXECUTE ON  FUNCTION    mv$createMaterializedView       TO  pgmv$_role;
+GRANT   EXECUTE ON  FUNCTION    mv$refreshMaterializedView      TO  pgmv$_role;
+GRANT   EXECUTE ON  FUNCTION    mv$removeMaterializedView       TO  pgmv$_role;
+GRANT   EXECUTE ON  FUNCTION    mv$removeMaterializedViewLog    TO  pgmv$_role;
+GRANT   EXECUTE ON  FUNCTION    mv$help                         TO  pgmv$_role;
