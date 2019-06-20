@@ -74,7 +74,7 @@ SET CLIENT_MIN_MESSAGES = NOTICE;
 CREATE OR REPLACE
 FUNCTION    mv$clearAllPgMvLogTableBits
             (
-                pConst      IN      mike_pgmview.mv$allConstants,
+                pConst      IN      mv$allConstants,
                 pOwner      IN      TEXT,
                 pViewName   IN      TEXT
             )
@@ -113,8 +113,8 @@ Copyright 2018 Amazon.com, Inc. or its affiliates. All Rights Reserved. SPDX-Lic
 DECLARE
 
     cResult         CHAR(1);
-    aViewLog        mike_pgmview.mike$_pgmview_logs;
-    aPgMview        mike_pgmview.mike$_pgmviews;
+    aViewLog        pg$mview_logs;
+    aPgMview        pg$mviews;
 
 BEGIN
     aPgMview := mv$getPgMviewTableData( pConst, pOwner, pViewName );
@@ -151,7 +151,7 @@ SECURITY    DEFINER;
 CREATE OR REPLACE
 FUNCTION    mv$clearPgMviewLogBit
             (
-                pConst      IN      mike_pgmview.mv$allConstants,
+                pConst      IN      mv$allConstants,
                 pOwner      IN      TEXT,
                 pViewName   IN      TEXT
             )
@@ -186,8 +186,8 @@ DECLARE
 
     cResult     CHAR(1);
     iBitValue   INTEGER     := NULL;
-    aViewLog    mike_pgmview.mike$_pgmview_logs;
-    aPgMview    mike_pgmview.mike$_pgmviews;
+    aViewLog    pg$mview_logs;
+    aPgMview    pg$mviews;
 
 BEGIN
     aPgMview    := mv$getPgMviewTableData( pConst, pOwner, pViewName );
@@ -198,7 +198,7 @@ BEGIN
 
         iBitValue := mv$getBitValue( pConst, aPgMview.bit_array[i] );
 
-        UPDATE  mike_pgmview.mike$_pgmview_logs
+        UPDATE  pg$mview_logs
         SET     pg_mview_bitmap = pg_mview_bitmap - iBitValue
         WHERE   owner           = aViewLog.owner
         AND     table_name      = aViewLog.table_name;
@@ -221,7 +221,7 @@ SECURITY    DEFINER;
 CREATE OR REPLACE
 FUNCTION    mv$createPgMv$Table
             (
-                pConst              IN      mike_pgmview.mv$allConstants,
+                pConst              IN      mv$allConstants,
                 pOwner              IN      TEXT,
                 pViewName           IN      TEXT,
                 pViewColumns        IN      TEXT,
@@ -318,7 +318,7 @@ SECURITY    DEFINER;
 CREATE OR REPLACE
 FUNCTION    mv$insertMaterializedViewRows
             (
-                pConst          IN      mike_pgmview.mv$allConstants,
+                pConst          IN      mv$allConstants,
                 pOwner          IN      TEXT,
                 pViewName       IN      TEXT,
                 pTableAlias     IN      TEXT    DEFAULT NULL,
@@ -357,7 +357,7 @@ Copyright 2018 Amazon.com, Inc. or its affiliates. All Rights Reserved. SPDX-Lic
 DECLARE
 
     tSqlStatement   TEXT;
-    aPgMview        mike_pgmview.mike$_pgmviews;
+    aPgMview        pg$mviews;
 
 BEGIN
 
@@ -405,7 +405,7 @@ SECURITY    DEFINER;
 CREATE OR REPLACE
 FUNCTION    mv$insertMike$PgMview
             (
-                pConst              IN      mike_pgmview.mv$allConstants,
+                pConst              IN      mv$allConstants,
                 pOwner              IN      TEXT,
                 pViewName           IN      TEXT,
                 pViewColumns        IN      TEXT,
@@ -436,7 +436,7 @@ Date        | Name          | Description
 11/03/2018  | M Revitt      | Initial version
 ------------+---------------+-------------------------------------------------------------------------------------------------------
 Description:    Every time a new materialized view is created, a record of that view is also created in the data dictionary table
-                mike$_pgmviews.
+                pg$mviews.
 
                 This table holds all of the pertinent information about the materialized view which is later used in the management
                 of that view.
@@ -459,7 +459,7 @@ Copyright 2018 Amazon.com, Inc. or its affiliates. All Rights Reserved. SPDX-Lic
 ***********************************************************************************************************************************/
 DECLARE
 
-    aPgMviewLogData mike_pgmview.mike$_pgmview_logs;
+    aPgMviewLogData pg$mview_logs;
 
     iBit            SMALLINT    := NULL;
     tLogArray       TEXT[];
@@ -484,7 +484,7 @@ BEGIN
     END IF;
 
     INSERT
-    INTO    mike_pgmview.mike$_pgmviews
+    INTO    pg$mviews
     (
             owner,
             view_name,
@@ -535,7 +535,7 @@ SECURITY    DEFINER;
 CREATE OR REPLACE
 FUNCTION    mv$executeMVFastRefresh
             (
-                pConst          IN      mike_pgmview.mv$allConstants,
+                pConst          IN      mv$allConstants,
                 pDmlType        IN      TEXT,
                 pOwner          IN      TEXT,
                 pViewName       IN      TEXT,
@@ -628,7 +628,7 @@ SECURITY    DEFINER;
 CREATE OR REPLACE
 FUNCTION    mv$refreshMaterializedViewFast
             (
-                pConst          IN      mike_pgmview.mv$allConstants,
+                pConst          IN      mv$allConstants,
                 pOwner          IN      TEXT,
                 pViewName       IN      TEXT,
                 pTableAlias     IN      TEXT,
@@ -678,7 +678,7 @@ DECLARE
     uRowID          UUID;
     uRowIDArray     UUID[];
 
-    aViewLog        mike_pgmview.mike$_pgmview_logs;
+    aViewLog        pg$mview_logs;
 
 BEGIN
 
@@ -766,7 +766,7 @@ SECURITY    DEFINER;
 CREATE OR REPLACE
 FUNCTION    mv$refreshMaterializedViewFull
             (
-                pConst      IN      mike_pgmview.mv$allConstants,
+                pConst      IN      mv$allConstants,
                 pOwner      IN      TEXT,
                 pViewName   IN      TEXT
             )
@@ -805,7 +805,7 @@ Copyright 2018 Amazon.com, Inc. or its affiliates. All Rights Reserved. SPDX-Lic
 DECLARE
 
     cResult     CHAR(1);
-    aPgMview    mike_pgmview.mike$_pgmviews;
+    aPgMview    pg$mviews;
 
 BEGIN
 
@@ -830,7 +830,7 @@ SECURITY    DEFINER;
 CREATE OR REPLACE
 FUNCTION    mv$refreshMaterializedViewFast
             (
-                pConst      IN      mike_pgmview.mv$allConstants,
+                pConst      IN      mv$allConstants,
                 pOwner      IN      TEXT,
                 pViewName   IN      TEXT
             )
@@ -866,7 +866,7 @@ Copyright 2018 Amazon.com, Inc. or its affiliates. All Rights Reserved. SPDX-Lic
 DECLARE
 
     cResult         CHAR(1);
-    aPgMview        mike_pgmview.mike$_pgmviews;
+    aPgMview        pg$mviews;
     bOuterJoined    BOOLEAN;
 
 BEGIN
@@ -905,7 +905,7 @@ SECURITY    DEFINER;
 CREATE OR REPLACE
 FUNCTION    mv$insertOuterJoinRows
             (
-                pConst          IN      mike_pgmview.mv$allConstants,
+                pConst          IN      mv$allConstants,
                 pOwner          IN      TEXT,
                 pViewName       IN      TEXT,
                 pTableAlias     IN      TEXT,
@@ -928,6 +928,7 @@ Date        | Name          | Description
             |               |
 19/06/2019  | M Revitt      | Fixed issue with Delete statment that added superious WHERE Clause when there was not WHERE statment
 11/03/2018  | M Revitt      | Initial version
+19/06/2019  | M Revitt      | Fixed issue with Delete statment that added superious WHERE Clause when there was not WHERE statment
 ------------+---------------+-------------------------------------------------------------------------------------------------------
 Description:    When inserting data into a complex materialized view, it is possible that a previous insert has already inserted
                 the row that we are about to insert if that row is the subject of an outer join or is a parent of multiple new rows
@@ -948,7 +949,7 @@ DECLARE
 
     tFromClause     TEXT;
     tSqlStatement   TEXT;
-    aPgMview        mike_pgmview.mike$_pgmviews;
+    aPgMview        pg$mviews;
 
 BEGIN
 
@@ -983,7 +984,6 @@ BEGIN
     USING   pRowIDs;
 
     RETURN;
-
     EXCEPTION
     WHEN OTHERS
     THEN
@@ -999,7 +999,7 @@ SECURITY    DEFINER;
 CREATE OR REPLACE
 FUNCTION    mv$setPgMviewLogBit
             (
-                pConst          IN      mike_pgmview.mv$allConstants,
+                pConst          IN      mv$allConstants,
                 pOwner          IN      TEXT,
                 pPgLog$Name     IN      TEXT,
                 pPbMviewBitmap  IN      BIGINT
@@ -1040,7 +1040,7 @@ BEGIN
     iBit                := mv$findFirstFreeBit( pConst, pPbMviewBitmap );
     iBitValue           := mv$getBitValue( pConst, iBit );
 
-    UPDATE  mike_pgmview.mike$_pgmview_logs
+    UPDATE  pg$mview_logs
     SET     pg_mview_bitmap = pg_mview_bitmap + iBitValue
     WHERE   owner           = pOwner
     AND     pglog$_name     = pPgLog$Name;
@@ -1061,7 +1061,7 @@ SECURITY    DEFINER;
 CREATE OR REPLACE
 FUNCTION    mv$updateMaterializedViewRows
             (
-                pConst          IN      mike_pgmview.mv$allConstants,
+                pConst          IN      mv$allConstants,
                 pOwner          IN      TEXT,
                 pViewName       IN      TEXT,
                 pTableAlias     IN      TEXT,
@@ -1095,10 +1095,10 @@ Copyright 2018 Amazon.com, Inc. or its affiliates. All Rights Reserved. SPDX-Lic
 ***********************************************************************************************************************************/
 DECLARE
 
+    bBaseRowExists  BOOLEAN     := FALSE;
     cResult         CHAR(1)     := NULL;
     tSqlStatement   TEXT;
-    aPgMview        mike_pgmview.mike$_pgmviews;
-    bBaseRowExists  BOOLEAN := FALSE;
+    aPgMview        pg$mviews;
 
 BEGIN
 

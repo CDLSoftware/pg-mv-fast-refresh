@@ -661,4 +661,4 @@ $BODY$
 LANGUAGE    plpgsql
 SECURITY    DEFINER;
 
-SELECT mv$help;
+SELECT mv$help();

@@ -116,7 +116,7 @@ Copyright 2019 Amazon.com, Inc. or its affiliates. All Rights Reserved. SPDX-Lic
 DECLARE
     cResult             CHAR(1)     := NULL;
 
-    rConst              mike_pgmview.mv$allConstants;
+    rConst              mv$allConstants;
 
     tSelectColumns      TEXT        := NULL;
     tTableNames         TEXT        := NULL;
@@ -260,7 +260,7 @@ Copyright 2019 Amazon.com, Inc. or its affiliates. All Rights Reserved. SPDX-Lic
 ***********************************************************************************************************************************/
 DECLARE
 
-    rConst          mike_pgmview.mv$allConstants;
+    rConst          mv$allConstants;
 
     tSqlStatement   TEXT    := NULL;
     tLog$Name       TEXT    := NULL;
@@ -326,7 +326,7 @@ Copyright 2019 Amazon.com, Inc. or its affiliates. All Rights Reserved. SPDX-Lic
 ***********************************************************************************************************************************/
 DECLARE
 
-    rConst          mike_pgmview.mv$allConstants;
+    rConst          mv$allConstants;
 
 BEGIN
 
@@ -379,8 +379,8 @@ DECLARE
 
     tSqlStatement       TEXT;
     uRow$               UUID;
-    aMikePgMviewLogs    mike_pgmview.mike$_pgmview_logs;
-    rConst              mike_pgmview.mv$allConstants;
+    aMikePgMviewLogs    pg$mview_logs;
+    rConst              mv$allConstants;
 
 BEGIN
 
@@ -460,7 +460,7 @@ DECLARE
 
     cResult     CHAR(1) := NULL;
 
-    rConst      mike_pgmview.mv$allConstants;
+    rConst      mv$allConstants;
 
 BEGIN
 
@@ -517,8 +517,8 @@ Copyright 2019 Amazon.com, Inc. or its affiliates. All Rights Reserved. SPDX-Lic
 ***********************************************************************************************************************************/
 DECLARE
 
-    aPgMview    mike_pgmview.mike$_pgmviews;
-    rConst      mike_pgmview.mv$allConstants;
+    aPgMview    pg$mviews;
+    rConst      mv$allConstants;
 
     cResult     CHAR(1);
 
@@ -577,13 +577,13 @@ Copyright 2019 Amazon.com, Inc. or its affiliates. All Rights Reserved. SPDX-Lic
 ***********************************************************************************************************************************/
 DECLARE
 
-    rConst          mike_pgmview.mv$allConstants;
-    aViewLog        mike_pgmview.mike$_pgmview_logs;
+    rConst          mv$allConstants;
+    aViewLog        pg$mview_logs;
 
-    tSqlStatement       TEXT;
-    tLog$Name           TEXT        := NULL;
-    tMvTriggerName      TEXT        := NULL;
-    cResult             CHAR(1)     := NULL;
+    tSqlStatement   TEXT;
+    tLog$Name       TEXT        := NULL;
+    tMvTriggerName  TEXT        := NULL;
+    cResult         CHAR(1)     := NULL;
 
 BEGIN
 

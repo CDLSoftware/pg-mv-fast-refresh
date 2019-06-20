@@ -84,7 +84,7 @@ SET CLIENT_MIN_MESSAGES = NOTICE;
 CREATE OR REPLACE
 FUNCTION    mv$addIndexToMvLog$Table
             (
-                pConst          IN      mike_pgmview.mv$allConstants,
+                pConst          IN      mv$allConstants,
                 pOwner          IN      TEXT,
                 pPgLog$Name     IN      TEXT
             )
@@ -144,7 +144,7 @@ SECURITY    DEFINER;
 CREATE OR REPLACE
 FUNCTION    mv$addRow$ToMv$Table
             (
-                pConst              IN      mike_pgmview.mv$allConstants,
+                pConst              IN      mv$allConstants,
                 pOwner              IN      TEXT,
                 pViewName           IN      TEXT,
                 pAliasArray         IN      TEXT[],
@@ -228,7 +228,7 @@ SECURITY    DEFINER;
 CREATE OR REPLACE
 FUNCTION    mv$addRow$ToSourceTable
             (
-                pConst          IN      mike_pgmview.mv$allConstants,
+                pConst          IN      mv$allConstants,
                 pOwner          IN      TEXT,
                 pTableName      IN      TEXT
             )
@@ -283,7 +283,7 @@ SECURITY    DEFINER;
 CREATE OR REPLACE
 FUNCTION    mv$checkIfOuterJoinedTable
             (
-                pConst              IN      mike_pgmview.mv$allConstants,
+                pConst              IN      mv$allConstants,
                 pTableName          IN      TEXT,
                 pOuterTableArray    IN      TEXT[]
             )
@@ -346,7 +346,7 @@ SECURITY    DEFINER;
 CREATE OR REPLACE
 FUNCTION    mv$clearPgMvLogTableBits
             (
-                pConst          IN      mike_pgmview.mv$allConstants,
+                pConst          IN      mv$allConstants,
                 pOwner          IN      TEXT,
                 pPgLog$Name     IN      TEXT,
                 pBit            IN      SMALLINT,
@@ -412,7 +412,7 @@ SECURITY    DEFINER;
 CREATE OR REPLACE
 FUNCTION    mv$clearSpentPgMviewLogs
             (
-                pConst          IN      mike_pgmview.mv$allConstants,
+                pConst          IN      mv$allConstants,
                 pOwner          IN      TEXT,
                 pPgLog$Name     IN      TEXT
             )
@@ -467,7 +467,7 @@ SECURITY    DEFINER;
 CREATE OR REPLACE
 FUNCTION    mv$createMvLog$Table
             (
-                pConst          IN      mike_pgmview.mv$allConstants,
+                pConst          IN      mv$allConstants,
                 pOwner          IN      TEXT,
                 pPgLog$Name     IN      TEXT,
                 pStorageClause  IN      TEXT     DEFAULT NULL
@@ -529,7 +529,7 @@ SECURITY    DEFINER;
 CREATE OR REPLACE
 FUNCTION    mv$createMvLogTrigger
             (
-                pConst              IN      mike_pgmview.mv$allConstants,
+                pConst              IN      mv$allConstants,
                 pOwner              IN      TEXT,
                 pTableName          IN      TEXT,
                 pMvTriggerName      IN      TEXT
@@ -588,7 +588,7 @@ SECURITY    DEFINER;
 CREATE OR REPLACE
 FUNCTION    mv$createRow$Column
             (
-                pConst      IN      mike_pgmview.mv$allConstants,
+                pConst      IN      mv$allConstants,
                 pTableName  IN      TEXT
             )
     RETURNS TEXT
@@ -646,7 +646,7 @@ SECURITY    DEFINER;
 CREATE OR REPLACE
 FUNCTION    mv$deconstructSqlStatement
             (
-                pConst              IN      mike_pgmview.mv$allConstants,
+                pConst              IN      mv$allConstants,
                 pSqlStatement       IN      TEXT,
                 pTableNames           OUT   TEXT,
                 pSelectColumns        OUT   TEXT,
@@ -753,7 +753,7 @@ SECURITY    DEFINER;
 CREATE OR REPLACE
 FUNCTION    mv$deleteMaterializedViewRows
             (
-                pConst          IN      mike_pgmview.mv$allConstants,
+                pConst          IN      mv$allConstants,
                 pOwner          IN      TEXT,
                 pViewName       IN      TEXT,
                 pRowidColumn    IN      TEXT,
@@ -836,7 +836,7 @@ Date        | Name          | Description
 04/06/2019  | M Revitt      | Initial version
 ------------+---------------+-------------------------------------------------------------------------------------------------------
 Description:    Every time a new materialized view is created, a record of that view is also created in the data dictionary table
-                mike$_pgmviews.
+                pgmviews.
 
                 This function removes that row when a materialized view is removed.
 
@@ -850,7 +850,7 @@ Copyright 2019 Amazon.com, Inc. or its affiliates. All Rights Reserved. SPDX-Lic
 BEGIN
 
     DELETE
-    FROM    mike_pgmview.mike$_pgmviews
+    FROM    pgmviews
     WHERE
             owner       = pOwner
     AND     view_name   = pViewName;
@@ -888,8 +888,8 @@ Date        | Name          | Description
             |               |
 04/06/2019  | M Revitt      | Initial version
 ------------+---------------+-------------------------------------------------------------------------------------------------------
-Description:    Every time a new materialized view log is created, a record of that log is also created in the data dictionary table
-                mike$_pgmview_logs.
+Description:    Every time a new materialized view is created, a record of that view is also created in the data dictionary table
+                pgmviews.
 
                 This function removes that row when a materialized view log is removed.
 
@@ -903,7 +903,7 @@ Copyright 2019 Amazon.com, Inc. or its affiliates. All Rights Reserved. SPDX-Lic
 BEGIN
 
     DELETE
-    FROM    mike_pgmview.mike$_pgmview_logs
+    FROM    pg$mview_logs
     WHERE
             owner       = pOwner
     AND     table_name  = pTableName;
@@ -924,7 +924,7 @@ SECURITY    DEFINER;
 CREATE OR REPLACE
 FUNCTION    mv$dropTable
             (
-                pConst              IN      mike_pgmview.mv$allConstants,
+                pConst              IN      mv$allConstants,
                 pOwner              IN      TEXT,
                 pTableName          IN      TEXT
             )
@@ -979,7 +979,7 @@ SECURITY    DEFINER;
 CREATE OR REPLACE
 FUNCTION    mv$dropTrigger
             (
-                pConst          IN      mike_pgmview.mv$allConstants,
+                pConst          IN      mv$allConstants,
                 pOwner          IN      TEXT,
                 pTriggerName    IN      TEXT,
                 pTableName      IN      TEXT
@@ -1036,7 +1036,7 @@ SECURITY    DEFINER;
 CREATE OR REPLACE
 FUNCTION    mv$extractCompoundViewTables
             (
-                pConst              IN      mike_pgmview.mv$allConstants,
+                pConst              IN      mv$allConstants,
                 pTableNames         IN      TEXT,
                 pTableArray           OUT   TEXT[],
                 pAliasArray           OUT   TEXT[],
@@ -1228,7 +1228,7 @@ SECURITY    DEFINER;
 CREATE OR REPLACE
 FUNCTION    mv$findFirstFreeBit
             (
-                pConst      IN      mike_pgmview.mv$allConstants,
+                pConst      IN      mv$allConstants,
                 pBitMap     IN      BIGINT
             )
     RETURNS SMALLINT
@@ -1284,7 +1284,7 @@ SECURITY    DEFINER;
 CREATE OR REPLACE
 FUNCTION    mv$getBitValue
             (
-                pConst  IN      mike_pgmview.mv$allConstants,
+                pConst  IN      mv$allConstants,
                 pBit    IN      SMALLINT
             )
     RETURNS BIGINT
@@ -1326,11 +1326,11 @@ SECURITY    DEFINER;
 CREATE OR REPLACE
 FUNCTION    mv$getPgMviewLogTableData
             (
-                pConst      IN      mike_pgmview.mv$allConstants,
+                pConst      IN      mv$allConstants,
                 pOwner      IN      TEXT,
                 pTableName  IN      TEXT
             )
-    RETURNS mike_pgmview.mike$_pgmview_logs
+    RETURNS pg$mview_logs
 AS
 $BODY$
 /* ---------------------------------------------------------------------------------------------------------------------------------
@@ -1355,13 +1355,13 @@ Copyright 2019 Amazon.com, Inc. or its affiliates. All Rights Reserved. SPDX-Lic
 ***********************************************************************************************************************************/
 DECLARE
 
-    aMikePgMviewLog            mike_pgmview.mike$_pgmview_logs;
+    aMikePgMviewLog            pg$mview_logs;
 
     cgetPgMviewLogTableData    CURSOR
     FOR
     SELECT
             *
-    FROM    mike_pgmview.mike$_pgmview_logs
+    FROM    pg$mview_logs
     WHERE   owner       = pOwner
     AND     table_name  = pTableName;
 
@@ -1385,10 +1385,10 @@ SECURITY    DEFINER;
 CREATE OR REPLACE
 FUNCTION    mv$getPgMviewLogTableData
             (
-                pConst      IN      mike_pgmview.mv$allConstants,
+                pConst      IN      mv$allConstants,
                 pTableName  IN      TEXT
             )
-    RETURNS mike_pgmview.mike$_pgmview_logs
+    RETURNS pg$mview_logs
 AS
 $BODY$
 /* ---------------------------------------------------------------------------------------------------------------------------------
@@ -1434,11 +1434,11 @@ SECURITY    DEFINER;
 CREATE OR REPLACE
 FUNCTION    mv$getPgMviewTableData
             (
-                pConst      IN      mike_pgmview.mv$allConstants,
+                pConst      IN      mv$allConstants,
                 pOwner      IN      TEXT,
                 pViewName   IN      TEXT
             )
-    RETURNS mike_pgmview.mike$_PgMviews
+    RETURNS pg$Mviews
 AS
 $BODY$
 /* ---------------------------------------------------------------------------------------------------------------------------------
@@ -1463,13 +1463,13 @@ Returns:                RECORD              The row of data from the data dictio
 Copyright 2019 Amazon.com, Inc. or its affiliates. All Rights Reserved. SPDX-License-Identifier: MIT-0
 ***********************************************************************************************************************************/
 DECLARE
-    aMikePgMview           mike_pgmview.mike$_PgMviews;
+    aMikePgMview           pg$Mviews;
 
     cgetPgMviewTableData   CURSOR
     FOR
     SELECT
             *
-    FROM    mike_pgmview.mike$_PgMviews
+    FROM    pg$Mviews
     WHERE   owner       = pOwner
     AND     view_name   = pViewName;
 BEGIN
@@ -1492,7 +1492,7 @@ SECURITY    DEFINER;
 CREATE OR REPLACE
 FUNCTION    mv$getPgMviewViewColumns
             (
-                pConst      IN      mike_pgmview.mv$allConstants,
+                pConst      IN      mv$allConstants,
                 pOwner      IN      TEXT,
                 pViewName   IN      TEXT
             )
@@ -1556,7 +1556,7 @@ SECURITY    DEFINER;
 CREATE OR REPLACE
 FUNCTION    mv$getSourceTableSchema
             (
-                pConst      IN      mike_pgmview.mv$allConstants,
+                pConst      IN      mv$allConstants,
                 pTableName  IN      TEXT
             )
     RETURNS TEXT
@@ -1635,7 +1635,7 @@ SECURITY    DEFINER;
 CREATE OR REPLACE
 FUNCTION    mv$grantSelectPrivileges
             (
-                pConst          IN      mike_pgmview.mv$allConstants,
+                pConst          IN      mv$allConstants,
                 pOwner          IN      TEXT,
                 pObjectName     IN      TEXT
             )
@@ -1692,7 +1692,7 @@ SECURITY    DEFINER;
 CREATE OR REPLACE
 FUNCTION    mv$insertMikePgMviewLogs
             (
-                pConst          IN      mike_pgmview.mv$allConstants,
+                pConst          IN      mv$allConstants,
                 pOwner          IN      TEXT,
                 pPgLog$Name     IN      TEXT,
                 pTableName      IN      TEXT,
@@ -1726,7 +1726,7 @@ Copyright 2019 Amazon.com, Inc. or its affiliates. All Rights Reserved. SPDX-Lic
 BEGIN
 
     INSERT  INTO
-            mike_pgmview.mike$_pgmview_logs
+            pg$mview_logs
             (
                 owner,  pglog$_name, table_name, trigger_name
             )
@@ -1750,7 +1750,7 @@ SECURITY    DEFINER;
 CREATE OR REPLACE
 FUNCTION    mv$removeRow$FromSourceTable
             (
-                pConst          IN      mike_pgmview.mv$allConstants,
+                pConst          IN      mv$allConstants,
                 pOwner          IN      TEXT,
                 pTableName      IN      TEXT
             )
@@ -1804,7 +1804,7 @@ SECURITY    DEFINER;
 CREATE OR REPLACE
 FUNCTION    mv$replaceCommandWithToken
             (
-                pConst          IN      mike_pgmview.mv$allConstants,
+                pConst          IN      mv$allConstants,
                 pSearchString   IN      TEXT,
                 pSearchValue    IN      TEXT,
                 pTokan          IN      TEXT
@@ -1864,7 +1864,7 @@ SECURITY    DEFINER;
 CREATE OR REPLACE
 FUNCTION    mv$truncateMaterializedView
             (
-                pConst      IN      mike_pgmview.mv$allConstants,
+                pConst      IN      mv$allConstants,
                 pOwner      IN      TEXT,
                 pViewName   IN      TEXT
             )
