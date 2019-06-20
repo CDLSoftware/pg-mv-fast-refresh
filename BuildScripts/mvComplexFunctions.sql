@@ -49,7 +49,7 @@ OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
 SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ***********************************************************************************************************************************/
 
--- psql -h localhost -p 5432 -d postgres -U pgrs_mview -q -f mvComplexFunctions.sql
+-- psql -h localhost -p 5432 -d postgres -U mike_pgmview -q -f mvComplexFunctions.sql
 
 -- -------------------- Write DROP-FUNCTION-stage scripts ----------------------
 
@@ -58,9 +58,9 @@ SET     CLIENT_MIN_MESSAGES = ERROR;
 DROP FUNCTION IF EXISTS mv$clearAllPgMvLogTableBits;
 DROP FUNCTION IF EXISTS mv$clearAllPgMviewLogBit;
 DROP FUNCTION IF EXISTS mv$clearPgMviewLogBit;
-DROP FUNCTION IF EXISTS mv$createPgMview;
+DROP FUNCTION IF EXISTS mv$createPgMv$Table;
 DROP FUNCTION IF EXISTS mv$insertMaterializedViewRows;
-DROP FUNCTION IF EXISTS mv$insertPgMview;
+DROP FUNCTION IF EXISTS mv$insertMike$PgMview;
 DROP FUNCTION IF EXISTS mv$insertOuterJoinRows;
 DROP FUNCTION IF EXISTS mv$executeMVFastRefresh;
 DROP FUNCTION IF EXISTS mv$refreshMaterializedViewFast;
@@ -74,7 +74,7 @@ SET CLIENT_MIN_MESSAGES = NOTICE;
 CREATE OR REPLACE
 FUNCTION    mv$clearAllPgMvLogTableBits
             (
-                pConst      IN      mv$allConstants,
+                pConst      IN      mike_pgmview.mv$allConstants,
                 pOwner      IN      TEXT,
                 pViewName   IN      TEXT
             )
@@ -113,8 +113,8 @@ Copyright 2018 Amazon.com, Inc. or its affiliates. All Rights Reserved. SPDX-Lic
 DECLARE
 
     cResult         CHAR(1);
-    aViewLog        pgmview_logs;
-    aPgMview        pgmviews;
+    aViewLog        mike_pgmview.mike$_pgmview_logs;
+    aPgMview        mike_pgmview.mike$_pgmviews;
 
 BEGIN
     aPgMview := mv$getPgMviewTableData( pConst, pOwner, pViewName );
@@ -129,7 +129,7 @@ BEGIN
                         aViewLog.owner,
                         aViewLog.pglog$_name,
                         aPgMview.bit_array[i],
-                        pConst.MAX_INTEGER_SIZE
+                        pConst.MAX_BITMAP_SIZE
                     );
 
         cResult := mv$clearSpentPgMviewLogs( pConst, aViewLog.owner, aViewLog.pglog$_name );
@@ -151,7 +151,7 @@ SECURITY    DEFINER;
 CREATE OR REPLACE
 FUNCTION    mv$clearPgMviewLogBit
             (
-                pConst      IN      mv$allConstants,
+                pConst      IN      mike_pgmview.mv$allConstants,
                 pOwner      IN      TEXT,
                 pViewName   IN      TEXT
             )
@@ -186,8 +186,8 @@ DECLARE
 
     cResult     CHAR(1);
     iBitValue   INTEGER     := NULL;
-    aViewLog    pgmview_logs;
-    aPgMview    pgmviews;
+    aViewLog    mike_pgmview.mike$_pgmview_logs;
+    aPgMview    mike_pgmview.mike$_pgmviews;
 
 BEGIN
     aPgMview    := mv$getPgMviewTableData( pConst, pOwner, pViewName );
@@ -198,8 +198,8 @@ BEGIN
 
         iBitValue := mv$getBitValue( pConst, aPgMview.bit_array[i] );
 
-        UPDATE  pgmview_logs
-        SET     pgrs_mview_bitmap = pgrs_mview_bitmap - iBitValue
+        UPDATE  mike_pgmview.mike$_pgmview_logs
+        SET     pg_mview_bitmap = pg_mview_bitmap - iBitValue
         WHERE   owner           = aViewLog.owner
         AND     table_name      = aViewLog.table_name;
 
@@ -219,18 +219,21 @@ LANGUAGE    plpgsql
 SECURITY    DEFINER;
 ------------------------------------------------------------------------------------------------------------------------------------
 CREATE OR REPLACE
-FUNCTION    mv$createPgMview
+FUNCTION    mv$createPgMv$Table
             (
-                pConst      IN      mv$allConstants,
-                pOwner      IN      TEXT,
-                pViewName   IN      TEXT,
-                pPgMvName   IN      TEXT
+                pConst              IN      mike_pgmview.mv$allConstants,
+                pOwner              IN      TEXT,
+                pViewName           IN      TEXT,
+                pViewColumns        IN      TEXT,
+                pSelectColumns      IN      TEXT,
+                pTableNames         IN      TEXT,
+                pStorageClause      IN      TEXT
             )
     RETURNS TEXT
 AS
 $BODY$
 /* ---------------------------------------------------------------------------------------------------------------------------------
-Routine Name: mv$createPgMview
+Routine Name: mv$createPgMv$Table
 Author:       Mike Revitt
 Date:         16/01/2019
 ------------------------------------------------------------------------------------------------------------------------------------
@@ -241,37 +244,69 @@ Date        | Name          | Description
             |               |
 16/01/2019  | M Revitt      | Initial version
 ------------+---------------+-------------------------------------------------------------------------------------------------------
-Description:    Creates the materialised view as a select * from the PgMv$ base table before the rowid columns are added
+Description:    Creates the base table upon which the Materialized View will be based from the provided SQL statment
+
+Note:           This function requires the SEARCH_PATH to be set to the current value so that the select statement can find the
+                source tables.
+                The default for PostGres functions is to not use the search path when executing with the privileges of the creator
 
 Arguments:      IN      pOwner              The owner of the object
-                IN      pViewName           The name of the materialized view
-                IN      pPgMvName           The name of the materialized view base table (pgmv$ table)
-Returns:                TEXT                The list of columns in the newly created view
+                IN      pViewName           The name of the materialized view base table
+                IN      pViewColumns        Allow the view to be created with different names to the base table
+                                            This list is positional so must match the position and number of columns in the
+                                            select statment
+                IN      pSelectColumns      The column list from the SQL query that will be used to create the view
+                IN      pTableNames         The string between the FROM and WHERE clauses in the SQL query
+                IN      pStorageClause      Optional, storage clause for the materialized view
+Returns:                VOID
 ************************************************************************************************************************************
 Copyright 2018 Amazon.com, Inc. or its affiliates. All Rights Reserved. SPDX-License-Identifier: MIT-0
 ***********************************************************************************************************************************/
 DECLARE
 
     cResult         CHAR(1);
+    tDefinedColumns TEXT    := NULL;
     tSqlStatement   TEXT    := NULL;
+    tStorageClause  TEXT    := NULL;
     tViewColumns    TEXT    := NULL;
 
 BEGIN
 
-    tSqlStatement   :=  pConst.CREATE_VIEW     || pOwner  || pConst.DOT_CHARACTER  || pViewName   ||
-                        pConst.CREATE_VIEW_AS  || pOwner  || pConst.DOT_CHARACTER  || pPgMvName;
+    IF pViewColumns IS NOT NULL
+    THEN
+        tDefinedColumns :=  pConst.OPEN_BRACKET ||
+                                REPLACE( REPLACE( pViewColumns,
+                                pConst.OPEN_BRACKET  , NULL ),
+                                pConst.CLOSE_BRACKET , NULL ) ||
+                            pConst.CLOSE_BRACKET;
+    ELSE
+        tDefinedColumns :=  pConst.SPACE_CHARACTER;
+    END IF;
+
+    IF pStorageClause IS NOT NULL
+    THEN
+        tStorageClause := pStorageClause;
+    ELSE
+        tStorageClause := pConst.SPACE_CHARACTER;
+    END IF;
+
+    tSqlStatement   :=  pConst.CREATE_TABLE     || pOwner          || pConst.DOT_CHARACTER || pViewName || tDefinedColumns  ||
+                        pConst.AS_COMMAND       ||
+                        pConst.SELECT_COMMAND   || pSelectColumns  ||
+                        pConst.FROM_COMMAND     || pTableNames     ||
+                        pConst.WHERE_NO_DATA    || tStorageClause;
 
     EXECUTE tSqlStatement;
 
-    cResult         := mv$grantSelectPrivileges( pConst, pOwner, pViewName );
-    tViewColumns    := mv$getPgMviewViewColumns( pConst, pOwner, pViewName );
+    cResult         :=  mv$grantSelectPrivileges( pConst, pOwner, pViewName );
+    tViewColumns    :=  mv$getPgMviewViewColumns( pConst, pOwner, pViewName );
 
     RETURN tViewColumns;
 
     EXCEPTION
     WHEN OTHERS
     THEN
-        RAISE INFO      'Exception in function mv$createPgMview';
+        RAISE INFO      'Exception in function mv$createPgMv$Table';
         RAISE INFO      'Error %:- %:',     SQLSTATE, SQLERRM;
         RAISE INFO      'Error Context:% %',CHR(10),  tSqlStatement;
         RAISE EXCEPTION '%',                SQLSTATE;
@@ -281,9 +316,9 @@ LANGUAGE    plpgsql
 SECURITY    DEFINER;
 ------------------------------------------------------------------------------------------------------------------------------------
 CREATE OR REPLACE
-FUNCTION   mv$insertMaterializedViewRows
+FUNCTION    mv$insertMaterializedViewRows
             (
-                pConst          IN      mv$allConstants,
+                pConst          IN      mike_pgmview.mv$allConstants,
                 pOwner          IN      TEXT,
                 pViewName       IN      TEXT,
                 pTableAlias     IN      TEXT    DEFAULT NULL,
@@ -322,14 +357,14 @@ Copyright 2018 Amazon.com, Inc. or its affiliates. All Rights Reserved. SPDX-Lic
 DECLARE
 
     tSqlStatement   TEXT;
-    aPgMview        pgmviews;
+    aPgMview        mike_pgmview.mike$_pgmviews;
 
 BEGIN
 
     aPgMview := mv$getPgMviewTableData( pConst, pOwner, pViewName );
 
-    tSqlStatement := pConst.INSERT_INTO    || pOwner || pConst.DOT_CHARACTER    || aPgMview.pgmv$_name  ||
-                     pConst.OPEN_BRACKET   || aPgMview.pgmv_columns             || pConst.CLOSE_BRACKET     ||
+    tSqlStatement := pConst.INSERT_INTO    || pOwner || pConst.DOT_CHARACTER    || aPgMview.view_name   ||
+                     pConst.OPEN_BRACKET   || aPgMview.pgmv_columns             || pConst.CLOSE_BRACKET ||
                      pConst.SELECT_COMMAND || aPgMview.select_columns           ||
                      pConst.FROM_COMMAND   || aPgMview.table_names;
 
@@ -338,7 +373,7 @@ BEGIN
         tSqlStatement := tSqlStatement || pConst.WHERE_COMMAND || aPgMview.where_clause ;
     END IF;
 
-    IF pRowIDs IS NOT NULL
+    IF pRowIDs IS NOT NULL -- Because this fires for a Full Refresh as well as a Fast Refresh
     THEN
         IF aPgMview.where_clause != pConst.EMPTY_STRING
         THEN
@@ -368,13 +403,12 @@ LANGUAGE    plpgsql
 SECURITY    DEFINER;
 ------------------------------------------------------------------------------------------------------------------------------------
 CREATE OR REPLACE
-FUNCTION    mv$insertPgMview
+FUNCTION    mv$insertMike$PgMview
             (
-                pConst              IN      mv$allConstants,
+                pConst              IN      mike_pgmview.mv$allConstants,
                 pOwner              IN      TEXT,
                 pViewName           IN      TEXT,
-                pPgMvName           IN      TEXT,
-                pPgMvColumns        IN      TEXT,
+                pViewColumns        IN      TEXT,
                 pSelectColumns      IN      TEXT,
                 pTableNames         IN      TEXT,
                 pWhereClause        IN      TEXT,
@@ -382,16 +416,15 @@ FUNCTION    mv$insertPgMview
                 pAliasArray         IN      TEXT[],
                 pRowidArray         IN      TEXT[],
                 pOuterTableArray    IN      TEXT[],
-                pParentTableArray   IN      TEXT[],
-                pParentAliasArray   IN      TEXT[],
-                pParentRowidArray   IN      TEXT[],
+                pInnerAliasArray    IN      TEXT[],
+                pInnerRowidArray    IN      TEXT[],
                 pFastRefresh        IN      BOOLEAN
             )
     RETURNS VOID
 AS
 $BODY$
 /* ---------------------------------------------------------------------------------------------------------------------------------
-Routine Name: mv$insertPgMview
+Routine Name: mv$insertMike$PgMview
 Author:       Mike Revitt
 Date:         12/011/2018
 ------------------------------------------------------------------------------------------------------------------------------------
@@ -403,15 +436,14 @@ Date        | Name          | Description
 11/03/2018  | M Revitt      | Initial version
 ------------+---------------+-------------------------------------------------------------------------------------------------------
 Description:    Every time a new materialized view is created, a record of that view is also created in the data dictionary table
-                pgmviews.
+                mike$_pgmviews.
 
                 This table holds all of the pertinent information about the materialized view which is later used in the management
                 of that view.
 
 Arguments:      IN      pOwner              The owner of the object
                 IN      pViewName           The name of the materialized view
-                IN      pPgMvName           The name of the "hidden" base table containing the data
-                IN      pPgMvColumns        The comma delimited list of columns in the base pgmv$ table
+                IN      pViewColumns        The comma delimited list of columns in the base pgmv$ table
                 IN      pSelectColumns      The comma delimited list of columns from the select statement
                 IN      pTableNames         The comma delimited list of tables from the select statement
                 IN      pWhereClause        The where clause from the select statement, this may be an empty string
@@ -427,7 +459,7 @@ Copyright 2018 Amazon.com, Inc. or its affiliates. All Rights Reserved. SPDX-Lic
 ***********************************************************************************************************************************/
 DECLARE
 
-    aPgMviewLogData pgmview_logs;
+    aPgMviewLogData mike_pgmview.mike$_pgmview_logs;
 
     iBit            SMALLINT    := NULL;
     tLogArray       TEXT[];
@@ -444,7 +476,7 @@ BEGIN
                                         pConst,
                                         aPgMviewLogData.owner,
                                         aPgMviewLogData.pglog$_name,
-                                        aPgMviewLogData.pgrs_mview_bitmap
+                                        aPgMviewLogData.pg_mview_bitmap
                                     );
             tLogArray[i]        :=  aPgMviewLogData.pglog$_name;
             iBitArray[i]        :=  iBit;
@@ -452,11 +484,10 @@ BEGIN
     END IF;
 
     INSERT
-    INTO    pgmviews
+    INTO    mike_pgmview.mike$_pgmviews
     (
             owner,
             view_name,
-            pgmv$_name,
             pgmv_columns,
             select_columns,
             table_names,
@@ -467,16 +498,14 @@ BEGIN
             log_array,
             bit_array,
             outer_table_array,
-            parent_table_array,
-            parent_alias_array,
-            parent_rowid_array
+            inner_alias_array,
+            inner_rowid_array
     )
     VALUES
     (
             pOwner,
             pViewName,
-            pPgMvName,
-            pPgMvColumns,
+            pViewColumns,
             pSelectColumns,
             pTableNames,
             pWhereClause,
@@ -486,11 +515,18 @@ BEGIN
             tLogArray,
             iBitArray,
             pOuterTableArray,
-            pParentTableArray,
-            pParentAliasArray,
-            pParentRowidArray
+            pInnerAliasArray,
+            pInnerRowidArray
     );
     RETURN;
+
+    EXCEPTION
+    WHEN OTHERS
+    THEN
+        RAISE INFO      'Exception in function mv$insertMike$PgMview';
+        RAISE INFO      'Error %:- %:',     SQLSTATE, SQLERRM;
+        RAISE EXCEPTION '%',                SQLSTATE;
+
 END;
 $BODY$
 LANGUAGE    plpgsql
@@ -499,16 +535,15 @@ SECURITY    DEFINER;
 CREATE OR REPLACE
 FUNCTION    mv$executeMVFastRefresh
             (
-                pConst          IN      mv$allConstants,
+                pConst          IN      mike_pgmview.mv$allConstants,
                 pDmlType        IN      TEXT,
                 pOwner          IN      TEXT,
                 pViewName       IN      TEXT,
-                pPgMvName       IN      TEXT,
                 pRowidColumn    IN      TEXT,
                 pTableAlias     IN      TEXT,
                 pOuterTable     IN      BOOLEAN,
-                pParentAlias    IN      TEXT,
-                pParentRowid    IN      TEXT,
+                pInnerAlias     IN      TEXT,
+                pInnerRowid     IN      TEXT,
                 pRowIDArray     IN      UUID[]
             )
     RETURNS VOID
@@ -541,14 +576,14 @@ Copyright 2018 Amazon.com, Inc. or its affiliates. All Rights Reserved. SPDX-Lic
 ***********************************************************************************************************************************/
 DECLARE
 
-    cResult         CHAR(1)     := NULL;
+    cResult CHAR(1)     := NULL;
 
 BEGIN
 
     CASE pDmlType
     WHEN pConst.DELETE_DML_TYPE
     THEN
-        cResult := mv$deleteMaterializedViewRows( pConst, pOwner, pPgMvName, pRowidColumn, pRowIDArray );
+        cResult := mv$deleteMaterializedViewRows( pConst, pOwner, pViewName, pRowidColumn, pRowIDArray );
 
     WHEN pConst.INSERT_DML_TYPE
     THEN
@@ -560,17 +595,18 @@ BEGIN
                             pOwner,
                             pViewName,
                             pTableAlias,
-                            pParentAlias,
-                            pParentRowid,
+                            pInnerAlias,
+                            pInnerRowid,
                             pRowIDArray
                         );
         ELSE
-            cResult := mv$insertMaterializedViewRows( pConst, pOwner, pViewName, pTableAlias, pRowIDArray );
+            cResult := mv$deleteMaterializedViewRows( pConst, pOwner, pViewName, pRowidColumn, pRowIDArray );
+            cResult := mv$insertMaterializedViewRows( pConst, pOwner, pViewName, pTableAlias,  pRowIDArray );
         END IF;
 
     WHEN pConst.UPDATE_DML_TYPE
     THEN
-        cResult := mv$deleteMaterializedViewRows( pConst, pOwner, pPgMvName, pRowidColumn, pRowIDArray );
+        cResult := mv$deleteMaterializedViewRows( pConst, pOwner, pViewName, pRowidColumn, pRowIDArray );
         cResult := mv$updateMaterializedViewRows( pConst, pOwner, pViewName, pTableAlias,  pRowIDArray );
     ELSE
         RAISE EXCEPTION 'DML Type % is unknown', pDmlType;
@@ -592,17 +628,16 @@ SECURITY    DEFINER;
 CREATE OR REPLACE
 FUNCTION    mv$refreshMaterializedViewFast
             (
-                pConst          IN      mv$allConstants,
+                pConst          IN      mike_pgmview.mv$allConstants,
                 pOwner          IN      TEXT,
                 pViewName       IN      TEXT,
-                pPgMvName       IN      TEXT,
                 pTableAlias     IN      TEXT,
                 pTableName      IN      TEXT,
                 pRowidColumn    IN      TEXT,
                 pPgMviewBit     IN      SMALLINT,
                 pOuterTable     IN      BOOLEAN,
-                pParentAlias    IN      TEXT,
-                pParentRowid    IN      TEXT
+                pInnerAlias     IN      TEXT,
+                pInnerRowid     IN      TEXT
             )
     RETURNS VOID
 AS
@@ -638,12 +673,12 @@ DECLARE
     tSqlStatement   TEXT        := NULL;
     cResult         CHAR(1)     := NULL;
     iArraySeq       INTEGER     := 0;
-    biSequence      INTEGER     := 0;
-    biMaxSequence   INTEGER     := 0;
+    biSequence      BIGINT      := 0;
+    biMaxSequence   BIGINT      := 0;
     uRowID          UUID;
     uRowIDArray     UUID[];
 
-    aViewLog        pgmview_logs;
+    aViewLog        mike_pgmview.mike$_pgmview_logs;
 
 BEGIN
 
@@ -673,12 +708,11 @@ BEGIN
                             tLastType,
                             pOwner,
                             pViewName,
-                            pPgMvName,
                             pRowidColumn,
                             pTableAlias,
                             pOuterTable,
-                            pParentAlias,
-                            pParentRowid,
+                            pInnerAlias,
+                            pInnerRowid,
                             uRowIDArray
                         );
 
@@ -696,12 +730,11 @@ BEGIN
                         tLastType,
                         pOwner,
                         pViewName,
-                        pPgMvName,
                         pRowidColumn,
                         pTableAlias,
                         pOuterTable,
-                        pParentAlias,
-                        pParentRowid,
+                        pInnerAlias,
+                        pInnerRowid,
                         uRowIDArray
                     );
 
@@ -716,7 +749,6 @@ BEGIN
 
         cResult := mv$clearSpentPgMviewLogs( pConst, aViewLog.owner, aViewLog.pglog$_name );
     END IF;
-
     RETURN;
 
     EXCEPTION
@@ -734,7 +766,7 @@ SECURITY    DEFINER;
 CREATE OR REPLACE
 FUNCTION    mv$refreshMaterializedViewFull
             (
-                pConst      IN      mv$allConstants,
+                pConst      IN      mike_pgmview.mv$allConstants,
                 pOwner      IN      TEXT,
                 pViewName   IN      TEXT
             )
@@ -744,7 +776,7 @@ $BODY$
 /* ---------------------------------------------------------------------------------------------------------------------------------
 Routine Name: mv$refreshMaterializedViewFull
 Author:       Mike Revitt
-Date:         12/011/2018
+Date:         12/11/2018
 ------------------------------------------------------------------------------------------------------------------------------------
 Revision History    Push Down List
 ------------------------------------------------------------------------------------------------------------------------------------
@@ -773,14 +805,14 @@ Copyright 2018 Amazon.com, Inc. or its affiliates. All Rights Reserved. SPDX-Lic
 DECLARE
 
     cResult     CHAR(1);
-    aPgMview    pgmviews;
+    aPgMview    mike_pgmview.mike$_pgmviews;
 
 BEGIN
 
     aPgMview    := mv$getPgMviewTableData(        pConst, pOwner, pViewName );
-    cResult     := mv$truncateMaterializedView(   pConst, pOwner, aPgMview.pgmv$_name );
+    cResult     := mv$truncateMaterializedView(   pConst, pOwner, aPgMview.view_name );
     cResult     := mv$insertMaterializedViewRows( pConst, pOwner, pViewName );
-    cResult     := mv$clearAllPgMvLogTableBits(     pConst, pOwner, pViewName );
+    cResult     := mv$clearAllPgMvLogTableBits(   pConst, pOwner, pViewName );
 
     RETURN;
 
@@ -798,7 +830,7 @@ SECURITY    DEFINER;
 CREATE OR REPLACE
 FUNCTION    mv$refreshMaterializedViewFast
             (
-                pConst      IN      mv$allConstants,
+                pConst      IN      mike_pgmview.mv$allConstants,
                 pOwner      IN      TEXT,
                 pViewName   IN      TEXT
             )
@@ -834,7 +866,7 @@ Copyright 2018 Amazon.com, Inc. or its affiliates. All Rights Reserved. SPDX-Lic
 DECLARE
 
     cResult         CHAR(1);
-    aPgMview        pgmviews;
+    aPgMview        mike_pgmview.mike$_pgmviews;
     bOuterJoined    BOOLEAN;
 
 BEGIN
@@ -848,16 +880,23 @@ BEGIN
                         pConst,
                         pOwner,
                         pViewName,
-                        aPgMview.pgmv$_name,
                         aPgMview.alias_array[i],
                         aPgMview.table_array[i],
                         aPgMview.rowid_array[i],
                         aPgMview.bit_array[i],
                         bOuterJoined,
-                        aPgMview.parent_alias_array[i],
-                        aPgMview.parent_rowid_array[i]
+                        aPgMview.inner_alias_array[i],
+                        aPgMview.inner_rowid_array[i]
                     );
     END LOOP;
+
+    RETURN;
+    EXCEPTION
+    WHEN OTHERS
+    THEN
+        RAISE INFO      'Exception in function mv$refreshMaterializedViewFull';
+        RAISE INFO      'Error %:- %:',     SQLSTATE, SQLERRM;
+        RAISE EXCEPTION '%',                SQLSTATE;
 END;
 $BODY$
 LANGUAGE    plpgsql
@@ -866,12 +905,12 @@ SECURITY    DEFINER;
 CREATE OR REPLACE
 FUNCTION    mv$insertOuterJoinRows
             (
-                pConst          IN      mv$allConstants,
+                pConst          IN      mike_pgmview.mv$allConstants,
                 pOwner          IN      TEXT,
                 pViewName       IN      TEXT,
                 pTableAlias     IN      TEXT,
-                pParentAlias    IN      TEXT,
-                pParentRowid    IN      TEXT,
+                pInnerAlias     IN      TEXT,
+                pInnerRowid     IN      TEXT,
                 pRowIDs         IN      UUID[]
             )
     RETURNS VOID
@@ -887,6 +926,7 @@ Revision History    Push Down List
 Date        | Name          | Description
 ------------+---------------+-------------------------------------------------------------------------------------------------------
             |               |
+19/06/2019  | M Revitt      | Fixed issue with Delete statment that added superious WHERE Clause when there was not WHERE statment
 11/03/2018  | M Revitt      | Initial version
 ------------+---------------+-------------------------------------------------------------------------------------------------------
 Description:    When inserting data into a complex materialized view, it is possible that a previous insert has already inserted
@@ -908,31 +948,35 @@ DECLARE
 
     tFromClause     TEXT;
     tSqlStatement   TEXT;
-    aPgMview        pgmviews;
+    aPgMview        mike_pgmview.mike$_pgmviews;
 
 BEGIN
 
-    aPgMview := mv$getPgMviewTableData( pConst, pOwner, pViewName );
+    aPgMview    := mv$getPgMviewTableData( pConst, pOwner, pViewName );
 
-    tFromClause  := pConst.FROM_COMMAND           || aPgMview.table_names   ||
-                    pConst.WHERE_COMMAND          || aPgMview.where_clause  ||
-                    pConst.AND_COMMAND            || pTableAlias            || pConst.MV_M_ROW$_SOURCE_COLUMN   ||
-                    pConst.IN_ROWID_LIST;
+    tFromClause := pConst.FROM_COMMAND  || aPgMview.table_names     || pConst.WHERE_COMMAND;
 
-    tSqlStatement :=    pConst.DELETE_FROM        ||
-                        aPgMview.owner            || pConst.DOT_CHARACTER   || aPgMview.pgmv$_name              ||
-                        pConst.WHERE_COMMAND      || pParentRowid           ||
-                        pConst.IN_SELECT_COMMAND  || pParentAlias           || pConst.MV_M_ROW$_SOURCE_COLUMN   ||
-                        tFromClause               || pConst.CLOSE_BRACKET;
+    IF LENGTH( aPgMview.where_clause ) > 0
+    THEN
+        tFromClause := tFromClause      || aPgMview.where_clause    || pConst.AND_COMMAND;
+    END IF;
+
+    tFromClause := tFromClause  || pTableAlias   || pConst.MV_M_ROW$_SOURCE_COLUMN   || pConst.IN_ROWID_LIST;
+
+    tSqlStatement   :=  pConst.DELETE_FROM       ||
+                        aPgMview.owner           || pConst.DOT_CHARACTER    || aPgMview.view_name               ||
+                        pConst.WHERE_COMMAND     || pInnerRowid             ||
+                        pConst.IN_SELECT_COMMAND || pInnerAlias             || pConst.MV_M_ROW$_SOURCE_COLUMN   ||
+                        tFromClause              || pConst.CLOSE_BRACKET;
 
 
     EXECUTE tSqlStatement
     USING   pRowIDs;
 
-    tSqlStatement :=    pConst.INSERT_INTO      ||
-                        aPgMview.owner          || pConst.DOT_CHARACTER     || aPgMview.pgmv$_name  ||
-                        pConst.OPEN_BRACKET     || aPgMview.pgmv_columns    || pConst.CLOSE_BRACKET     ||
-                        pConst.SELECT_COMMAND   || aPgMview.select_columns  ||
+    tSqlStatement :=    pConst.INSERT_INTO       ||
+                        aPgMview.owner           || pConst.DOT_CHARACTER    || aPgMview.view_name   ||
+                        pConst.OPEN_BRACKET      || aPgMview.pgmv_columns   || pConst.CLOSE_BRACKET ||
+                        pConst.SELECT_COMMAND    || aPgMview.select_columns ||
                         tFromClause;
 
     EXECUTE tSqlStatement
@@ -955,10 +999,10 @@ SECURITY    DEFINER;
 CREATE OR REPLACE
 FUNCTION    mv$setPgMviewLogBit
             (
-                pConst          IN      mv$allConstants,
+                pConst          IN      mike_pgmview.mv$allConstants,
                 pOwner          IN      TEXT,
                 pPgLog$Name     IN      TEXT,
-                pPbMviewBitmap  IN      INTEGER
+                pPbMviewBitmap  IN      BIGINT
             )
     RETURNS INTEGER
 AS
@@ -990,18 +1034,25 @@ Copyright 2018 Amazon.com, Inc. or its affiliates. All Rights Reserved. SPDX-Lic
 DECLARE
 
     iBit        SMALLINT    := NULL;
-    iBitValue   INTEGER     := NULL;
+    iBitValue   BIGINT      := NULL;
 
 BEGIN
     iBit                := mv$findFirstFreeBit( pConst, pPbMviewBitmap );
     iBitValue           := mv$getBitValue( pConst, iBit );
 
-    UPDATE  pgmview_logs
-    SET     pgrs_mview_bitmap = pgrs_mview_bitmap + iBitValue
+    UPDATE  mike_pgmview.mike$_pgmview_logs
+    SET     pg_mview_bitmap = pg_mview_bitmap + iBitValue
     WHERE   owner           = pOwner
     AND     pglog$_name     = pPgLog$Name;
 
     RETURN( iBit );
+
+    EXCEPTION
+    WHEN OTHERS
+    THEN
+        RAISE INFO      'Exception in function mv$setPgMviewLogBit';
+        RAISE INFO      'Error %:- %:',     SQLSTATE, SQLERRM;
+        RAISE EXCEPTION '%',                SQLSTATE;
 END;
 $BODY$
 LANGUAGE    plpgsql
@@ -1010,7 +1061,7 @@ SECURITY    DEFINER;
 CREATE OR REPLACE
 FUNCTION    mv$updateMaterializedViewRows
             (
-                pConst          IN      mv$allConstants,
+                pConst          IN      mike_pgmview.mv$allConstants,
                 pOwner          IN      TEXT,
                 pViewName       IN      TEXT,
                 pTableAlias     IN      TEXT,
@@ -1046,14 +1097,14 @@ DECLARE
 
     cResult         CHAR(1)     := NULL;
     tSqlStatement   TEXT;
-    aPgMview        pgmviews;
+    aPgMview        mike_pgmview.mike$_pgmviews;
     bBaseRowExists  BOOLEAN := FALSE;
 
 BEGIN
 
     aPgMview := mv$getPgMviewTableData( pConst, pOwner, pViewName );
 
-    tSqlStatement := pConst.INSERT_INTO    || pOwner || pConst.DOT_CHARACTER    || aPgMview.pgmv$_name  ||
+    tSqlStatement := pConst.INSERT_INTO    || pOwner || pConst.DOT_CHARACTER    || aPgMview.view_name   ||
                      pConst.OPEN_BRACKET   || aPgMview.pgmv_columns             || pConst.CLOSE_BRACKET ||
                      pConst.SELECT_COMMAND || aPgMview.select_columns           ||
                      pConst.FROM_COMMAND   || aPgMview.table_names              ||
@@ -1082,6 +1133,4 @@ END;
 $BODY$
 LANGUAGE    plpgsql
 SECURITY    DEFINER;
-
-
 

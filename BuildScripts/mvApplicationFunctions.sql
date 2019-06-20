@@ -22,7 +22,7 @@ Description:    This is the build script for the complex database functions that
 Notes:          Some of the functions in this file rely on functions that are created within this file and so whilst the functions
                 should be maintained in alphabetic order, this is not always possible.
 
-                More importantly the order of functions in this file should not be altered
+                All functions must be created with SECURITY DEFINER to ensure they run with the privileges of the owner.
 
 Issues:         There is a bug in RDS for PostGres version 10.4 that prevents this code from working, this but is fixed in
                 versions 10.5 and 10.3
@@ -33,7 +33,7 @@ Debug:          Add a variant of the following command anywhere you need some de
                 RAISE NOTICE '<Funciton Name> % %',  CHR(10), <Variable to be examined>;
 
 ************************************************************************************************************************************
-Copyright 2018 Amazon.com, Inc. or its affiliates. All Rights Reserved.
+Copyright 2019 Amazon.com, Inc. or its affiliates. All Rights Reserved.
 
 Permission is hereby granted, free of charge, to any person obtaining a copy of this
 software and associated documentation files (the "Software"), to deal in the Software
@@ -49,7 +49,7 @@ OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
 SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ***********************************************************************************************************************************/
 
--- psql -h localhost -p 5432 -d postgres -U pgrs_mview -q -f mvComplexFunctions.sql
+-- psql -h localhost -p 5432 -d postgres -U mike_pgmview -q -f mvComplexFunctions.sql
 
 -- -------------------- Write DROP-FUNCTION-stage scripts ----------------------
 
@@ -58,7 +58,8 @@ SET     CLIENT_MIN_MESSAGES = ERROR;
 DROP FUNCTION IF EXISTS mv$createMaterializedView;
 DROP FUNCTION IF EXISTS mv$createMaterializedViewlog;
 DROP FUNCTION IF EXISTS mv$refreshMaterializedView;
-DROP FUNCTION IF EXISTS mv$insertMaterializedViewLogRow CASCADE;
+DROP FUNCTION IF EXISTS mv$help;
+DROP FUNCTION IF EXISTS mv$insertMaterializedViewLogRow;
 DROP FUNCTION IF EXISTS mv$removeMaterializedView;
 DROP FUNCTION IF EXISTS mv$removeMaterializedViewLog;
 
@@ -71,7 +72,7 @@ FUNCTION    mv$createMaterializedView
                 pViewName           IN      TEXT,
                 pSelectStatement    IN      TEXT,
                 pOwner              IN      TEXT        DEFAULT USER,
-                pViewColumns        IN      TEXT        DEFAULT NULL,
+                pNamedColumns       IN      TEXT        DEFAULT NULL,
                 pStorageClause      IN      TEXT        DEFAULT NULL,
                 pFastRefresh        IN      BOOLEAN     DEFAULT FALSE
             )
@@ -81,58 +82,56 @@ $BODY$
 /* ---------------------------------------------------------------------------------------------------------------------------------
 Routine Name: mv$createMaterializedView
 Author:       Mike Revitt
-Date:         12/011/2018
+Date:         12/11/2018
 ------------------------------------------------------------------------------------------------------------------------------------
 Revision History    Push Down List
 ------------------------------------------------------------------------------------------------------------------------------------
 Date        | Name          | Description
 ------------+---------------+-------------------------------------------------------------------------------------------------------
             |               |
-11/03/2018  | M Revitt      | Initial version
+12/11/2018  | M Revitt      | Initial version
 ------------+---------------+-------------------------------------------------------------------------------------------------------
-Description:    Creates a materialized view which requires the rollowing steps to take place
+Description:    Creates a materialized view, as a base table, and then populates the data dictionary table before calling the full
+                refresh routine to populate it.
+
+            This function performs the following steps
             1)  A base table is created based on the select statement provided
-            2)  A view is created based on the base table
-            3)  The "ROWID" column is added to the base table
-            4)  A record of the materialized view is entered into the data dictionary table
+            2)  The MV_M_ROW$_COLUMN column is added to the base table
+            3)  A record of the materialized view is entered into the data dictionary table
 
 Notes:          If a materialized view with fast refresh is requested then a materialized view log table must have been pre-created
 
 Arguments:      IN      pViewName           The name of the materialized view to be created
                 IN      pSelectStatement    The SQL query that will be used to create the view
-                IN      pOwner              Where the view is to be created, defaults to current schema
-                IN      pViewColumns        Allow the view to be created with different names to the base table
+                IN      pOwner              Optional, where the view is to be created, defaults to current user
+                IN      pNamedColumns       Optional, allows the view to be created with different column names to the base table
                                             This list is positional so must match the position and number of columns in the
                                             select statment
                 IN      pStorageClause      Optional, storage clause for the materialized view
-                IN      pFastRefresh        If set to yes then materialized view fast refresh wil be supported
+                IN      pFastRefresh        Defaults to FALSE, but if set to yes then materialized view fast refresh is supported
 Returns:                VOID
 ************************************************************************************************************************************
-Copyright 2018 Amazon.com, Inc. or its affiliates. All Rights Reserved. SPDX-License-Identifier: MIT-0
+Copyright 2019 Amazon.com, Inc. or its affiliates. All Rights Reserved. SPDX-License-Identifier: MIT-0
 ***********************************************************************************************************************************/
 DECLARE
     cResult             CHAR(1)     := NULL;
 
-    rConst              mv$allConstants;
+    rConst              mike_pgmview.mv$allConstants;
 
     tSelectColumns      TEXT        := NULL;
-    tSnapName           TEXT        := NULL;
     tTableNames         TEXT        := NULL;
     tViewColumns        TEXT        := NULL;
-    tSnapColumns        TEXT        := NULL;
     tWhereClause        TEXT        := NULL;
     tRowidArray         TEXT[];
     tTableArray         TEXT[];
     tAliasArray         TEXT[];
     tOuterTableArray    TEXT[];
-    tParentTableArray   TEXT[];
-    tParentAliasArray   TEXT[];
-    tParentRowidArray   TEXT[];
+    tInnerAliasArray    TEXT[];
+    tInnerRowidArray    TEXT[];
 
 BEGIN
 
     rConst      := mv$buildAllConstants();
-    tSnapName   := rConst.MV_PGMV_TABLE_PREFIX || SUBSTRING( pViewName, 1, rConst.MV_MAX_BASE_TABLE_LEN);
 
     SELECT
             pTableNames,
@@ -150,9 +149,8 @@ BEGIN
             pAliasArray,
             pRowidArray,
             pOuterTableArray,
-            pParentTableArray,
-            pParentAliasArray,
-            pParentRowidArray
+            pInnerAliasArray,
+            pInnerRowidArray
 
     FROM
             mv$extractCompoundViewTables( rConst, tTableNames )
@@ -161,54 +159,44 @@ BEGIN
             tAliasArray,
             tRowidArray,
             tOuterTableArray,
-            tParentTableArray,
-            tParentAliasArray,
-            tParentRowidArray;
+            tInnerAliasArray,
+            tInnerRowidArray;
 
-    cResult :=  mv$createPgMv$Table
-                (
-                    rConst,
-                    pOwner,
-                    tSnapName,
-                    pViewColumns,
-                    tSelectColumns,
-                    tTableNames,
-                    pStorageClause
-                );
-
-    tViewColumns    :=  mv$createPgMview
+    tViewColumns    :=  mv$createPgMv$Table
                         (
                             rConst,
                             pOwner,
                             pViewName,
-                            tSnapName
+                            pNamedColumns,
+                            tSelectColumns,
+                            tTableNames,
+                            pStorageClause
                         );
 
-     SELECT
-            pPgMvColumns,
+    SELECT
+            pViewColumns,
             pSelectColumns
     FROM
             mv$addRow$ToMv$Table
             (
                 rConst,
                 pOwner,
-                tSnapName,
+                pViewName,
                 tAliasArray,
                 tRowidArray,
                 tViewColumns,
                 tSelectColumns
             )
     INTO
-        tSnapColumns,
+        tViewColumns,
         tSelectColumns;
 
-    cResult :=  mv$insertPgMview
+    cResult :=  mv$insertMike$PgMview
                 (
                     rConst,
                     pOwner,
                     pViewName,
-                    tSnapName,
-                    tSnapColumns,
+                    tViewColumns,
                     tSelectColumns,
                     tTableNames,
                     tWhereClause,
@@ -216,9 +204,8 @@ BEGIN
                     tAliasArray,
                     tRowidArray,
                     tOuterTableArray,
-                    tParentTableArray,
-                    tParentAliasArray,
-                    tParentRowidArray,
+                    tInnerAliasArray,
+                    tInnerRowidArray,
                     pFastRefresh
                 );
 
@@ -242,30 +229,38 @@ $BODY$
 /* ---------------------------------------------------------------------------------------------------------------------------------
 Routine Name: mv$createMaterializedViewlog
 Author:       Mike Revitt
-Date:         12/011/2018
+Date:         12/11/2018
 ------------------------------------------------------------------------------------------------------------------------------------
 Revision History    Push Down List
 ------------------------------------------------------------------------------------------------------------------------------------
 Date        | Name          | Description
 ------------+---------------+-------------------------------------------------------------------------------------------------------
             |               |
-11/03/2018  | M Revitt      | Initial version
+12/11/2018  | M Revitt      | Initial version
 ------------+---------------+-------------------------------------------------------------------------------------------------------
-Description:    Creates the materialized view log against the base table which holds the record all changes appled to the table
+Description:    Creates a materialized view log against the base table, which is mandatory for fast refresh materialized views,
+                sets up the row tracking on the base table, adds a database trigger to the base table and populates the data
+                dictionary tables
 
-Notes:          This is manddatory for a Fast Refresh Materialized View
+                This function performs the following steps
+                1)  The MV_M_ROW$_COLUMN column is added to the base table
+                2)  A log table is created to hold a record of all changes to the base table
+                3)  Creates a trigger on the base table to populate the log table
+                4)  A record of the materialized view log is entered into the data dictionary table
 
-Arguments:      IN      pTableName          The name of the base table upon which the materialized view is createded
-                IN      pOwner         Where the table exists, defaults to current schema
+Notes:          This is mandatory for a Fast Refresh Materialized View
+
+Arguments:      IN      pTableName          The name of the base table upon which the materialized view is created
+                IN      pOwner              Optional, the owner of the base table, defaults to current user
                 IN      pStorageClause      Optional, storage clause for the materialized view log
 Returns:                VOID
 
 ************************************************************************************************************************************
-Copyright 2018 Amazon.com, Inc. or its affiliates. All Rights Reserved. SPDX-License-Identifier: MIT-0
+Copyright 2019 Amazon.com, Inc. or its affiliates. All Rights Reserved. SPDX-License-Identifier: MIT-0
 ***********************************************************************************************************************************/
 DECLARE
 
-    rConst          mv$allConstants;
+    rConst          mike_pgmview.mv$allConstants;
 
     tSqlStatement   TEXT    := NULL;
     tLog$Name       TEXT    := NULL;
@@ -282,7 +277,7 @@ BEGIN
     cResult :=  mv$createMvLog$Table(       rConst, pOwner, tLog$Name,  pStorageClause );
     cResult :=  mv$addIndexToMvLog$Table(   rConst, pOwner, tLog$Name                  );
     cResult :=  mv$createMvLogTrigger(      rConst, pOwner, pTableName, tTriggerName   );
-    cResult :=  mv$insertPgMviewLogs
+    cResult :=  mv$insertMikePgMviewLogs
                 (
                     rConst,
                     pOwner,
@@ -305,14 +300,14 @@ LANGUAGE    plpgsql
 SECURITY    DEFINER;
 ------------------------------------------------------------------------------------------------------------------------------------
 CREATE OR REPLACE
-FUNCTION    mv$insertMaterializedViewLogRow()
-    RETURNS TRIGGER
+FUNCTION    mv$help()
+    RETURNS TEXT
 AS
 $BODY$
 /* ---------------------------------------------------------------------------------------------------------------------------------
-Routine Name: mv$insertMaterializedViewLogRow
+Routine Name: mv$help
 Author:       Mike Revitt
-Date:         12/011/2018
+Date:         18/06/2019
 ------------------------------------------------------------------------------------------------------------------------------------
 Revision History    Push Down List
 ------------------------------------------------------------------------------------------------------------------------------------
@@ -321,32 +316,78 @@ Date        | Name          | Description
             |               |
 11/03/2018  | M Revitt      | Initial version
 ------------+---------------+-------------------------------------------------------------------------------------------------------
+Description:    Displays the help message
+
+Arguments:      IN      None
+Returns:                TEXT    The help message
+
+************************************************************************************************************************************
+Copyright 2019 Amazon.com, Inc. or its affiliates. All Rights Reserved. SPDX-License-Identifier: MIT-0
+***********************************************************************************************************************************/
+DECLARE
+
+    rConst          mike_pgmview.mv$allConstants;
+
+BEGIN
+
+    rConst := mv$buildAllConstants();
+    RETURN rConst.HELP_TEXT;
+
+    EXCEPTION
+    WHEN OTHERS
+    THEN
+        RAISE INFO      'Exception in function mv$help';
+        RAISE INFO      'Error %:- %:',     SQLSTATE, SQLERRM;
+        RAISE EXCEPTION '%',                SQLSTATE;
+
+END;
+$BODY$
+LANGUAGE    plpgsql
+SECURITY    DEFINER;
+------------------------------------------------------------------------------------------------------------------------------------
+CREATE OR REPLACE
+FUNCTION    mv$insertMaterializedViewLogRow()
+    RETURNS TRIGGER
+AS
+$BODY$
+/* ---------------------------------------------------------------------------------------------------------------------------------
+Routine Name: mv$insertMaterializedViewLogRow
+Author:       Mike Revitt
+Date:         12/11/2018
+------------------------------------------------------------------------------------------------------------------------------------
+Revision History    Push Down List
+------------------------------------------------------------------------------------------------------------------------------------
+Date        | Name          | Description
+------------+---------------+-------------------------------------------------------------------------------------------------------
+            |               |
+12/11/2018  | M Revitt      | Initial version
+------------+---------------+-------------------------------------------------------------------------------------------------------
 Description:    This is the function that is called by the trigger on the base table.
 
-Notes:          If the trigger is activated via a delete command then we have to get the original value of m_row$, otherwise
-                we must use the new value
+Notes:          If the trigger is activated via a delete command then we have to get the original value of the MV_M_ROW$_COLUMN,
+                otherwise we must use the new value
 
                 If no materialized view has registered an interest in this table, no rows will be created
 
 Arguments:      NONE
-Returns:                TRIGGER     PostGre required return arry for all functions called from a trigger
+Returns:                TRIGGER     PostGre required return array for all functions called from a trigger
 
 ************************************************************************************************************************************
-Copyright 2018 Amazon.com, Inc. or its affiliates. All Rights Reserved. SPDX-License-Identifier: MIT-0
+Copyright 2019 Amazon.com, Inc. or its affiliates. All Rights Reserved. SPDX-License-Identifier: MIT-0
 ***********************************************************************************************************************************/
 DECLARE
 
     tSqlStatement       TEXT;
     uRow$               UUID;
-    aPgMviewLogs    	pgmview_logs;
-    rConst              mv$allConstants;
+    aMikePgMviewLogs    mike_pgmview.mike$_pgmview_logs;
+    rConst              mike_pgmview.mv$allConstants;
 
 BEGIN
 
     rConst              := mv$buildTriggerConstants();
-    aPgMviewLogs    	:= mv$getPgMviewLogTableData( rConst, TG_TABLE_SCHEMA::TEXT, TG_TABLE_NAME::TEXT );
+    aMikePgMviewLogs    := mv$getPgMviewLogTableData( rConst, TG_TABLE_SCHEMA::TEXT, TG_TABLE_NAME::TEXT );
 
-    IF aPgMviewLogs.pgrs_mview_bitmap > rConst.BITMAP_NOT_SET
+    IF aMikePgMviewLogs.pg_mview_bitmap > rConst.BITMAP_NOT_SET
     THEN
         IF TG_OP = rConst.DELETE_DML_TYPE
         THEN
@@ -355,10 +396,10 @@ BEGIN
             uRow$ := NEW.m_row$;
         END IF;
 
-        tSqlStatement := rConst.INSERT_INTO                 || aPgMviewLogs.pglog$_name     ||
+        tSqlStatement := rConst.INSERT_INTO                 || aMikePgMviewLogs.pglog$_name     ||
                          rConst.MV_LOG$_INSERT_COLUMNS      ||
                          rConst.MV_LOG$_INSERT_VALUES_START || uRow$                            || rConst.QUOTE_COMMA_CHARACTERS ||
-                         rConst.SINGLE_QUOTE_CHARACTER      || aPgMviewLogs.pgrs_mview_bitmap || rConst.QUOTE_COMMA_CHARACTERS ||
+                         rConst.SINGLE_QUOTE_CHARACTER      || aMikePgMviewLogs.pg_mview_bitmap || rConst.QUOTE_COMMA_CHARACTERS ||
                          rConst.SINGLE_QUOTE_CHARACTER      || TG_OP                            || rConst.MV_LOG$_INSERT_VALUES_END;
 
         EXECUTE tSqlStatement;
@@ -400,25 +441,26 @@ Date        | Name          | Description
             |               |
 11/03/2018  | M Revitt      | Initial version
 ------------+---------------+-------------------------------------------------------------------------------------------------------
-Description:    Loops through each of the base tables that this materialised view is based on and refreshes them in turn
+Description:    Loops through each of the base tables, upon which this materialised view is based, and updates the materialized
+                view for each table in turn
 
 Notes:          This function must come after the creation of the 2 functions it calls
                 o   mv$refreshMaterializedViewFast;
                 o   mv$refreshMaterializedViewFull;
 
 Arguments:      IN      pViewName           The name of the materialized view
-                IN      pOwner              The owner of the object
-                IN      pFastRefresh        Whether or not to perform a fast refresh, TRUE indicates a fast refresh is required
+                IN      pOwner              Optional, the owner of the materialized view, defaults to user
+                IN      pFastRefresh        Defaults to FALSE, but if set to yes then materialized view fast refresh is performed
 Returns:                VOID
 
 ************************************************************************************************************************************
-Copyright 2018 Amazon.com, Inc. or its affiliates. All Rights Reserved. SPDX-License-Identifier: MIT-0
+Copyright 2019 Amazon.com, Inc. or its affiliates. All Rights Reserved. SPDX-License-Identifier: MIT-0
 ***********************************************************************************************************************************/
 DECLARE
 
     cResult     CHAR(1) := NULL;
 
-    rConst      mv$allConstants;
+    rConst      mike_pgmview.mv$allConstants;
 
 BEGIN
 
@@ -458,30 +500,25 @@ Date        | Name          | Description
             |               |
 11/03/2018  | M Revitt      | Initial version
 ------------+---------------+-------------------------------------------------------------------------------------------------------
-Description:    Removes a materialized view which requires the rollowing steps to take place
-            1)  A base table is created based on the select statement provided
-            2)  A view is created based on the base table
-            3)  The "ROWID" column is added to the base table
-            4)  A record of the materialized view is entered into the data dictionary table
+Description:    Removes a materialized view, clears down the entries in the Materialized View Log adn then removes the entry from
+                the data dictionary table
 
-Notes:          If a materialized view with fast refresh is requested then a materialized view log table must have been pre-created
+                This function performs the following steps
+                1)  Clears the MV Bit from all base tables logs used by thie materialized view
+                2)  Drops the materialized view
+                3)  Removes the MV_M_ROW$_COLUMN column from the base table
+                4)  Removes the record of the materialized view from the data dictionary table
 
-Arguments:      IN      pViewName           The name of the materialized view to be created
-                IN      pSelectStatement    The SQL query that will be used to create the view
-                IN      pOwner              Where the view is to be created, defaults to current schema
-                IN      pViewColumns        Allow the view to be created with different names to the base table
-                                            This list is positional so must match the position and number of columns in the
-                                            select statment
-                IN      pStorageClause      Optional, storage clause for the materialized view
-                IN      pFastRefresh        If set to yes then materialized view fast refresh wil be supported
+Arguments:      IN      pViewName           The name of the materialized view
+                IN      pOwner              Optional, the owner of the materialized view, defaults to user
 Returns:                VOID
 ************************************************************************************************************************************
-Copyright 2018 Amazon.com, Inc. or its affiliates. All Rights Reserved. SPDX-License-Identifier: MIT-0
+Copyright 2019 Amazon.com, Inc. or its affiliates. All Rights Reserved. SPDX-License-Identifier: MIT-0
 ***********************************************************************************************************************************/
 DECLARE
 
-    aPgMview    pgmviews;
-    rConst      mv$allConstants;
+    aPgMview    mike_pgmview.mike$_pgmviews;
+    rConst      mike_pgmview.mv$allConstants;
 
     cResult     CHAR(1);
 
@@ -491,9 +528,8 @@ BEGIN
     aPgMview    := mv$getPgMviewTableData(      rConst, pOwner, pViewName           );
     cResult     := mv$clearAllPgMvLogTableBits( rConst, pOwner, pViewName           );
     cResult     := mv$clearPgMviewLogBit(       rConst, pOwner, pViewName           );
-    cResult     := mv$dropView(                 rConst, pOwner, pViewName           );
-    cResult     := mv$dropTable(                rConst, pOwner, aPgMview.pgmv$_name );
-    cResult     := mv$deletePgMview(               pOwner, pViewName           );
+    cResult     := mv$dropTable(                rConst, pOwner, aPgMview.view_name  );
+    cResult     := mv$deleteMike$PgMview(               pOwner, pViewName           );
 
     RETURN;
 END;
@@ -502,7 +538,7 @@ LANGUAGE    plpgsql
 SECURITY    DEFINER;
 ------------------------------------------------------------------------------------------------------------------------------------
 CREATE OR REPLACE
-FUNCTION mv$removeMaterializedViewLog
+FUNCTION    mv$removeMaterializedViewLog
             (
                 pTableName          IN      TEXT,
                 pOwner              IN      TEXT        DEFAULT USER
@@ -522,30 +558,27 @@ Date        | Name          | Description
             |               |
 11/03/2018  | M Revitt      | Initial version
 ------------+---------------+-------------------------------------------------------------------------------------------------------
-Description:    Removes a materialized view which requires the rollowing steps to take place
-            1)  A base table is created based on the select statement provided
-            2)  A view is created based on the base table
-            3)  The "ROWID" column is added to the base table
-            4)  A record of the materialized view is entered into the data dictionary table
+Description:    Removes a materialized view log from the base table.
 
-Notes:          If a materialized view with fast refresh is requested then a materialized view log table must have been pre-created
+            This function has the following pre-requisites
+            1)  All Materialized Views, with an interest in the log, must have been previously removed
 
-Arguments:      IN      pViewName           The name of the materialized view to be created
-                IN      pSelectStatement    The SQL query that will be used to create the view
-                IN      pOwner              Where the view is to be created, defaults to current schema
-                IN      pViewColumns        Allow the view to be created with different names to the base table
-                                            This list is positional so must match the position and number of columns in the
-                                            select statment
-                IN      pStorageClause      Optional, storage clause for the materialized view
-                IN      pFastRefresh        If set to yes then materialized view fast refresh wil be supported
+            This function performs the following steps
+            1)  Drops the trigger from the base table
+            2)  Drops the Materialized View Log table
+            3)  Removes the MV_M_ROW$_COLUMN column from the base table
+            4)  Removes the record of the materialized view from the data dictionary table
+
+Arguments:      IN      pTableName          The name of the base table containing the materialized view log
+                IN      pOwner              Optional, the owner of the materialized view, defaults to user
 Returns:                VOID
 ************************************************************************************************************************************
-Copyright 2018 Amazon.com, Inc. or its affiliates. All Rights Reserved. SPDX-License-Identifier: MIT-0
+Copyright 2019 Amazon.com, Inc. or its affiliates. All Rights Reserved. SPDX-License-Identifier: MIT-0
 ***********************************************************************************************************************************/
 DECLARE
 
-    rConst          mv$allConstants;
-    aViewLog        pgmview_logs;
+    rConst          mike_pgmview.mv$allConstants;
+    aViewLog        mike_pgmview.mike$_pgmview_logs;
 
     tSqlStatement       TEXT;
     tLog$Name           TEXT        := NULL;
@@ -557,14 +590,14 @@ BEGIN
     rConst   := mv$buildAllConstants();
     aViewLog := mv$getPgMviewLogTableData( rConst, pTableName );
 
-    IF aViewLog.pgrs_mview_bitmap = rConst.BITMAP_NOT_SET
+    IF aViewLog.pg_mview_bitmap = rConst.BITMAP_NOT_SET
     THEN
         cResult  := mv$dropTrigger(                 rConst, pOwner, aViewLog.trigger_name, pTableName   );
         cResult  := mv$dropTable(                   rConst, pOwner, aViewLog.pglog$_name                );
         cResult  := mv$removeRow$FromSourceTable(   rConst, pOwner, pTableName                          );
-        cResult  := mv$deletePgMviewLog(               pOwner, pTableName                          );
+        cResult  := mv$deleteMike$PgMviewLog(               pOwner, pTableName                          );
     ELSE
-        RAISE EXCEPTION 'The Naterialized View Log on Table % is still in use', pTableName;
+        RAISE EXCEPTION 'The Materialized View Log on Table % is still in use', pTableName;
     END IF;
     RETURN;
 
@@ -582,8 +615,9 @@ SECURITY    DEFINER;
 
 ------------------------------------------------------------------------------------------------------------------------------------
 
-GRANT   EXECUTE ON  FUNCTION    mv$createMaterializedViewlog    TO  pgmv$_role;
-GRANT   EXECUTE ON  FUNCTION    mv$createMaterializedView       TO  pgmv$_role;
-GRANT   EXECUTE ON  FUNCTION    mv$refreshMaterializedView      TO  pgmv$_role;
-GRANT   EXECUTE ON  FUNCTION    mv$removeMaterializedView       TO  pgmv$_role;
-GRANT   EXECUTE ON  FUNCTION    mv$removeMaterializedViewLog    TO  pgmv$_role;
+GRANT   EXECUTE ON  FUNCTION    mv$createMaterializedViewlog    TO  pgmv$_execute;
+GRANT   EXECUTE ON  FUNCTION    mv$createMaterializedView       TO  pgmv$_execute;
+GRANT   EXECUTE ON  FUNCTION    mv$refreshMaterializedView      TO  pgmv$_execute;
+GRANT   EXECUTE ON  FUNCTION    mv$removeMaterializedView       TO  pgmv$_execute;
+GRANT   EXECUTE ON  FUNCTION    mv$removeMaterializedViewLog    TO  pgmv$_execute;
+GRANT   EXECUTE ON  FUNCTION    mv$help                         TO  pgmv$_execute;

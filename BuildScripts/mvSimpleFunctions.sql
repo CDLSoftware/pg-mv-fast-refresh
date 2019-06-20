@@ -16,10 +16,11 @@ Background:     PostGre does not support Materialized View Fast Refreshes, this 
 Description:    This is the build script for the simple database functions that are required to support the Materialized View
                 fast refresh process.
 
-                This script contains functions that can run standalone and must therefore be run before the complex functions can
-                be created.
+                This script contains functions that can run standalone and must therefore be run before the complex functions and
+                application functions can be created.
 
 Notes:          The functions in this script should be maintained in alphabetic order.
+
                 All functions must be created with SECURITY DEFINER to ensure they run with the privileges of the owner.
 
 Issues:         There is a bug in RDS for PostGres version 10.4 that prevents queries against the information_schema,
@@ -27,11 +28,11 @@ Issues:         There is a bug in RDS for PostGres version 10.4 that prevents qu
 
                 https://forums.aws.amazon.com/thread.jspa?messageID=860564
 
-Debug:          Add a variant of the following command anywhere you need some debug inforaiton
+Debug:          Add a variant of the following command anywhere you need some debug information
                 RAISE NOTICE '<Funciton Name> % %',  CHR(10), <Variable to be examined>;
 
 ************************************************************************************************************************************
-Copyright 2018 Amazon.com, Inc. or its affiliates. All Rights Reserved.
+Copyright 2019 Amazon.com, Inc. or its affiliates. All Rights Reserved.
 
 Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files
 (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify,
@@ -44,7 +45,7 @@ LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRA
 CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ***********************************************************************************************************************************/
 
--- psql -h localhost -p 5432 -d postgres -U pgrs_mview -q -f mvSimpleFunctions.sql
+-- psql -h localhost -p 5432 -d postgres -U mike_pgmview -q -f mvSimpleFunctions.sql
 
 ----------------------- Write DROP-FUNCTION-stage scripts ----------------------
 SET     CLIENT_MIN_MESSAGES = ERROR;
@@ -57,15 +58,13 @@ DROP FUNCTION IF EXISTS mv$clearPgMvLogTableBits;
 DROP FUNCTION IF EXISTS mv$clearSpentPgMviewLogs;
 DROP FUNCTION IF EXISTS mv$createMvLog$Table;
 DROP FUNCTION IF EXISTS mv$createMvLogTrigger;
-DROP FUNCTION IF EXISTS mv$createPgMv$Table;
 DROP FUNCTION IF EXISTS mv$createRow$Column;
 DROP FUNCTION IF EXISTS mv$deconstructSqlStatement;
 DROP FUNCTION IF EXISTS mv$deleteMaterializedViewRows;
-DROP FUNCTION IF EXISTS mv$deletePgMview;
-DROP FUNCTION IF EXISTS mv$deletePgMviewLog;
+DROP FUNCTION IF EXISTS mv$deleteMike$PgMview;
+DROP FUNCTION IF EXISTS mv$deleteMike$PgMviewLog;
 DROP FUNCTION IF EXISTS mv$dropTable;
 DROP FUNCTION IF EXISTS mv$dropTrigger;
-DROP FUNCTION IF EXISTS mv$dropView;
 DROP FUNCTION IF EXISTS mv$extractCompoundViewTables;
 DROP FUNCTION IF EXISTS mv$findFirstFreeBit;
 DROP FUNCTION IF EXISTS mv$getBitValue;
@@ -74,9 +73,9 @@ DROP FUNCTION IF EXISTS mv$getPgMviewTableData;
 DROP FUNCTION IF EXISTS mv$getPgMviewViewColumns;
 DROP FUNCTION IF EXISTS mv$getSourceTableSchema;
 DROP FUNCTION IF EXISTS mv$grantSelectPrivileges;
-DROP FUNCTION IF EXISTS mv$insertPgMviewLogs;
-DROP FUNCTION IF EXISTS mv$replaceCommandWithToken;
+DROP FUNCTION IF EXISTS mv$insertMikePgMviewLogs;
 DROP FUNCTION IF EXISTS mv$removeRow$FromSourceTable;
+DROP FUNCTION IF EXISTS mv$replaceCommandWithToken;
 DROP FUNCTION IF EXISTS mv$truncateMaterializedView;
 
 ----------------------- Write CREATE-FUNCTION-stage scripts --------------------
@@ -85,7 +84,7 @@ SET CLIENT_MIN_MESSAGES = NOTICE;
 CREATE OR REPLACE
 FUNCTION    mv$addIndexToMvLog$Table
             (
-                pConst          IN      mv$allConstants,
+                pConst          IN      mike_pgmview.mv$allConstants,
                 pOwner          IN      TEXT,
                 pPgLog$Name     IN      TEXT
             )
@@ -105,14 +104,14 @@ Date        | Name          | Description
             |               |
 07/06/2019  | M Revitt      | Initial version
 ------------+---------------+-------------------------------------------------------------------------------------------------------
-Description:    This function creates the materilized view log table against the source table for the materialized view
+Description:    This function creates an index on the materilized view log table to speed up bit manipulation
 
-Arguments:      IN      pOwner              The owner of the object
+Arguments:      IN      pConst              The memory structure containing all constants
+                IN      pOwner              The owner of the object
                 IN      pPgLog$Name         The name of the materialized view log table
-                IN      pStorageClause      Optional, storage clause for the materialized view log
 Returns:                VOID
 ************************************************************************************************************************************
-Copyright 2018 Amazon.com, Inc. or its affiliates. All Rights Reserved. SPDX-License-Identifier: MIT-0
+Copyright 2019 Amazon.com, Inc. or its affiliates. All Rights Reserved. SPDX-License-Identifier: MIT-0
 ***********************************************************************************************************************************/
 DECLARE
 
@@ -120,8 +119,7 @@ DECLARE
     tSqlStatement   TEXT;
 
 BEGIN
-    tIndexName      :=  pPgLog$Name || pConst.UNDERSCORE_CHARACTER  || pConst.BITMAP_COLUMN     ||
-                                       pConst.UNDERSCORE_CHARACTER  || pConst.MV_INDEX_SUFFIX;
+    tIndexName      :=  pPgLog$Name || pConst.UNDERSCORE_CHARACTER  || pConst.BITMAP_COLUMN     || pConst.MV_INDEX_SUFFIX;
 
     tSqlStatement   :=  pConst.CREATE_INDEX || tIndexName           ||
                         pConst.ON_COMMAND   || pOwner               || pConst.DOT_CHARACTER     || pPgLog$Name ||
@@ -146,12 +144,12 @@ SECURITY    DEFINER;
 CREATE OR REPLACE
 FUNCTION    mv$addRow$ToMv$Table
             (
-                pConst              IN      mv$allConstants,
+                pConst              IN      mike_pgmview.mv$allConstants,
                 pOwner              IN      TEXT,
-                pPgMvName           IN      TEXT,
+                pViewName           IN      TEXT,
                 pAliasArray         IN      TEXT[],
                 pRowidArray         IN      TEXT[],
-                pPgMvColumns        INOUT   TEXT,
+                pViewColumns        INOUT   TEXT,
                 pSelectColumns      INOUT   TEXT
             )
     RETURNS RECORD
@@ -169,16 +167,18 @@ Date        | Name          | Description
             |               |
 15/01/2019  | M Revitt      | Initial version
 ------------+---------------+-------------------------------------------------------------------------------------------------------
-Description:    For every table that is used to construct this materialized view, add a rowid column to the base table.
+Description:    For every table that is used to construct this materialized view, add a MV_M_ROW$_COLUMN to the base table.
 
-Arguments:      IN      pOwner              The owner of the object
-                IN      pPgMvName           The name of the "hidden" base table containing the data
-                IN      pPgMvColumns        This is the list of view columns to which the rowid columns will be added
-                IN      pSelectColumns      The columns from the SQL Statement that created the materialised view
+Arguments:      IN      pConst              The memory structure containing all constants
+                IN      pOwner              The owner of the object
+                IN      pViewName           The name of the materialized view table
                 IN      pAliasArray         An array containing the table aliases that make up the materialized view
-Returns:                TEXT                The Select Columns, with the rowid columns added
+                IN      pRowidArray         An array containing the MV_M_ROW$_COLUMN column name for the base table
+                INOUT   pViewColumns        This is the list of view columns to which the MV_M_ROW$_COLUMNs will be added
+                INOUT   pSelectColumns      The columns from the SQL Statement that created the materialised view
+Returns:                RECORD              The 2 INOUT variables constitute a RECORD
 ************************************************************************************************************************************
-Copyright 2018 Amazon.com, Inc. or its affiliates. All Rights Reserved. SPDX-License-Identifier: MIT-0
+Copyright 2019 Amazon.com, Inc. or its affiliates. All Rights Reserved. SPDX-License-Identifier: MIT-0
 ***********************************************************************************************************************************/
 DECLARE
 
@@ -191,24 +191,22 @@ DECLARE
 
 BEGIN
 
-    tAddColumn      :=  pConst.ALTER_TABLE || pOwner || pConst.DOT_CHARACTER || pPgMvName || pConst.NEW_LINE ||
-                        pConst.ADD_COLUMN;
-
+    tAddColumn      := pConst.ALTER_TABLE || pOwner || pConst.DOT_CHARACTER || pViewName || pConst.NEW_LINE || pConst.ADD_COLUMN;
     tCreateIndex    := pConst.CREATE_INDEX;
 
     FOR i IN array_lower( pAliasArray, 1 ) .. array_upper( pAliasArray, 1 )
     LOOP
-        tIndexName      := pPgMvName    || pConst.UNDERSCORE_CHARACTER  || pRowidArray[i]       || pConst.MV_INDEX_SUFFIX;
+        tIndexName      := pViewName    || pConst.UNDERSCORE_CHARACTER  || pRowidArray[i]       || pConst.MV_INDEX_SUFFIX;
         tSqlStatement   := tAddColumn   || pRowidArray[i]               || pConst.MV_M_ROW$_COLUMN_FORMAT;
 
         EXECUTE tSqlStatement;
 
         tSqlStatement   :=  tCreateIndex    || tIndexName               || pConst.ON_COMMAND    ||
-                                               pOwner                   || pConst.DOT_CHARACTER || pPgMvName ||
+                                               pOwner                   || pConst.DOT_CHARACTER || pViewName ||
                                                pConst.OPEN_BRACKET      || pRowidArray[i]       || pConst.CLOSE_BRACKET;
         EXECUTE tSqlStatement;
 
-        pPgMvColumns    :=  pPgMvColumns    || pConst.COMMA_CHARACTER   || pRowidArray[i];
+        pViewColumns    :=  pViewColumns    || pConst.COMMA_CHARACTER   || pRowidArray[i];
         pSelectColumns  :=  pSelectColumns  || pConst.COMMA_CHARACTER   || pAliasArray[i]       || pConst.MV_M_ROW$_COLUMN;
         iTableArryPos   := iTableArryPos + 1;
     END LOOP;
@@ -230,7 +228,7 @@ SECURITY    DEFINER;
 CREATE OR REPLACE
 FUNCTION    mv$addRow$ToSourceTable
             (
-                pConst          IN      mv$allConstants,
+                pConst          IN      mike_pgmview.mv$allConstants,
                 pOwner          IN      TEXT,
                 pTableName      IN      TEXT
             )
@@ -252,11 +250,12 @@ Date        | Name          | Description
 Description:    PostGre does not have a ROWID pseudo column and so a ROWID column has to be added to the source table, ideally this
                 should be a hidden column, but I can't find any way of doing this
 
-Arguments:      IN      pOwner              The owner of the object
+Arguments:      IN      pConst              The memory structure containing all constants
+                IN      pOwner              The owner of the object
                 IN      pTableName          The name of the materialized view source table
 Returns:                VOID
 ************************************************************************************************************************************
-Copyright 2018 Amazon.com, Inc. or its affiliates. All Rights Reserved. SPDX-License-Identifier: MIT-0
+Copyright 2019 Amazon.com, Inc. or its affiliates. All Rights Reserved. SPDX-License-Identifier: MIT-0
 ***********************************************************************************************************************************/
 DECLARE
 
@@ -284,7 +283,7 @@ SECURITY    DEFINER;
 CREATE OR REPLACE
 FUNCTION    mv$checkIfOuterJoinedTable
             (
-                pConst              IN      mv$allConstants,
+                pConst              IN      mike_pgmview.mv$allConstants,
                 pTableName          IN      TEXT,
                 pOuterTableArray    IN      TEXT[]
             )
@@ -301,17 +300,19 @@ Revision History    Push Down List
 Date        | Name          | Description
 ------------+---------------+-------------------------------------------------------------------------------------------------------
             |               |
+18/06/2019  | M Revitt      | Added an Exception Handler
 05/06/2019  | M Revitt      | Change ARRAY_UPPER and ARRYA_LOWER to FOREACH ... IN ARRAY
 04/04/2019  | M Revitt      | Initial version
 ------------+---------------+-------------------------------------------------------------------------------------------------------
 Description:    Some actions against outer joined tables need to be performed differently, so this function checks to see if the
                 table is outer joined
 
-Arguments:      IN      pTableName          The name of the table to check
+Arguments:      IN      pConst              The memory structure containing all constants
+                IN      pTableName          The name of the table to check
                 IN      pOuterTableArray    The array that holds the list of all outer joined tables in this view
 Returns:                BOOLEAN             TRUE if we can find the record, otherwise FALSE
 ************************************************************************************************************************************
-Copyright 2018 Amazon.com, Inc. or its affiliates. All Rights Reserved. SPDX-License-Identifier: MIT-0
+Copyright 2019 Amazon.com, Inc. or its affiliates. All Rights Reserved. SPDX-License-Identifier: MIT-0
 ***********************************************************************************************************************************/
 DECLARE
 
@@ -330,6 +331,13 @@ BEGIN
 
     RETURN( bResult );
 
+    EXCEPTION
+    WHEN OTHERS
+    THEN
+        RAISE INFO      'Exception in function mv$checkIfOuterJoinedTable';
+        RAISE INFO      'Error %:- %:',     SQLSTATE, SQLERRM;
+        RAISE EXCEPTION '%',                SQLSTATE;
+
 END;
 $BODY$
 LANGUAGE    plpgsql
@@ -338,11 +346,11 @@ SECURITY    DEFINER;
 CREATE OR REPLACE
 FUNCTION    mv$clearPgMvLogTableBits
             (
-                pConst          IN      mv$allConstants,
+                pConst          IN      mike_pgmview.mv$allConstants,
                 pOwner          IN      TEXT,
                 pPgLog$Name     IN      TEXT,
                 pBit            IN      SMALLINT,
-                pMaxSequence    IN      INTEGER
+                pMaxSequence    IN      BIGINT
             )
     RETURNS VOID
 AS
@@ -362,14 +370,14 @@ Date        | Name          | Description
 Description:    Bitmaps are how we manage multiple registrations against the same base table, every time the recorded row has been
                 applied to the materialized view we remove the bit that signifies the interest from the materialized view log
 
-Arguments:      IN      pOwner              The owner of the object
+Arguments:      IN      pConst              The memory structure containing all constants
+                IN      pOwner              The owner of the object
                 IN      pPgLog$Name         The name of the materialized view log table
                 IN      pBit                The bit to be cleared from the row
-                IN      pSequence           The squence to be cleared from the row
-                IN      pRowID              The unique identifier of the row to be modified
+                IN      pMaxSequence        The maximum value bitmap being used
 Returns:                VOID
 ************************************************************************************************************************************
-Copyright 2018 Amazon.com, Inc. or its affiliates. All Rights Reserved. SPDX-License-Identifier: MIT-0
+Copyright 2019 Amazon.com, Inc. or its affiliates. All Rights Reserved. SPDX-License-Identifier: MIT-0
 ***********************************************************************************************************************************/
 DECLARE
 
@@ -404,7 +412,7 @@ SECURITY    DEFINER;
 CREATE OR REPLACE
 FUNCTION    mv$clearSpentPgMviewLogs
             (
-                pConst          IN      mv$allConstants,
+                pConst          IN      mike_pgmview.mv$allConstants,
                 pOwner          IN      TEXT,
                 pPgLog$Name     IN      TEXT
             )
@@ -426,11 +434,12 @@ Date        | Name          | Description
 Description:    Bitmaps are how we manage multiple registrations against the same base table, once all interested materialized
                 views have removed their interest in the materialized log row the bitmap will be set to 0 and can be deleted
 
-Arguments:      IN      pOwner              The owner of the object
+Arguments:      IN      pConst              The memory structure containing all constants
+                IN      pOwner              The owner of the object
                 IN      pPgLog$Name         The name of the materialized view log table
 Returns:                VOID
 ************************************************************************************************************************************
-Copyright 2018 Amazon.com, Inc. or its affiliates. All Rights Reserved. SPDX-License-Identifier: MIT-0
+Copyright 2019 Amazon.com, Inc. or its affiliates. All Rights Reserved. SPDX-License-Identifier: MIT-0
 ***********************************************************************************************************************************/
 DECLARE
 
@@ -458,7 +467,7 @@ SECURITY    DEFINER;
 CREATE OR REPLACE
 FUNCTION    mv$createMvLog$Table
             (
-                pConst          IN      mv$allConstants,
+                pConst          IN      mike_pgmview.mv$allConstants,
                 pOwner          IN      TEXT,
                 pPgLog$Name     IN      TEXT,
                 pStorageClause  IN      TEXT     DEFAULT NULL
@@ -481,12 +490,13 @@ Date        | Name          | Description
 ------------+---------------+-------------------------------------------------------------------------------------------------------
 Description:    This function creates the materilized view log table against the source table for the materialized view
 
-Arguments:      IN      pOwner              The owner of the object
+Arguments:      IN      pConst              The memory structure containing all constants
+                IN      pOwner              The owner of the object
                 IN      pPgLog$Name         The name of the materialized view log table
                 IN      pStorageClause      Optional, storage clause for the materialized view log
 Returns:                VOID
 ************************************************************************************************************************************
-Copyright 2018 Amazon.com, Inc. or its affiliates. All Rights Reserved. SPDX-License-Identifier: MIT-0
+Copyright 2019 Amazon.com, Inc. or its affiliates. All Rights Reserved. SPDX-License-Identifier: MIT-0
 ***********************************************************************************************************************************/
 DECLARE
 
@@ -504,7 +514,6 @@ BEGIN
 
     RETURN;
 
-
     EXCEPTION
     WHEN OTHERS
     THEN
@@ -520,7 +529,7 @@ SECURITY    DEFINER;
 CREATE OR REPLACE
 FUNCTION    mv$createMvLogTrigger
             (
-                pConst              IN      mv$allConstants,
+                pConst              IN      mike_pgmview.mv$allConstants,
                 pOwner              IN      TEXT,
                 pTableName          IN      TEXT,
                 pMvTriggerName      IN      TEXT
@@ -543,12 +552,13 @@ Date        | Name          | Description
 Description:    After the materialized view log table has been created a trigger is required on the source table to populate the
                 materialized view log
 
-Arguments:      IN      pOwner              The owner of the object
+Arguments:      IN      pConst              The memory structure containing all constants
+                IN      pOwner              The owner of the object
                 IN      pTableName          The name of the materialized view source table
                 IN      pMvTriggerName      The name of the materialized view source trigger
 Returns:                VOID
 ************************************************************************************************************************************
-Copyright 2018 Amazon.com, Inc. or its affiliates. All Rights Reserved. SPDX-License-Identifier: MIT-0
+Copyright 2019 Amazon.com, Inc. or its affiliates. All Rights Reserved. SPDX-License-Identifier: MIT-0
 ***********************************************************************************************************************************/
 DECLARE
 
@@ -576,100 +586,9 @@ LANGUAGE    plpgsql
 SECURITY    DEFINER;
 ------------------------------------------------------------------------------------------------------------------------------------
 CREATE OR REPLACE
-FUNCTION    mv$createPgMv$Table
-            (
-                pConst              IN      mv$allConstants,
-                pOwner              IN      TEXT,
-                pPgMvName           IN      TEXT,
-                pViewColumns        IN      TEXT,
-                pSelectColumns      IN      TEXT,
-                pTableNames         IN      TEXT,
-                pStorageClause      IN      TEXT
-            )
-    RETURNS VOID
-AS
-$BODY$
-/* ---------------------------------------------------------------------------------------------------------------------------------
-Routine Name: mv$createPgMv$Table
-Author:       Mike Revitt
-Date:         16/01/2019
-------------------------------------------------------------------------------------------------------------------------------------
-Revision History    Push Down List
-------------------------------------------------------------------------------------------------------------------------------------
-Date        | Name          | Description
-------------+---------------+-------------------------------------------------------------------------------------------------------
-            |               |
-16/01/2019  | M Revitt      | Initial version
-------------+---------------+-------------------------------------------------------------------------------------------------------
-Description:    Creates the base table upon which the Materialized View will be based from the provided SQL statment
-
-Note:           This function requires the SEARCH_PATH to be set to the current value so that the select statement can find the
-                source tables.
-                The default for PostGres functions is to not use the search path when executing with the privileges of the creator
-
-Arguments:      IN      pOwner              The owner of the object
-                IN      pPgMvName           The name of the materialized view base table
-                IN      pViewColumns        Allow the view to be created with different names to the base table
-                                            This list is positional so must match the position and number of columns in the
-                                            select statment
-                IN      pSelectColumns      The column list from the SQL query that will be used to create the view
-                IN      pTableNames         The string between the FROM and WHERE clauses in the SQL query
-                IN      pStorageClause      Optional, storage clause for the materialized view
-Returns:                VOID
-************************************************************************************************************************************
-Copyright 2018 Amazon.com, Inc. or its affiliates. All Rights Reserved. SPDX-License-Identifier: MIT-0
-***********************************************************************************************************************************/
-DECLARE
-
-    tSqlStatement   TEXT    := NULL;
-    tViewColumns    TEXT    := NULL;
-    tStorageClause  TEXT    := NULL;
-
-BEGIN
-
-    IF pViewColumns IS NOT NULL
-    THEN
-        tViewColumns := pConst.OPEN_BRACKET ||
-                        REPLACE( REPLACE( pViewColumns,
-                            pConst.OPEN_BRACKET  , NULL ),
-                            pConst.CLOSE_BRACKET , NULL ) ||
-                        pConst.CLOSE_BRACKET;
-    ELSE
-        tViewColumns := pConst.SPACE_CHARACTER;
-    END IF;
-
-    IF pStorageClause IS NOT NULL
-    THEN
-        tStorageClause := pStorageClause;
-    ELSE
-        tStorageClause := pConst.SPACE_CHARACTER;
-    END IF;
-
-    tSqlStatement   :=  pConst.CREATE_TABLE     || pOwner          || pConst.DOT_CHARACTER || pPgMvName || tViewColumns  ||
-                        pConst.AS_COMMAND       ||
-                        pConst.SELECT_COMMAND   || pSelectColumns  ||
-                        pConst.FROM_COMMAND     || pTableNames     ||
-                        pConst.WHERE_NO_DATA    || tStorageClause;
-
-    EXECUTE tSqlStatement;
-    RETURN;
-
-    EXCEPTION
-    WHEN OTHERS
-    THEN
-        RAISE INFO      'Exception in function mv$createPgMv$Table';
-        RAISE INFO      'Error %:- %:',     SQLSTATE, SQLERRM;
-        RAISE INFO      'Error Context:% %',CHR(10),  tSqlStatement;
-        RAISE EXCEPTION '%',                SQLSTATE;
-END;
-$BODY$
-LANGUAGE    plpgsql
-SECURITY    DEFINER;
-------------------------------------------------------------------------------------------------------------------------------------
-CREATE OR REPLACE
 FUNCTION    mv$createRow$Column
             (
-                pConst      IN      mv$allConstants,
+                pConst      IN      mike_pgmview.mv$allConstants,
                 pTableName  IN      TEXT
             )
     RETURNS TEXT
@@ -685,18 +604,16 @@ Revision History    Push Down List
 Date        | Name          | Description
 ------------+---------------+-------------------------------------------------------------------------------------------------------
             |               |
+18/06/2019  | M Revitt      | Add and Exception Handler
 15/01/2019  | M Revitt      | Initial version
 ------------+---------------+-------------------------------------------------------------------------------------------------------
-Description:    For every table that is used to construct this materialized view, add a rowid column to the base table.
+Description:    For every table that is used to construct this materialized view, add a MV_M_ROW$_COLUMN to the base table.
 
-Arguments:      IN      pOwner              The owner of the object
-                IN      pPgMvName           The name of the "hidden" base table containing the data
-                IN      pPgMvColumns        This is the list of view columns to which the rowid columns will be added
-                IN      pSelectColumns      The columns from the SQL Statement that created the materialised view
-                IN      pTableArray         An array containing the table names that make up the materialized view
-Returns:                TEXT                The Select Columns, with the rowid columns added
+Arguments:      IN      pConst              The memory structure containing all constants
+                IN      pTableName          The name of the materialized view source table
+Returns:                TEXT                The name for the MV_M_ROW$_COLUMN added
 ************************************************************************************************************************************
-Copyright 2018 Amazon.com, Inc. or its affiliates. All Rights Reserved. SPDX-License-Identifier: MIT-0
+Copyright 2019 Amazon.com, Inc. or its affiliates. All Rights Reserved. SPDX-License-Identifier: MIT-0
 ***********************************************************************************************************************************/
 DECLARE
 
@@ -713,6 +630,14 @@ BEGIN
                                                                                 pConst.MV_M_ROW$_COLUMN;
 
     RETURN( tRowidColumn );
+
+    EXCEPTION
+    WHEN OTHERS
+    THEN
+        RAISE INFO      'Exception in function mv$createRow$Column';
+        RAISE INFO      'Error %:- %:',     SQLSTATE, SQLERRM;
+        RAISE INFO      'Error Context:% %',CHR(10),  pTableName;
+        RAISE EXCEPTION '%',                SQLSTATE;
 END;
 $BODY$
 LANGUAGE    plpgsql
@@ -721,7 +646,7 @@ SECURITY    DEFINER;
 CREATE OR REPLACE
 FUNCTION    mv$deconstructSqlStatement
             (
-                pConst              IN      mv$allConstants,
+                pConst              IN      mike_pgmview.mv$allConstants,
                 pSqlStatement       IN      TEXT,
                 pTableNames           OUT   TEXT,
                 pSelectColumns        OUT   TEXT,
@@ -740,6 +665,7 @@ Revision History    Push Down List
 Date        | Name          | Description
 ------------+---------------+-------------------------------------------------------------------------------------------------------
             |               |
+18/06/2019  | M Revitt      | Add an exception handler
 11/03/2018  | M Revitt      | Initial version
 ------------+---------------+-------------------------------------------------------------------------------------------------------
 Description:    One of the most difficult tasks with the materialized view fast refresh process is programatically determining
@@ -749,23 +675,31 @@ Description:    One of the most difficult tasks with the materialized view fast 
                 information in the data dictionary tables for future use
 
 Notes:          The technique used here is to search for each of the key words in a SQL statement, FROM, WHERE and replace them
-                whith an unprintable character which can be search for later.
+                whith an unprintable character which can be searched for later.
 
                 To locate the keywords they are searched for with acceptable command delimination characters either side of the
-                key word, SPACE, NEW LINE, CARRIAGE RETURN
+                key word, the delimiators currently used are
+                o   SPACE
+                o   NEW LINE
+                o   CARRIAGE RETURN
 
                 The SELECT keyword is assumed to be the leading key word and is simply removed from the string with the use of a
                 SUBSTRING command
 
-                Once all of the replacements have been completed it becomes a simple task to extract the necessary information
+                Once all of the replacements have been completed it becomes a simple task to extract the necessary information later
+                when required
 
-Arguments:      IN      pSqlStatement       The SQL Statement used to create the materialized view
-                    OUT pTableNames         The name of the materialized view source table
+Arguments:      IN      pConst              The memory structure containing all constants
+                IN      pSqlStatement       The SQL Statement used to create the materialized view
+                    OUT pTableNames         The name of the materialized view source tables
+                                                all text between the FROM and WHERE clauses
                     OUT pSelectColumns      The list of columns in the SQL Statement used to create the materialized view
+                                                all text between the SELECT and FROM clauses
                     OUT pWhereClause        The where clause from the SQL Statement used to create the materialized view
+                                                all text after the WHERE clause
 Returns:                RECORD              The three out parameters
 ************************************************************************************************************************************
-Copyright 2018 Amazon.com, Inc. or its affiliates. All Rights Reserved. SPDX-License-Identifier: MIT-0
+Copyright 2019 Amazon.com, Inc. or its affiliates. All Rights Reserved. SPDX-License-Identifier: MIT-0
 ***********************************************************************************************************************************/
 DECLARE
 
@@ -780,13 +714,12 @@ BEGIN
     tSqlStatement := mv$replaceCommandWithToken( pConst, tSqlStatement,    pConst.FROM_DML_TYPE,    pConst.FROM_TOKEN  );
     tSqlStatement := mv$replaceCommandWithToken( pConst, tSqlStatement,    pConst.WHERE_DML_TYPE,   pConst.WHERE_TOKEN );
 
-    tSqlStatement := tSqlStatement || pConst.WHERE_TOKEN; -- In case Where does not appear in the string
+    tSqlStatement := tSqlStatement || pConst.WHERE_TOKEN; -- Append a Where Token incase Where does not appear in the string
 
     pTableNames   := TRIM(  SUBSTRING( tSqlStatement,
-                            POSITION(  pConst.FROM_TOKEN  IN tSqlStatement )  + LENGTH( pConst.FROM_TOKEN ),
-                            POSITION(  pConst.WHERE_TOKEN IN tSqlStatement )  -
-                                LENGTH(    pConst.WHERE_TOKEN )                -
-                                POSITION(  pConst.FROM_TOKEN IN tSqlStatement )));
+                            POSITION(  pConst.FROM_TOKEN  IN tSqlStatement )  + LENGTH(   pConst.FROM_TOKEN  ),
+                            POSITION(  pConst.WHERE_TOKEN IN tSqlStatement )  - LENGTH(   pConst.WHERE_TOKEN )
+                                                                              - POSITION( pConst.FROM_TOKEN IN tSqlStatement )));
 
     pSelectColumns := TRIM( SUBSTRING( tSqlStatement,
                             1,
@@ -795,8 +728,8 @@ BEGIN
     pWhereClause   := TRIM( SUBSTRING( tSqlStatement,
                             POSITION(  pConst.WHERE_TOKEN IN tSqlStatement )  + LENGTH( pConst.WHERE_TOKEN )));
 
-    IF  LENGTH( pWhereClause ) > 0
-    AND POSITION( pConst.WHERE_TOKEN IN pWhereClause ) > 0
+    IF  LENGTH(   pWhereClause )                        > 0
+    AND POSITION( pConst.WHERE_TOKEN IN pWhereClause )  > 0     -- We have to get rid of the appended token
     THEN
         pWhereClause   := TRIM( SUBSTRING( pWhereClause,
                                 1,
@@ -804,6 +737,14 @@ BEGIN
     END IF;
 
     RETURN;
+
+    EXCEPTION
+    WHEN OTHERS
+    THEN
+        RAISE INFO      'Exception in function mv$deconstructSqlStatement';
+        RAISE INFO      'Error %:- %:',     SQLSTATE, SQLERRM;
+        RAISE INFO      'Error Context:% %',CHR(10),  tSqlStatement;
+        RAISE EXCEPTION '%',                SQLSTATE;
 END;
 $BODY$
 LANGUAGE    plpgsql
@@ -812,9 +753,9 @@ SECURITY    DEFINER;
 CREATE OR REPLACE
 FUNCTION    mv$deleteMaterializedViewRows
             (
-                pConst          IN      mv$allConstants,
+                pConst          IN      mike_pgmview.mv$allConstants,
                 pOwner          IN      TEXT,
-                pPgMvName       IN      TEXT,
+                pViewName       IN      TEXT,
                 pRowidColumn    IN      TEXT,
                 pRowIDs         IN      UUID[]
             )
@@ -831,18 +772,22 @@ Revision History    Push Down List
 Date        | Name          | Description
 ------------+---------------+-------------------------------------------------------------------------------------------------------
             |               |
+07/05/2019  | M Revitt      | Convert to array processing
 11/03/2018  | M Revitt      | Initial version
 ------------+---------------+-------------------------------------------------------------------------------------------------------
 Description:    Gets called to remove the row from the Materialized View when a delete is detected
 
-Arguments:      IN      pOwner              The owner of the object
-                IN      pPgMvName           The name of the underlying table for the materialized view
-                IN      pRowidColumn        The rowid column for this table in the base table
-                IN      pRowID              The unique identifier to locate the modified row
+Note:           This function was modified to array processing to address some performance concerns found during testing
+
+Arguments:      IN      pConst              The memory structure containing all constants
+                IN      pOwner              The owner of the object
+                IN      pViewName           The name of the underlying table for the materialized view
+                IN      pRowidColumn        The MV_M_ROW$_COLUMN for this table in the base table
+                IN      pRowIDs             An array holding the unique identifiers to locate the modified row
 Returns:                VOID
 
 ************************************************************************************************************************************
-Copyright 2018 Amazon.com, Inc. or its affiliates. All Rights Reserved. SPDX-License-Identifier: MIT-0
+Copyright 2019 Amazon.com, Inc. or its affiliates. All Rights Reserved. SPDX-License-Identifier: MIT-0
 ***********************************************************************************************************************************/
 DECLARE
 
@@ -850,7 +795,7 @@ DECLARE
 
 BEGIN
 
-    tSqlStatement :=    pConst.DELETE_FROM || pOwner  || pConst.DOT_CHARACTER   || pPgMvName        ||
+    tSqlStatement :=    pConst.DELETE_FROM || pOwner  || pConst.DOT_CHARACTER   || pViewName        ||
                         pConst.WHERE_COMMAND          || pRowidColumn           || pConst.IN_ROWID_LIST;
 
     EXECUTE tSqlStatement
@@ -870,7 +815,7 @@ LANGUAGE    plpgsql
 SECURITY    DEFINER;
 ------------------------------------------------------------------------------------------------------------------------------------
 CREATE OR REPLACE
-FUNCTION    mv$deletePgMview
+FUNCTION    mv$deleteMike$PgMview
             (
                 pOwner      IN      TEXT,
                 pViewName   IN      TEXT
@@ -879,7 +824,7 @@ FUNCTION    mv$deletePgMview
 AS
 $BODY$
 /* ---------------------------------------------------------------------------------------------------------------------------------
-Routine Name: mv$deletePgMview
+Routine Name: mv$deleteMike$PgMview
 Author:       Mike Revitt
 Date:         04/06/2019
 ------------------------------------------------------------------------------------------------------------------------------------
@@ -893,22 +838,19 @@ Date        | Name          | Description
 Description:    Every time a new materialized view is created, a record of that view is also created in the data dictionary table
                 mike$_pgmviews.
 
-                This table holds all of the pertinent information about the materialized view which is later used in the management
-                of that view.
+                This function removes that row when a materialized view is removed.
 
 Arguments:      IN      pOwner              The owner of the object
                 IN      pViewName           The name of the materialized view
 Returns:                VOID
 
 ************************************************************************************************************************************
-Copyright 2018 Amazon.com, Inc. or its affiliates. All Rights Reserved. SPDX-License-Identifier: MIT-0
+Copyright 2019 Amazon.com, Inc. or its affiliates. All Rights Reserved. SPDX-License-Identifier: MIT-0
 ***********************************************************************************************************************************/
-DECLARE
-
 BEGIN
 
     DELETE
-    FROM    mike$_pgmviews
+    FROM    mike_pgmview.mike$_pgmviews
     WHERE
             owner       = pOwner
     AND     view_name   = pViewName;
@@ -917,17 +859,16 @@ BEGIN
     EXCEPTION
     WHEN OTHERS
     THEN
-        RAISE INFO      'Exception in function mv$deletePgMview';
+        RAISE INFO      'Exception in function mv$deleteMike$PgMview';
         RAISE INFO      'Error %:- %:',     SQLSTATE, SQLERRM;
         RAISE EXCEPTION '%',                SQLSTATE;
-
 END;
 $BODY$
 LANGUAGE    plpgsql
 SECURITY    DEFINER;
 ------------------------------------------------------------------------------------------------------------------------------------
 CREATE OR REPLACE
-FUNCTION    mv$deletePgMviewLog
+FUNCTION    mv$deleteMike$PgMviewLog
             (
                 pOwner      IN      TEXT,
                 pTableName  IN      TEXT
@@ -936,7 +877,7 @@ FUNCTION    mv$deletePgMviewLog
 AS
 $BODY$
 /* ---------------------------------------------------------------------------------------------------------------------------------
-Routine Name: mv$deletePgMviewLog
+Routine Name: mv$deleteMike$PgMviewLog
 Author:       Mike Revitt
 Date:         04/06/2019
 ------------------------------------------------------------------------------------------------------------------------------------
@@ -947,93 +888,32 @@ Date        | Name          | Description
             |               |
 04/06/2019  | M Revitt      | Initial version
 ------------+---------------+-------------------------------------------------------------------------------------------------------
-Description:    Every time a new materialized view is created, a record of that view is also created in the data dictionary table
-                mike$_pgmviews.
+Description:    Every time a new materialized view log is created, a record of that log is also created in the data dictionary table
+                mike$_pgmview_logs.
 
-                This table holds all of the pertinent information about the materialized view which is later used in the management
-                of that view.
+                This function removes that row when a materialized view log is removed.
 
 Arguments:      IN      pOwner              The owner of the object
-                IN      pViewName           The name of the materialized view
+                IN      pTableName          The name of the materialized view log
 Returns:                VOID
 
 ************************************************************************************************************************************
-Copyright 2018 Amazon.com, Inc. or its affiliates. All Rights Reserved. SPDX-License-Identifier: MIT-0
+Copyright 2019 Amazon.com, Inc. or its affiliates. All Rights Reserved. SPDX-License-Identifier: MIT-0
 ***********************************************************************************************************************************/
-DECLARE
-
 BEGIN
 
     DELETE
-    FROM    pgmview_logs
+    FROM    mike_pgmview.mike$_pgmview_logs
     WHERE
             owner       = pOwner
     AND     table_name  = pTableName;
 
     RETURN;
-    EXCEPTION
-    WHEN OTHERS
-    THEN
-        RAISE INFO      'Exception in function mv$deletePgMviewLog';
-        RAISE INFO      'Error %:- %:',     SQLSTATE, SQLERRM;
-        RAISE EXCEPTION '%',                SQLSTATE;
-
-END;
-$BODY$
-LANGUAGE    plpgsql
-SECURITY    DEFINER;
-------------------------------------------------------------------------------------------------------------------------------------
-CREATE OR REPLACE
-FUNCTION    mv$insertPgMviewLogs
-            (
-                pConst          IN      mv$allConstants,
-                pOwner          IN      TEXT,
-                pPgLog$Name     IN      TEXT,
-                pTableName      IN      TEXT,
-                pTriggerName    IN      TEXT
-            )
-    RETURNS VOID
-AS
-$BODY$
-/* ---------------------------------------------------------------------------------------------------------------------------------
-Routine Name: mv$insertPgMviewLogs
-Author:       Mike Revitt
-Date:         12/11/2018
-------------------------------------------------------------------------------------------------------------------------------------
-Revision History    Push Down List
-------------------------------------------------------------------------------------------------------------------------------------
-Date        | Name          | Description
-------------+---------------+-------------------------------------------------------------------------------------------------------
-            |               |
-11/03/2018  | M Revitt      | Initial version
-------------+---------------+-------------------------------------------------------------------------------------------------------
-Description:    inserts the row into the materialized view log data dictionary table
-
-Arguments:      IN      pOwner              The owner of the object
-                IN      pPgLog$Name         The name of the materialized view log table
-                IN      pTableName          The name of the materialized view source table
-                IN      pMvSequenceName     The name of the materialized view sequence
-Returns:                VOID
-************************************************************************************************************************************
-Copyright 2018 Amazon.com, Inc. or its affiliates. All Rights Reserved. SPDX-License-Identifier: MIT-0
-***********************************************************************************************************************************/
-BEGIN
-
-    INSERT  INTO
-            pgmview_logs
-            (
-                owner,  pglog$_name, table_name, trigger_name
-            )
-    VALUES  (
-                pOwner, pPgLog$Name, pTableName, pTriggerName
-            );
-
-    RETURN;
 
     EXCEPTION
     WHEN OTHERS
     THEN
-        RAISE INFO      'Exception in function mv$insertPgMviewLogs';
+        RAISE INFO      'Exception in function mv$deleteMike$PgMviewLog';
         RAISE INFO      'Error %:- %:',     SQLSTATE, SQLERRM;
         RAISE EXCEPTION '%',                SQLSTATE;
 END;
@@ -1044,7 +924,7 @@ SECURITY    DEFINER;
 CREATE OR REPLACE
 FUNCTION    mv$dropTable
             (
-                pConst              IN      mv$allConstants,
+                pConst              IN      mike_pgmview.mv$allConstants,
                 pOwner              IN      TEXT,
                 pTableName          IN      TEXT
             )
@@ -1063,17 +943,15 @@ Date        | Name          | Description
             |               |
 04/06/2019  | M Revitt      | Initial version
 ------------+---------------+-------------------------------------------------------------------------------------------------------
-Description:    Creates the base table upon which the Materialized View will be based from the provided SQL statment
+Description:    Generic function to drop any tables in a Postgres database, used in this context to remove the Materialized View
+                and Materialized View Log tables
 
-Note:           This function requires the SEARCH_PATH to be set to the current value so that the select statement can find the
-                source tables.
-                The default for PostGres functions is to not use the search path when executing with the privileges of the creator
-
-Arguments:      IN      pOwner              The owner of the object
-                IN      pTableName          The name of the materialized view base table
+Arguments:      IN      pConst              The memory structure containing all constants
+                IN      pOwner              The owner of the object
+                IN      pTableName          The name of the table to be dropped
 Returns:                VOID
 ************************************************************************************************************************************
-Copyright 2018 Amazon.com, Inc. or its affiliates. All Rights Reserved. SPDX-License-Identifier: MIT-0
+Copyright 2019 Amazon.com, Inc. or its affiliates. All Rights Reserved. SPDX-License-Identifier: MIT-0
 ***********************************************************************************************************************************/
 DECLARE
 
@@ -1101,7 +979,7 @@ SECURITY    DEFINER;
 CREATE OR REPLACE
 FUNCTION    mv$dropTrigger
             (
-                pConst          IN      mv$allConstants,
+                pConst          IN      mike_pgmview.mv$allConstants,
                 pOwner          IN      TEXT,
                 pTriggerName    IN      TEXT,
                 pTableName      IN      TEXT
@@ -1121,15 +999,16 @@ Date        | Name          | Description
             |               |
 11/03/2018  | M Revitt      | Initial version
 ------------+---------------+-------------------------------------------------------------------------------------------------------
-Description:    After the materialized view log table has been created a trigger is required on the source table to populate the
-                materialized view log
+Description:    Generic function to drop any trigger in a Postgres database, used in this context to remove the trigger from the
+                Materialized View Log tables
 
-Arguments:      IN      pOwner              The owner of the object
-                IN      pTableName          The name of the materialized view source table
+Arguments:      IN      pConst              The memory structure containing all constants
+                IN      pOwner              The owner of the object
                 IN      pTriggerName        The name of the materialized view source trigger
+                IN      pTableName          The name of the materialized view source table
 Returns:                VOID
 ************************************************************************************************************************************
-Copyright 2018 Amazon.com, Inc. or its affiliates. All Rights Reserved. SPDX-License-Identifier: MIT-0
+Copyright 2019 Amazon.com, Inc. or its affiliates. All Rights Reserved. SPDX-License-Identifier: MIT-0
 ***********************************************************************************************************************************/
 DECLARE
 
@@ -1155,74 +1034,16 @@ LANGUAGE    plpgsql
 SECURITY    DEFINER;
 ------------------------------------------------------------------------------------------------------------------------------------
 CREATE OR REPLACE
-FUNCTION    mv$dropView
-            (
-                pConst      IN      mv$allConstants,
-                pOwner      IN      TEXT,
-                pViewName   IN      TEXT
-            )
-    RETURNS TEXT
-AS
-$BODY$
-/* ---------------------------------------------------------------------------------------------------------------------------------
-Routine Name: mv$dropView
-Author:       Mike Revitt
-Date:         04/06/2019
-------------------------------------------------------------------------------------------------------------------------------------
-Revision History    Push Down List
-------------------------------------------------------------------------------------------------------------------------------------
-Date        | Name          | Description
-------------+---------------+-------------------------------------------------------------------------------------------------------
-            |               |
-04/06/2019  | M Revitt      | Initial version
-------------+---------------+-------------------------------------------------------------------------------------------------------
-Description:    Creates the materialised view as a select * from the PgMv$ base table before the rowid columns are added
-
-Arguments:      IN      pOwner              The owner of the object
-                IN      pViewName           The name of the materialized view
-                IN      pPgMvName           The name of the materialized view base table (pgmv$ table)
-Returns:                TEXT                The list of columns in the newly created view
-************************************************************************************************************************************
-Copyright 2018 Amazon.com, Inc. or its affiliates. All Rights Reserved. SPDX-License-Identifier: MIT-0
-***********************************************************************************************************************************/
-DECLARE
-
-    cResult         CHAR(1);
-    tSqlStatement   TEXT    := NULL;
-    tViewColumns    TEXT    := NULL;
-
-BEGIN
-
-    tSqlStatement   :=  pConst.DROP_VIEW || pOwner || pConst.DOT_CHARACTER  || pViewName;
-
-    EXECUTE tSqlStatement;
-
-    RETURN tViewColumns;
-
-    EXCEPTION
-    WHEN OTHERS
-    THEN
-        RAISE INFO      'Exception in function mv$dropView';
-        RAISE INFO      'Error %:- %:',     SQLSTATE, SQLERRM;
-        RAISE INFO      'Error Context:% %',CHR(10),  tSqlStatement;
-        RAISE EXCEPTION '%',                SQLSTATE;
-END;
-$BODY$
-LANGUAGE    plpgsql
-SECURITY    DEFINER;
-------------------------------------------------------------------------------------------------------------------------------------
-CREATE OR REPLACE
 FUNCTION    mv$extractCompoundViewTables
             (
-                pConst              IN      mv$allConstants,
+                pConst              IN      mike_pgmview.mv$allConstants,
                 pTableNames         IN      TEXT,
                 pTableArray           OUT   TEXT[],
                 pAliasArray           OUT   TEXT[],
                 pRowidArray           OUT   TEXT[],
                 pOuterTableArray      OUT   TEXT[],
-                pParentTableArray     OUT   TEXT[],
-                pParentAliasArray     OUT   TEXT[],
-                pParentRowidArray     OUT   TEXT[]
+                pInnerAliasArray      OUT   TEXT[],
+                pInnerRowidArray      OUT   TEXT[]
             )
     RETURNS RECORD
 AS
@@ -1237,12 +1058,18 @@ Revision History    Push Down List
 Date        | Name          | Description
 ------------+---------------+-------------------------------------------------------------------------------------------------------
             |               |
+18/06/2019  | M Revitt      | Fix a logic bomb with the contruct of the inner table and outer table arrays
+            |               | Add an exception handler
 11/03/2018  | M Revitt      | Initial version
 ------------+---------------+-------------------------------------------------------------------------------------------------------
 Description:    One of the most difficult tasks with the materialized view fast refresh process is programatically determining
                 the columns, base tables and select criteria that have been used to construct the view.
 
-                This function deconstructs the FROM clause that was used to create the materialized view and determines the
+                This function deconstructs the FROM clause that was used to create the materialized view and determines
+                o   All of the outer joined tables
+                o   All of the inner joined tables
+                o   All inner joined table aliases
+                o   All
                 primary table and a complete list of all tables involved in the query
 
 Notes:          The technique used here is to search for each of the key words in FROM clause, COMMA, RIGHT, ON, JOIN and replace
@@ -1303,24 +1130,24 @@ PostGres Notes:
                 both input tables. As with USING, these columns appear only once in the output table. If there are no common
                 column names, NATURAL JOIN behaves like JOIN ... ON TRUE, producing a cross-product join.
 
-Arguments:      IN      pSqlStatement       The SQL Statement used to create the materialized view
+Arguments:      IN      pConst              The memory structure containing all constants
+                IN      pSqlStatement       The SQL Statement used to create the materialized view
                     OUT pTableNames         The name of the materialized view source table
                     OUT pSelectColumns      The list of columns in the SQL Statement used to create the materialized view
                     OUT pWhereClause        The where clause from the SQL Statement used to create the materialized view
 Returns:                RECORD              The three out parameters
 ************************************************************************************************************************************
-Copyright 2018 Amazon.com, Inc. or its affiliates. All Rights Reserved. SPDX-License-Identifier: MIT-0
+Copyright 2019 Amazon.com, Inc. or its affiliates. All Rights Reserved. SPDX-License-Identifier: MIT-0
 ***********************************************************************************************************************************/
 DECLARE
 
-    tOuterTable             TEXT    := NULL;
-    tParentAlias            TEXT    := pConst.NO_PARENT_TOKEN;
-    tParentRowid            TEXT    := pConst.NO_PARENT_TOKEN;
-    tParentTable            TEXT    := pConst.NO_PARENT_TOKEN;
-    tTableName              TEXT;
-    tTableNames             TEXT;
-    tTableAlias             TEXT;
-    iTableArryPos           INTEGER := 0;
+    tOuterTable     TEXT    := NULL;
+    tInnerAlias     TEXT    := pConst.NO_INNER_TOKEN;
+    tInnerRowid     TEXT    := pConst.NO_INNER_TOKEN;
+    tTableName      TEXT;
+    tTableNames     TEXT;
+    tTableAlias     TEXT;
+    iTableArryPos   INTEGER := 0;
 
 BEGIN
 --  Replacing a single space with a double space is only required on the first pass to ensure that there is padding around all
@@ -1331,7 +1158,7 @@ BEGIN
     tTableNames :=  mv$replaceCommandWithToken( pConst, tTableNames, pConst.OUTER_DML_TYPE,   pConst.OUTER_TOKEN );
     tTableNames :=  mv$replaceCommandWithToken( pConst, tTableNames, pConst.INNER_DML_TYPE,   pConst.COMMA_CHARACTER );
     tTableNames :=  mv$replaceCommandWithToken( pConst, tTableNames, pConst.LEFT_DML_TYPE,    pConst.COMMA_LEFT_TOKEN );
-    tTableNames :=  mv$replaceCommandWithToken( pConst, tTableNames, pConst.RIGHT_DML_TYPE,   pConst.RIGHT_COMMA_TOKEN );
+    tTableNames :=  mv$replaceCommandWithToken( pConst, tTableNames, pConst.RIGHT_DML_TYPE,   pConst.COMMA_RIGHT_TOKEN );
     tTableNames :=  REPLACE( REPLACE(                   tTableNames, pConst.NEW_LINE,         pConst.EMPTY_STRING ),
                                                                      pConst.CARRIAGE_RETURN,  pConst.EMPTY_STRING );
 
@@ -1339,29 +1166,26 @@ BEGIN
 
     WHILE POSITION( pConst.COMMA_CHARACTER IN tTableNames ) > 0
     LOOP
-        tOuterTable     := NULL;
-        tParentAlias    := pConst.NO_PARENT_TOKEN;
-        tParentRowid    := pConst.NO_PARENT_TOKEN;
-        tParentTable    := pConst.NO_PARENT_TOKEN;
+        tOuterTable := NULL;
+        tInnerAlias := pConst.NO_INNER_TOKEN;       -- Tag to ignore the alias in this row
+        tInnerRowid := pConst.NO_INNER_TOKEN;       -- Tag to ignore the alias in this row
 
         tTableName :=  LTRIM( SPLIT_PART( tTableNames, pConst.COMMA_CHARACTER, 1 ));
 
         IF POSITION( pConst.RIGHT_TOKEN IN tTableName ) > 0
         THEN
-            tOuterTable  := pTableArray[iTableArryPos - 1];
-            tParentAlias := NULL;
-            tParentRowid := NULL;
-            tParentTable := NULL;
+            tOuterTable := pAliasArray[iTableArryPos - 1];  -- There has to be a table preceeding a right outer join
+            tInnerRowid := NULL;                            -- The inner table is in this row, this allows us to collect it
+            tInnerAlias := NULL;                            -- once we have processed the row further down.
 
-        ELSIF POSITION( pConst.LEFT_TOKEN IN tTableName ) > 0
+        ELSIF POSITION( pConst.LEFT_TOKEN IN tTableName ) > 0   -- There has to be a table preceeding a left outer join
         THEN
-            tParentAlias := pAliasArray[iTableArryPos - 1];
-            tParentRowid := mv$createRow$Column( pConst, pTableArray[iTableArryPos - 1] );
-            tParentTable := pTableArray[iTableArryPos - 1];
-            tOuterTable  := TRIM( SUBSTRING( tTableName,
-                                             POSITION( pConst.JOIN_TOKEN   IN tTableName ) + LENGTH( pConst.JOIN_TOKEN),
-                                             POSITION( pConst.ON_TOKEN     IN tTableName ) - LENGTH( pConst.ON_TOKEN)
-                                             - POSITION( pConst.JOIN_TOKEN IN tTableName )));
+            tInnerAlias := pAliasArray[iTableArryPos - 1];
+            tInnerRowid := mv$createRow$Column( pConst, pTableArray[iTableArryPos - 1] );
+            tOuterTable := TRIM( SUBSTRING( tTableName,
+                                            POSITION( pConst.JOIN_TOKEN   IN tTableName ) + LENGTH( pConst.JOIN_TOKEN),
+                                            POSITION( pConst.ON_TOKEN     IN tTableName ) - LENGTH( pConst.ON_TOKEN)
+                                            - POSITION( pConst.JOIN_TOKEN IN tTableName )));
         END IF;
 
         -- The LEFT, RIGHT and JOIN tokens are only required for outer join pattern matching
@@ -1378,9 +1202,8 @@ BEGIN
                                                                   pTableArray[iTableArryPos] ) || pConst.DOT_CHARACTER;
 
         pOuterTableArray[iTableArryPos]  :=(REGEXP_SPLIT_TO_ARRAY( tOuterTable, pConst.REGEX_MULTIPLE_SPACES ))[1];
-        pParentTableArray[iTableArryPos] := NULLIF( COALESCE( tParentTable, pTableArray[iTableArryPos] ), pConst.NO_PARENT_TOKEN );
-        pParentAliasArray[iTableArryPos] := NULLIF( COALESCE( tParentAlias, pAliasArray[iTableArryPos] ), pConst.NO_PARENT_TOKEN );
-        pParentRowidArray[iTableArryPos] := NULLIF( COALESCE( tParentRowid, pRowidArray[iTableArryPos] ), pConst.NO_PARENT_TOKEN );
+        pInnerAliasArray[iTableArryPos]  := NULLIF( COALESCE( tInnerAlias, pAliasArray[iTableArryPos] ), pConst.NO_INNER_TOKEN );
+        pInnerRowidArray[iTableArryPos]  := NULLIF( COALESCE( tInnerRowid, pRowidArray[iTableArryPos] ), pConst.NO_INNER_TOKEN );
 
         tTableNames     := TRIM( SUBSTRING( tTableNames,
                                  POSITION( pConst.COMMA_CHARACTER IN tTableNames ) + LENGTH( pConst.COMMA_CHARACTER )));
@@ -1389,6 +1212,14 @@ BEGIN
     END LOOP;
 
     RETURN;
+
+    EXCEPTION
+    WHEN OTHERS
+    THEN
+        RAISE INFO      'Exception in function mv$extractCompoundViewTables';
+        RAISE INFO      'Error %:- %:',     SQLSTATE, SQLERRM;
+        RAISE INFO      'Error Context:% %',CHR(10),  tTableNames;
+        RAISE EXCEPTION '%',                SQLSTATE;
 END;
 $BODY$
 LANGUAGE    plpgsql
@@ -1397,10 +1228,10 @@ SECURITY    DEFINER;
 CREATE OR REPLACE
 FUNCTION    mv$findFirstFreeBit
             (
-                pConst      IN      mv$allConstants,
-                pBitMap     IN      INTEGER
+                pConst      IN      mike_pgmview.mv$allConstants,
+                pBitMap     IN      BIGINT
             )
-    RETURNS INTEGER
+    RETURNS SMALLINT
 AS
 $BODY$
 /* ---------------------------------------------------------------------------------------------------------------------------------
@@ -1422,9 +1253,9 @@ Description:    When a new materialized view is registered against a base table,
                 then the maximum number of PgMviews per table
 
 Arguments:      IN      pBitMap             The bit map value constructed from assigned bits
-Returns:                INTEGER             The next free bit
+Returns:                SMALLINT            The next free bit
 ************************************************************************************************************************************
-Copyright 2018 Amazon.com, Inc. or its affiliates. All Rights Reserved. SPDX-License-Identifier: MIT-0
+Copyright 2019 Amazon.com, Inc. or its affiliates. All Rights Reserved. SPDX-License-Identifier: MIT-0
 ***********************************************************************************************************************************/
 DECLARE
 
@@ -1453,10 +1284,10 @@ SECURITY    DEFINER;
 CREATE OR REPLACE
 FUNCTION    mv$getBitValue
             (
-                pConst  IN      mv$allConstants,
+                pConst  IN      mike_pgmview.mv$allConstants,
                 pBit    IN      SMALLINT
             )
-    RETURNS INTEGER
+    RETURNS BIGINT
 AS
 $BODY$
 /* ---------------------------------------------------------------------------------------------------------------------------------
@@ -1476,16 +1307,17 @@ Description:    Converts a bit into it's binary value.
 Arguments:      IN      pBit                The bit
 Returns:                INTEGER             The binary value of that bit
 ************************************************************************************************************************************
-Copyright 2018 Amazon.com, Inc. or its affiliates. All Rights Reserved. SPDX-License-Identifier: MIT-0
+Copyright 2019 Amazon.com, Inc. or its affiliates. All Rights Reserved. SPDX-License-Identifier: MIT-0
 ***********************************************************************************************************************************/
 DECLARE
 
-    iBitValue   INTEGER := 0;
+    iBitValue   BIGINT := 0;
 
 BEGIN
 
     iBitValue := POWER( pConst.BASE_TWO, pBit );
     RETURN( iBitValue );
+
 END;
 $BODY$
 LANGUAGE    plpgsql
@@ -1494,11 +1326,11 @@ SECURITY    DEFINER;
 CREATE OR REPLACE
 FUNCTION    mv$getPgMviewLogTableData
             (
-                pConst      IN      mv$allConstants,
+                pConst      IN      mike_pgmview.mv$allConstants,
                 pOwner      IN      TEXT,
                 pTableName  IN      TEXT
             )
-    RETURNS pgmview_logs
+    RETURNS mike_pgmview.mike$_pgmview_logs
 AS
 $BODY$
 /* ---------------------------------------------------------------------------------------------------------------------------------
@@ -1519,31 +1351,31 @@ Arguments:      IN      pOwner              The owner of the object
                 IN      pPgLog$Name         The name of the materialized view log table
 Returns:                RECORD              The row of data from the data dictionary relating to this materialized view log
 ************************************************************************************************************************************
-Copyright 2018 Amazon.com, Inc. or its affiliates. All Rights Reserved. SPDX-License-Identifier: MIT-0
+Copyright 2019 Amazon.com, Inc. or its affiliates. All Rights Reserved. SPDX-License-Identifier: MIT-0
 ***********************************************************************************************************************************/
 DECLARE
 
-    aPgMviewLog            pgmview_logs;
+    aMikePgMviewLog            mike_pgmview.mike$_pgmview_logs;
 
     cgetPgMviewLogTableData    CURSOR
     FOR
     SELECT
             *
-    FROM    pgmview_logs
+    FROM    mike_pgmview.mike$_pgmview_logs
     WHERE   owner       = pOwner
     AND     table_name  = pTableName;
 
 BEGIN
     OPEN    cgetPgMviewLogTableData;
     FETCH   cgetPgMviewLogTableData
-    INTO    aPgMviewLog;
+    INTO    aMikePgMviewLog;
     CLOSE   cgetPgMviewLogTableData;
 
-    IF aPgMviewLog.table_name IS NULL
+    IF aMikePgMviewLog.table_name IS NULL
     THEN
         RAISE EXCEPTION 'Materialised View ''%'' does not have a PgMview Log', pOwner || pConst.DOT_CHARACTER || pTableName;
     ELSE
-        RETURN( aPgMviewLog );
+        RETURN( aMikePgMviewLog );
     END IF;
 END;
 $BODY$
@@ -1553,10 +1385,10 @@ SECURITY    DEFINER;
 CREATE OR REPLACE
 FUNCTION    mv$getPgMviewLogTableData
             (
-                pConst      IN      mv$allConstants,
+                pConst      IN      mike_pgmview.mv$allConstants,
                 pTableName  IN      TEXT
             )
-    RETURNS pgmview_logs
+    RETURNS mike_pgmview.mike$_pgmview_logs
 AS
 $BODY$
 /* ---------------------------------------------------------------------------------------------------------------------------------
@@ -1582,7 +1414,7 @@ Note:           This function is used when the table owner is not know
 Arguments:      IN      pPgLog$Name         The name of the materialized view log table
 Returns:                RECORD              The row of data from the data dictionary relating to this materialized view log
 ************************************************************************************************************************************
-Copyright 2018 Amazon.com, Inc. or its affiliates. All Rights Reserved. SPDX-License-Identifier: MIT-0
+Copyright 2019 Amazon.com, Inc. or its affiliates. All Rights Reserved. SPDX-License-Identifier: MIT-0
 ***********************************************************************************************************************************/
 DECLARE
 
@@ -1602,11 +1434,11 @@ SECURITY    DEFINER;
 CREATE OR REPLACE
 FUNCTION    mv$getPgMviewTableData
             (
-                pConst      IN      mv$allConstants,
+                pConst      IN      mike_pgmview.mv$allConstants,
                 pOwner      IN      TEXT,
                 pViewName   IN      TEXT
             )
-    RETURNS PgMviews
+    RETURNS mike_pgmview.mike$_PgMviews
 AS
 $BODY$
 /* ---------------------------------------------------------------------------------------------------------------------------------
@@ -1628,29 +1460,29 @@ Arguments:      IN      pOwner              The owner of the object
 Returns:                RECORD              The row of data from the data dictionary relating to this materialized view
 
 ************************************************************************************************************************************
-Copyright 2018 Amazon.com, Inc. or its affiliates. All Rights Reserved. SPDX-License-Identifier: MIT-0
+Copyright 2019 Amazon.com, Inc. or its affiliates. All Rights Reserved. SPDX-License-Identifier: MIT-0
 ***********************************************************************************************************************************/
 DECLARE
-    aPgMview           PgMviews;
+    aMikePgMview           mike_pgmview.mike$_PgMviews;
 
     cgetPgMviewTableData   CURSOR
     FOR
     SELECT
             *
-    FROM    PgMviews
+    FROM    mike_pgmview.mike$_PgMviews
     WHERE   owner       = pOwner
     AND     view_name   = pViewName;
 BEGIN
     OPEN    cgetPgMviewTableData;
     FETCH   cgetPgMviewTableData
-    INTO    aPgMview;
+    INTO    aMikePgMview;
     CLOSE   cgetPgMviewTableData;
 
-    IF 0 = cardinality( aPgMview.table_array )
+    IF 0 = cardinality( aMikePgMview.table_array )
     THEN
         RAISE EXCEPTION 'Materialised View ''%'' does not have a base table', pOwner || pConst.DOT_CHARACTER || pViewName;
     ELSE
-        RETURN( aPgMview );
+        RETURN( aMikePgMview );
     END IF;
 END;
 $BODY$
@@ -1660,7 +1492,7 @@ SECURITY    DEFINER;
 CREATE OR REPLACE
 FUNCTION    mv$getPgMviewViewColumns
             (
-                pConst      IN      mv$allConstants,
+                pConst      IN      mike_pgmview.mv$allConstants,
                 pOwner      IN      TEXT,
                 pViewName   IN      TEXT
             )
@@ -1689,7 +1521,7 @@ Arguments:      IN      pOwner              The owner of the object
 Returns:                TEXT                A comma delimited string of the column names in the materialized view
 
 ************************************************************************************************************************************
-Copyright 2018 Amazon.com, Inc. or its affiliates. All Rights Reserved. SPDX-License-Identifier: MIT-0
+Copyright 2019 Amazon.com, Inc. or its affiliates. All Rights Reserved. SPDX-License-Identifier: MIT-0
 ***********************************************************************************************************************************/
 DECLARE
 
@@ -1724,7 +1556,7 @@ SECURITY    DEFINER;
 CREATE OR REPLACE
 FUNCTION    mv$getSourceTableSchema
             (
-                pConst      IN      mv$allConstants,
+                pConst      IN      mike_pgmview.mv$allConstants,
                 pTableName  IN      TEXT
             )
     RETURNS TEXT
@@ -1751,7 +1583,7 @@ Note:           This function also requires the SEARCH_PATH to be set to the cur
 Arguments:      IN      pTableName          The name of the table we are trying to locate
 Returns:                TEXT                The name of the schema where the table was located
 ************************************************************************************************************************************
-Copyright 2018 Amazon.com, Inc. or its affiliates. All Rights Reserved. SPDX-License-Identifier: MIT-0
+Copyright 2019 Amazon.com, Inc. or its affiliates. All Rights Reserved. SPDX-License-Identifier: MIT-0
 ***********************************************************************************************************************************/
 DECLARE
 
@@ -1803,7 +1635,7 @@ SECURITY    DEFINER;
 CREATE OR REPLACE
 FUNCTION    mv$grantSelectPrivileges
             (
-                pConst          IN      mv$allConstants,
+                pConst          IN      mike_pgmview.mv$allConstants,
                 pOwner          IN      TEXT,
                 pObjectName     IN      TEXT
             )
@@ -1822,7 +1654,7 @@ Date        | Name          | Description
             |               |
 11/03/2018  | M Revitt      | Initial version
 ------------+---------------+-------------------------------------------------------------------------------------------------------
-Description:    Whilst objects are created into the named schema, the ownership remains with the package owner, pgrs_mview, so in
+Description:    Whilst objects are created into the named schema, the ownership remains with the package owner, mike_pgmview, so in
                 order to allow other users to access these materialized views it is necessary to grant select privileges to the
                 default role 'PGMV_ROLE_NAME'
 
@@ -1830,7 +1662,7 @@ Arguments:      IN      pOwner              The owner of the object
                 IN      pObjectName         The name of the object to receive select privileges
 Returns:                VOID
 ************************************************************************************************************************************
-Copyright 2018 Amazon.com, Inc. or its affiliates. All Rights Reserved. SPDX-License-Identifier: MIT-0
+Copyright 2019 Amazon.com, Inc. or its affiliates. All Rights Reserved. SPDX-License-Identifier: MIT-0
 ***********************************************************************************************************************************/
 DECLARE
 
@@ -1858,9 +1690,9 @@ LANGUAGE    plpgsql
 SECURITY    DEFINER;
 ------------------------------------------------------------------------------------------------------------------------------------
 CREATE OR REPLACE
-FUNCTION    mv$insertPgMviewLogs
+FUNCTION    mv$insertMikePgMviewLogs
             (
-                pConst          IN      mv$allConstants,
+                pConst          IN      mike_pgmview.mv$allConstants,
                 pOwner          IN      TEXT,
                 pPgLog$Name     IN      TEXT,
                 pTableName      IN      TEXT,
@@ -1870,7 +1702,7 @@ FUNCTION    mv$insertPgMviewLogs
 AS
 $BODY$
 /* ---------------------------------------------------------------------------------------------------------------------------------
-Routine Name: mv$insertPgMviewLogs
+Routine Name: mv$insertMikePgMviewLogs
 Author:       Mike Revitt
 Date:         12/11/2018
 ------------------------------------------------------------------------------------------------------------------------------------
@@ -1889,12 +1721,12 @@ Arguments:      IN      pOwner              The owner of the object
                 IN      pMvSequenceName     The name of the materialized view sequence
 Returns:                VOID
 ************************************************************************************************************************************
-Copyright 2018 Amazon.com, Inc. or its affiliates. All Rights Reserved. SPDX-License-Identifier: MIT-0
+Copyright 2019 Amazon.com, Inc. or its affiliates. All Rights Reserved. SPDX-License-Identifier: MIT-0
 ***********************************************************************************************************************************/
 BEGIN
 
     INSERT  INTO
-            pgmview_logs
+            mike_pgmview.mike$_pgmview_logs
             (
                 owner,  pglog$_name, table_name, trigger_name
             )
@@ -1907,7 +1739,7 @@ BEGIN
     EXCEPTION
     WHEN OTHERS
     THEN
-        RAISE INFO      'Exception in function mv$insertPgMviewLogs';
+        RAISE INFO      'Exception in function mv$insertMikePgMviewLogs';
         RAISE INFO      'Error %:- %:',     SQLSTATE, SQLERRM;
         RAISE EXCEPTION '%',                SQLSTATE;
 END;
@@ -1918,7 +1750,7 @@ SECURITY    DEFINER;
 CREATE OR REPLACE
 FUNCTION    mv$removeRow$FromSourceTable
             (
-                pConst          IN      mv$allConstants,
+                pConst          IN      mike_pgmview.mv$allConstants,
                 pOwner          IN      TEXT,
                 pTableName      IN      TEXT
             )
@@ -1944,7 +1776,7 @@ Arguments:      IN      pOwner              The owner of the object
                 IN      pTableName          The name of the materialized view source table
 Returns:                VOID
 ************************************************************************************************************************************
-Copyright 2018 Amazon.com, Inc. or its affiliates. All Rights Reserved. SPDX-License-Identifier: MIT-0
+Copyright 2019 Amazon.com, Inc. or its affiliates. All Rights Reserved. SPDX-License-Identifier: MIT-0
 ***********************************************************************************************************************************/
 DECLARE
 
@@ -1972,7 +1804,7 @@ SECURITY    DEFINER;
 CREATE OR REPLACE
 FUNCTION    mv$replaceCommandWithToken
             (
-                pConst          IN      mv$allConstants,
+                pConst          IN      mike_pgmview.mv$allConstants,
                 pSearchString   IN      TEXT,
                 pSearchValue    IN      TEXT,
                 pTokan          IN      TEXT
@@ -2001,7 +1833,7 @@ Arguments:      IN      pSearchString       The string to be searched
                 IN      pTokan              The value to replace the search value with within the string
 Returns:                TEXT                The tokanised string
 ************************************************************************************************************************************
-Copyright 2018 Amazon.com, Inc. or its affiliates. All Rights Reserved. SPDX-License-Identifier: MIT-0
+Copyright 2019 Amazon.com, Inc. or its affiliates. All Rights Reserved. SPDX-License-Identifier: MIT-0
 ***********************************************************************************************************************************/
 DECLARE
 
@@ -2032,9 +1864,9 @@ SECURITY    DEFINER;
 CREATE OR REPLACE
 FUNCTION    mv$truncateMaterializedView
             (
-                pConst      IN      mv$allConstants,
+                pConst      IN      mike_pgmview.mv$allConstants,
                 pOwner      IN      TEXT,
-                pPgMvName   IN      TEXT
+                pViewName   IN      TEXT
             )
 
     RETURNS VOID
@@ -2055,18 +1887,18 @@ Date        | Name          | Description
 Description:    When performing a full refresh, we first have to truncate the materialized view
 
 Arguments:      IN      pOwner              The owner of the object
-                IN      pPgMvName          The name of the materialized view base table
+                IN      pViewName          The name of the materialized view base table
 Returns:                VOID
 
 ************************************************************************************************************************************
-Copyright 2018 Amazon.com, Inc. or its affiliates. All Rights Reserved. SPDX-License-Identifier: MIT-0
+Copyright 2019 Amazon.com, Inc. or its affiliates. All Rights Reserved. SPDX-License-Identifier: MIT-0
 ***********************************************************************************************************************************/
 DECLARE
 
     tSqlStatement TEXT;
 
 BEGIN
-    tSqlStatement := pConst.TRUNCATE_TABLE || pOwner || pConst.DOT_CHARACTER || pPgMvName;
+    tSqlStatement := pConst.TRUNCATE_TABLE || pOwner || pConst.DOT_CHARACTER || pViewName;
 
     EXECUTE tSqlStatement;
     RETURN;

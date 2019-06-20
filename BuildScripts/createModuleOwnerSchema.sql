@@ -118,7 +118,7 @@ CREATE TABLE IF NOT EXISTS :MODULEOWNER.pgmview_logs
 	pglog$_name     TEXT        NOT NULL,
 	table_name      TEXT        NOT NULL,
 	trigger_name    TEXT        NOT NULL,
-	pgrs_mview_bitmap INTEGER     NOT NULL DEFAULT 0,
+    pg_mview_bitmap BIGINT      NOT NULL DEFAULT 0,
 	CONSTRAINT
 		pk$_snapshot_logs
 		PRIMARY KEY
@@ -132,7 +132,6 @@ CREATE TABLE IF NOT EXISTS :MODULEOWNER.pgmviews
 (
 	owner               TEXT        NOT NULL,
 	view_name           TEXT        NOT NULL,
-	pgmv$_name          TEXT        NOT NULL,
 	pgmv_columns        TEXT        NOT NULL,
 	select_columns      TEXT        NOT NULL,
 	table_names         TEXT        NOT NULL,
@@ -143,7 +142,6 @@ CREATE TABLE IF NOT EXISTS :MODULEOWNER.pgmviews
 	log_array           TEXT[],
 	bit_array           SMALLINT[],
 	outer_table_array   TEXT[],
-	parent_table_array  TEXT[],
 	parent_alias_array  TEXT[],
 	parent_rowid_array  TEXT[],
 	CONSTRAINT
@@ -158,8 +156,8 @@ CREATE TABLE IF NOT EXISTS :MODULEOWNER.pgmviews
 GRANT   USAGE   ON                      SCHEMA  :MODULEOWNER    TO  pgmv$_role;
 GRANT   SELECT  ON  ALL TABLES      IN  SCHEMA  :MODULEOWNER    TO  pgmv$_role;
 
-ALTER TABLE :MODULEOWNER.pgmviews OWNER TO :MODULEOWNER;
-ALTER TABLE :MODULEOWNER.pgmview_logs OWNER TO :MODULEOWNER;
+ALTER TABLE :MODULEOWNER.pgmviews       OWNER TO :MODULEOWNER;
+ALTER TABLE :MODULEOWNER.pgmview_logs   OWNER TO :MODULEOWNER;
 
 ALTER EXTENSION "uuid-ossp" SET SCHEMA public;
 
