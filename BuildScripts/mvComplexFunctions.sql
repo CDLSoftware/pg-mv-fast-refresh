@@ -888,6 +888,7 @@ Date        | Name          | Description
 ------------+---------------+-------------------------------------------------------------------------------------------------------
             |               |
 11/03/2018  | M Revitt      | Initial version
+19/06/2019  | M Revitt      | Fixed issue with Delete statment that added superious WHERE Clause when there was not WHERE statment
 ------------+---------------+-------------------------------------------------------------------------------------------------------
 Description:    When inserting data into a complex materialized view, it is possible that a previous insert has already inserted
                 the row that we are about to insert if that row is the subject of an outer join or is a parent of multiple new rows
@@ -914,17 +915,20 @@ BEGIN
 
     aPgMview := mv$getPgMviewTableData( pConst, pOwner, pViewName );
 
-    tFromClause  := pConst.FROM_COMMAND           || aPgMview.table_names   ||
-                    pConst.WHERE_COMMAND          || aPgMview.where_clause  ||
-                    pConst.AND_COMMAND            || pTableAlias            || pConst.MV_M_ROW$_SOURCE_COLUMN   ||
-                    pConst.IN_ROWID_LIST;
+    tFromClause  := pConst.FROM_COMMAND || aPgMview.table_names || pConst.WHERE_COMMAND;
+
+    IF LENGTH( aPgMview.where_clause ) > 0
+    THEN
+        tFromClause := tFromClause || aPgMview.where_clause  || pConst.AND_COMMAND;
+    END IF;
+
+    tFromClause := tFromClause || pTableAlias            || pConst.MV_M_ROW$_SOURCE_COLUMN   || pConst.IN_ROWID_LIST;
 
     tSqlStatement :=    pConst.DELETE_FROM        ||
-                        aPgMview.owner            || pConst.DOT_CHARACTER   || aPgMview.pgmv$_name              ||
-                        pConst.WHERE_COMMAND      || pParentRowid           ||
-                        pConst.IN_SELECT_COMMAND  || pParentAlias           || pConst.MV_M_ROW$_SOURCE_COLUMN   ||
+                        aPgMview.owner            || pConst.DOT_CHARACTER   || aPgMview.view_name               ||
+                        pConst.WHERE_COMMAND      || pInnerRowid            ||
+                        pConst.IN_SELECT_COMMAND  || pInnerAlias            || pConst.MV_M_ROW$_SOURCE_COLUMN   ||
                         tFromClause               || pConst.CLOSE_BRACKET;
-
 
     EXECUTE tSqlStatement
     USING   pRowIDs;

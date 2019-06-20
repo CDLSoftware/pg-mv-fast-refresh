@@ -891,7 +891,7 @@ Date        | Name          | Description
 04/06/2019  | M Revitt      | Initial version
 ------------+---------------+-------------------------------------------------------------------------------------------------------
 Description:    Every time a new materialized view is created, a record of that view is also created in the data dictionary table
-                mike$_pgmviews.
+                pgmviews.
 
                 This table holds all of the pertinent information about the materialized view which is later used in the management
                 of that view.
@@ -908,7 +908,7 @@ DECLARE
 BEGIN
 
     DELETE
-    FROM    mike$_pgmviews
+    FROM    pgmviews
     WHERE
             owner       = pOwner
     AND     view_name   = pViewName;
@@ -948,7 +948,7 @@ Date        | Name          | Description
 04/06/2019  | M Revitt      | Initial version
 ------------+---------------+-------------------------------------------------------------------------------------------------------
 Description:    Every time a new materialized view is created, a record of that view is also created in the data dictionary table
-                mike$_pgmviews.
+                pgmviews.
 
                 This table holds all of the pertinent information about the materialized view which is later used in the management
                 of that view.
