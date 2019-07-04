@@ -62,11 +62,18 @@ DROP FUNCTION IF EXISTS mv$createPgMv$Table;
 DROP FUNCTION IF EXISTS mv$insertMaterializedViewRows;
 DROP FUNCTION IF EXISTS mv$insertPgMview;
 DROP FUNCTION IF EXISTS mv$insertOuterJoinRows;
+DROP FUNCTION IF EXISTS mv$insertPgMviewOuterJoinDetails;
 DROP FUNCTION IF EXISTS mv$executeMVFastRefresh;
 DROP FUNCTION IF EXISTS mv$refreshMaterializedViewFast;
 DROP FUNCTION IF EXISTS mv$refreshMaterializedViewFull;
 DROP FUNCTION IF EXISTS mv$setPgMviewLogBit;
 DROP FUNCTION IF EXISTS mv$updateMaterializedViewRows;
+DROP FUNCTION IF EXISTS mv$updateOuterJoinColumnsNull;
+DROP FUNCTION IF EXISTS mv$regExpCount;
+DROP FUNCTION IF EXISTS mv$regExpInstr;
+DROP FUNCTION IF EXISTS mv$regExpReplace;
+DROP FUNCTION IF EXISTS mv$regExpSubstr;
+
 
 SET CLIENT_MIN_MESSAGES = NOTICE;
 
@@ -560,6 +567,7 @@ Date        | Name          | Description
 ------------+---------------+-------------------------------------------------------------------------------------------------------
             |               |
 11/03/2018  | M Revitt      | Initial version
+01/07/2019	| David Day		| Added function mv$updateOuterJoinColumnsNull to handle outer join deletes.
 ------------+---------------+-------------------------------------------------------------------------------------------------------
 Description:    Selects all of the data from the materialized view log, in the order it was created, and applies the changes to
                 the materialized view table and once the change has been applied the bit value for the materialized view is
@@ -583,8 +591,23 @@ BEGIN
     CASE pDmlType
     WHEN pConst.DELETE_DML_TYPE
     THEN
-        cResult := mv$deleteMaterializedViewRows( pConst, pOwner, pViewName, pRowidColumn, pRowIDArray );
-
+	    IF TRUE = pOuterTable
+        THEN	
+		
+			cResult :=  mv$updateOuterJoinColumnsNull
+							(
+								pConst,
+								pOwner,
+								pViewName,
+								pTableAlias,
+								pRowidColumn,
+								pRowIDArray
+							);
+		
+		ELSE
+			cResult := mv$deleteMaterializedViewRows( pConst, pOwner, pViewName, pRowidColumn, pRowIDArray );
+		END IF;
+			
     WHEN pConst.INSERT_DML_TYPE
     THEN
         IF TRUE = pOuterTable
@@ -645,7 +668,7 @@ $BODY$
 /* ---------------------------------------------------------------------------------------------------------------------------------
 Routine Name: mv$refreshMaterializedViewFast
 Author:       Mike Revitt
-Date:         12/011/2018
+Date:         12/11/2018
 ------------------------------------------------------------------------------------------------------------------------------------
 Revision History    Push Down List
 ------------------------------------------------------------------------------------------------------------------------------------
@@ -657,9 +680,9 @@ Date        | Name          | Description
 Description:    Selects all of the data from the materialized view log, in the order it was created, and applies the changes to
                 the materialized view table and once the change has been applied the bit value for the materialized view is
                 removed from the PgMview log row.
-
-                Once all rows have been processed the materialized view log is cleaned up, in that all rows with a bitmap of zero
-                are deleted as they are then no longer required
+				
+				This is used as part of the initial materialized view creation were all details are loaded into table
+				pgmviews_oj_details which is later used by the refresh procesa.
 
 Arguments:      IN      pOwner              The owner of the object
                 IN      pViewName           The name of the materialized view
@@ -840,7 +863,7 @@ $BODY$
 /* ---------------------------------------------------------------------------------------------------------------------------------
 Routine Name: mv$refreshMaterializedViewFast
 Author:       Mike Revitt
-Date:         12/011/2018
+Date:         12/11/2018
 ------------------------------------------------------------------------------------------------------------------------------------
 Revision History    Push Down List
 ------------------------------------------------------------------------------------------------------------------------------------
@@ -972,7 +995,7 @@ BEGIN
 
     EXECUTE tSqlStatement
     USING   pRowIDs;
-
+	
     tSqlStatement :=    pConst.INSERT_INTO       ||
                         aPgMview.owner           || pConst.DOT_CHARACTER    || aPgMview.view_name   ||
                         pConst.OPEN_BRACKET      || aPgMview.pgmv_columns   || pConst.CLOSE_BRACKET ||
@@ -995,6 +1018,261 @@ END;
 $BODY$
 LANGUAGE    plpgsql
 SECURITY    DEFINER;
+
+------------------------------------------------------------------------------------------------------------------------------------
+CREATE OR REPLACE
+FUNCTION    mv$insertPgMviewOuterJoinDetails
+			(	pConst              IN      mv$allConstants,
+                pOwner              IN      TEXT,
+                pViewName           IN      TEXT,
+                pSelectColumns      IN      TEXT,
+                pAliasArray         IN      TEXT[],
+                pRowidArray         IN      TEXT[],
+                pOuterTableArray    IN      TEXT[]
+			 )
+    RETURNS VOID
+AS
+$BODY$
+/* ---------------------------------------------------------------------------------------------------------------------------------
+Routine Name: mv$insertPgMviewOuterJoinDetails
+Author:       David Day
+Date:         25/06/2019
+------------------------------------------------------------------------------------------------------------------------------------
+Revision History    Push Down List
+------------------------------------------------------------------------------------------------------------------------------------
+Date        | Name          | Description
+------------+---------------+-------------------------------------------------------------------------------------------------------
+            |               |
+01/07/2019  | D Day      | Initial version
+------------+---------------+-------------------------------------------------------------------------------------------------------
+Description:    Dynamically builds UPDATE statement(s) for any outer join table to nullify all the alias outer join column(s)
+				including rowid held in the materialized view table when an DELETE is done against the 
+				source table.
+				
+				This function inserts data into the data dictionary table pgmview_oj_details 
+
+Arguments:      IN      pConst	
+
+Arguments:      IN      pOwner              The owner of the object
+                IN      pViewName           The name of the materialized view
+				IN		pSelectColumns		The column list from the SQL query that will be used to build the UPDATE statement
+                IN      pAliasArray         An array that holds the list of table aliases
+                IN      pRowidArray    		An array that holds the list of rowid columns
+                IN      pOuterTableArray    An array that holds the list of outer joined tables in a multi table materialized view		
+
+Returns:                VOID
+************************************************************************************************************************************
+Copyright 2018 Amazon.com, Inc. or its affiliates. All Rights Reserved. SPDX-License-Identifier: MIT-0
+***********************************************************************************************************************************/
+DECLARE
+	
+	iColumnNameAliasCnt				INTEGER DEFAULT 0;	
+	
+	tRegexp_rowid					TEXT;
+	tSelectColumns					TEXT;
+	tColumnNameAlias				TEXT;
+	tRegExpColumnNameAlias			TEXT;
+	tColumnNameArray 				TEXT[];	
+	tColumnNameSql 					TEXT;
+	tMvColumnName					TEXT;
+	tTableName						TEXT;
+	tMvRowidColumnName				TEXT;
+    rPgMviewColumnNames     		RECORD;
+	iMvColumnNameExists				INTEGER DEFAULT 0;	
+	iMvColumnNameLoopCnt			INTEGER DEFAULT 0;
+	
+	tUpdateSetSql					TEXT;
+	tSqlStatement					TEXT;
+	
+	tWhereClause					TEXT;
+	
+	rMvOuterJoinDetails				RECORD;
+	
+	
+BEGIN
+
+	FOR rMvOuterJoinDetails IN (SELECT inline.oj_table AS table_name
+								,      inline.oj_table_alias AS table_name_alias
+								,	   inline.oj_rowid AS rowid_column_name
+								FROM (
+									SELECT 	UNNEST(pOuterTableArray) AS oj_table
+									, 		UNNEST(pAliasArray) AS oj_table_alias
+									, 		UNNEST(pRowidArray) AS oj_rowid) inline
+								WHERE inline.oj_table IS NOT NULL) 
+	LOOP
+			 
+		tColumnNameArray	 := '{}';
+		tUpdateSetSql 		 := ' ';
+		iMvColumnNameLoopCnt := 0;
+		
+		tMvRowidColumnName 		:= rMvOuterJoinDetails.rowid_column_name;
+		tWhereClause 			:= pConst.WHERE_COMMAND || tMvRowidColumnName  || pConst.IN_ROWID_LIST;
+		tRegexp_rowid 			:= REPLACE(tMvRowidColumnName,'$','\$');
+		tSelectColumns 			:= SUBSTR(pSelectColumns,1,mv$regExpInstr(pSelectColumns,'[,]+[[:alnum:]]+[.]+'||'m_row\$'||''));
+		tRegExpColumnNameAlias 	:= REPLACE(rMvOuterJoinDetails.table_name_alias,'.','\.');
+		iColumnNameAliasCnt 	:= mv$regExpCount(tSelectColumns, tRegExpColumnNameAlias, 1);
+		tColumnNameAlias 		:= rMvOuterJoinDetails.table_name_alias;
+		tTableName 				:= rMvOuterJoinDetails.table_name;
+		
+		IF iColumnNameAliasCnt > 0 THEN
+	
+			FOR i IN 1..iColumnNameAliasCnt 
+			LOOP
+			
+				tColumnNameSql := SUBSTR(tSelectColumns,mv$regExpInstr(tSelectColumns,
+                         tRegExpColumnNameAlias,
+                         1,
+                         i)-1);
+				tColumnNameSql := mv$regExpReplace(tColumnNameSql,'(^[[:space:]]+)',null);
+				tColumnNameSql := mv$regExpSubstr(tColumnNameSql,'(.*'||tRegExpColumnNameAlias||'+[[:alnum:]]+(.*?[^,|$]))',1,1,'i');
+				tMvColumnName  := TRIM(REPLACE(mv$regExpSubstr(tColumnNameSql, '\S+$'),',',''));
+				tMvColumnName  := LOWER(TRIM(REPLACE(tMvColumnName,tColumnNameAlias,'')));
+				
+				tColumnNameArray[i] := tMvColumnName;
+				
+				FOR rPgMviewColumnNames IN (SELECT column_name
+											FROM   information_schema.columns
+											WHERE  table_schema    = LOWER( pOwner )
+											AND    table_name      = LOWER( pViewName ) )
+				LOOP
+				
+					IF rPgMviewColumnNames.column_name = tMvColumnName THEN
+						
+						iMvColumnNameLoopCnt := iMvColumnNameLoopCnt + 1;
+						
+						IF iMvColumnNameLoopCnt = 1 THEN 	
+							tUpdateSetSql := pConst.SET_COMMAND || tMvColumnName || pConst.EQUALS_NULL || pConst.COMMA_CHARACTER;
+						ELSE	
+							tUpdateSetSql := tUpdateSetSql || tMvColumnName || pConst.EQUALS_NULL || pConst.COMMA_CHARACTER ;
+						END IF;
+					
+						EXIT WHEN iMvColumnNameLoopCnt > 0;
+						
+					END IF;
+
+				END LOOP;
+				
+			END LOOP;
+			
+			tUpdateSetSql := tUpdateSetSql || tMvRowidColumnName || pConst.EQUALS_NULL;
+			
+		ELSE	
+			tUpdateSetSql := pConst.SET_COMMAND || tMvRowidColumnName || pConst.EQUALS_NULL;
+		END IF;
+		
+		tSqlStatement := pConst.UPDATE_COMMAND ||
+						 pOwner		|| pConst.DOT_CHARACTER		|| pViewName	|| pConst.NEW_LINE		||
+						 tUpdateSetSql || pConst.NEW_LINE ||
+						 tWhereClause;
+		
+		INSERT INTO pgmviews_oj_details
+		(	owner
+		,	pgmv_name
+		,	table_alias
+		,   rowid_column_name
+		,   source_table_name
+		,   column_name_array
+		,   update_sql)
+		VALUES
+		(	pOwner
+		,	pViewName
+		,   tColumnNameAlias
+		,   tMvRowidColumnName
+		,   tTableName
+		,   tColumnNameArray
+		,	tSqlStatement);
+		
+	END LOOP;
+
+    RETURN;
+
+    EXCEPTION
+    WHEN OTHERS
+    THEN
+        RAISE INFO      'Exception in function mv$insertPgMviewOuterJoinDetails';
+        RAISE INFO      'Error %:- %:',     SQLSTATE, SQLERRM;
+        RAISE INFO      'Error Context:% %',CHR(10),  tSqlStatement;
+        RAISE EXCEPTION '%',                SQLSTATE;
+END;
+$BODY$
+LANGUAGE    plpgsql
+SECURITY    DEFINER;
+------------------------------------------------------------------------------------------------------------------------------------
+CREATE OR REPLACE
+FUNCTION    mv$updateOuterJoinColumnsNull
+            (
+                pConst          IN      mv$allConstants,
+                pOwner          IN      TEXT,
+                pViewName       IN      TEXT,
+                ptablealias     IN      TEXT,
+                pRowidColumn    IN      TEXT,
+                pRowIDs         IN      UUID[]
+            )
+    RETURNS VOID
+AS
+$BODY$
+
+/* ---------------------------------------------------------------------------------------------------------------------------------
+Routine Name: mv$updateOuterJoinColumnsNull
+Author:       David Day
+Date:         25/06/2019
+------------------------------------------------------------------------------------------------------------------------------------
+Revision History    Push Down List
+------------------------------------------------------------------------------------------------------------------------------------
+Date        | Name          | Description
+------------+---------------+-------------------------------------------------------------------------------------------------------
+            |               |
+25/06/2019  | D Day      | Initial version
+------------+---------------+-------------------------------------------------------------------------------------------------------
+Description:    Executes UPDATE statement to nullify outer join columns held in the materialized view table when a DELETE has been
+				done against the source table.
+				
+				A decision was made that an UPDATE would be the more per-formant way of deleting the data rather than to get
+				the inner join rowids to allow the rows to be deleted and inserted back if the inner join conditions still match.
+				
+				Due to the overhead of getting the inner join rowids from the materialized view to allow this to happen in this scenario.
+
+Arguments:      IN      pConst	
+
+Arguments:      IN      pOwner              The owner of the object
+                IN      pViewName           The name of the materialized view
+                IN      pTableAlias         The alias for the outer join table
+                IN      pRowidColumn    	The name of the outer join rowid column
+                IN      pRowID              The unique identifier to locate the row			
+
+Returns:                VOID
+************************************************************************************************************************************
+Copyright 2018 Amazon.com, Inc. or its affiliates. All Rights Reserved. SPDX-License-Identifier: MIT-0
+***********************************************************************************************************************************/
+DECLARE
+
+    tSqlStatement   				TEXT;
+
+BEGIN	
+
+	SELECT update_sql INTO tSqlStatement
+	FROM pgmviews_oj_details
+	WHERE owner = pOwner
+	AND pgmv_name = pViewName
+	AND table_alias = ptablealias
+	AND rowid_column_name = pRowidColumn;
+	
+	EXECUTE tSqlStatement
+	USING   pRowIDs;
+
+    RETURN;
+
+    EXCEPTION
+    WHEN OTHERS
+    THEN
+        RAISE INFO      'Exception in function mv$updateOuterJoinColumnsNull';
+        RAISE INFO      'Error %:- %:',     SQLSTATE, SQLERRM;
+        RAISE INFO      'Error Context:% %',CHR(10),  tSqlStatement;
+        RAISE EXCEPTION '%',                SQLSTATE;
+END;
+$BODY$
+LANGUAGE    plpgsql
+SECURITY    DEFINER;
 ------------------------------------------------------------------------------------------------------------------------------------
 CREATE OR REPLACE
 FUNCTION    mv$setPgMviewLogBit
@@ -1010,7 +1288,7 @@ $BODY$
 /* ---------------------------------------------------------------------------------------------------------------------------------
 Routine Name: mv$setPgMviewLogBit
 Author:       Mike Revitt
-Date:         12/011/2018
+Date:         12/01/2018
 ------------------------------------------------------------------------------------------------------------------------------------
 Revision History    Push Down List
 ------------------------------------------------------------------------------------------------------------------------------------
@@ -1133,4 +1411,402 @@ END;
 $BODY$
 LANGUAGE    plpgsql
 SECURITY    DEFINER;
+------------------------------------------------------------------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION mv$regExpCount(
+						p_src_string text,
+						p_regexp_pat CHARACTER VARYING,
+						p_position NUMERIC DEFAULT 1,
+						p_match_param CHARACTER VARYING DEFAULT 'c'::character varying)
+		RETURNS INTEGER
+AS $BODY$
+/* ---------------------------------------------------------------------------------------------------------------------------------
+Routine Name: mv$regExpCount
+Author:       David Day
+Date:         03/07/2019
+------------------------------------------------------------------------------------------------------------------------------------
+Revision History    Push Down List
+------------------------------------------------------------------------------------------------------------------------------------
+Date        | Name          | Description
+------------+---------------+-------------------------------------------------------------------------------------------------------
+            |               |
+03/07/2019  | D Day      	| Initial version
+------------+---------------+-------------------------------------------------------------------------------------------------------
+Description:    Function to use regular expression pattern to count the total amount of occurrences of the input parameter p_src_string
 
+Arguments:      IN      p_src_string             
+                IN      p_regexp_pat           	  
+                IN      p_position         		  
+                IN      p_match_param			              
+Returns:                INTEGER
+
+************************************************************************************************************************************
+Copyright 2018 Amazon.com, Inc. or its affiliates. All Rights Reserved. SPDX-License-Identifier: MIT-0
+***********************************************************************************************************************************/
+
+DECLARE
+    v_res_count INTEGER;
+    v_position INTEGER := floor(p_position);
+    v_match_param VARCHAR := trim(p_match_param);
+    v_src_string TEXT := substr(p_src_string, v_position);
+BEGIN
+    IF (coalesce(p_src_string, '') = '' OR coalesce(p_regexp_pat, '') = '' OR p_position IS NULL)
+    THEN
+        RETURN NULL;
+    ELSIF (v_position <= 0) THEN
+        RAISE EXCEPTION 'The value of the argument for parameter in position "3" (start position) should be greater than or equal to 1';
+    ELSIF (coalesce(v_match_param, '') = '') THEN
+        v_match_param := 'c';
+    ELSIF (v_match_param !~ 'i|c|n|m|x') THEN
+        RAISE EXCEPTION 'The value of the argument for parameter in position "4" (match_parameter) must be one of the following: "i", "c", "n", "m", "x"';
+    END IF;
+
+    v_match_param := concat('g', v_match_param);
+    v_match_param := regexp_replace(v_match_param, 'm|x', '', 'g');
+    v_match_param := CASE
+                       WHEN v_match_param !~ 'n' THEN concat(v_match_param, 'p')
+                       ELSE regexp_replace(v_match_param, 'n', '', 'g')
+                    END;
+
+    SELECT COUNT(regexpval)::INTEGER
+      INTO v_res_count
+      FROM (SELECT ROW_NUMBER() OVER (ORDER BY 1) AS rownum,
+                   regexpval
+              FROM (SELECT unnest(regexp_matches(v_src_string,
+                                                 p_regexp_pat,
+                                                 v_match_param)) AS regexpval
+                   ) AS regexpvals
+             WHERE char_length(regexpval) > 0
+           ) AS rankexpvals;
+
+    RETURN v_res_count;
+END;
+$BODY$
+LANGUAGE    plpgsql
+SECURITY    DEFINER;
+------------------------------------------------------------------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION mv$regExpInstr(
+	p_src_string TEXT,
+	p_regexp_pat CHARACTER VARYING,
+	p_position NUMERIC DEFAULT 1,
+	p_occurrence NUMERIC DEFAULT 1,
+	p_retopt NUMERIC DEFAULT 0,
+	p_match_param CHARACTER VARYING DEFAULT 'c'::character varying)
+    RETURNS INTEGER
+AS $BODY$
+/* ---------------------------------------------------------------------------------------------------------------------------------
+Routine Name: mv$regExpInstr
+Author:       David Day
+Date:         03/07/2019
+------------------------------------------------------------------------------------------------------------------------------------
+Revision History    Push Down List
+------------------------------------------------------------------------------------------------------------------------------------
+Date        | Name          | Description
+------------+---------------+-------------------------------------------------------------------------------------------------------
+            |               |
+03/07/2019  | D Day      	| Initial version
+------------+---------------+-------------------------------------------------------------------------------------------------------
+Description:  Function to use regular expression pattern to evaluate strings using characters as defined by the input character set.
+			  It returns an integer indicating the beginning or ending position of the matched string depending on the value of the
+			  p_retopt argument. If no match is found it returns 0.
+
+Arguments:      IN      p_src_string             
+                IN      p_regexp_pat           	  
+                IN      p_position   
+				IN		p_occurrence
+				IN      p_retopt
+                IN      p_match_param			              
+Returns:                INTEGER
+
+************************************************************************************************************************************
+Copyright 2018 Amazon.com, Inc. or its affiliates. All Rights Reserved. SPDX-License-Identifier: MIT-0
+***********************************************************************************************************************************/
+DECLARE
+    v_resposition INTEGER;
+    v_regexpres_row RECORD;
+    v_match_count INTEGER := 0;
+    v_retopt INTEGER := floor(p_retopt);
+    v_position INTEGER := floor(p_position);
+    v_occurrence INTEGER := floor(p_occurrence);
+    v_match_param VARCHAR := trim(p_match_param);
+    v_src_string TEXT := substr(p_src_string, v_position);
+    v_srcstr_len INTEGER := char_length(v_src_string);
+BEGIN
+    IF (coalesce(p_src_string, '') = '' OR coalesce(p_regexp_pat, '') = '' OR
+        p_position IS NULL OR p_occurrence IS NULL OR p_retopt IS NULL)
+    THEN
+        RETURN NULL;
+    ELSIF (v_position <= 0) THEN
+        RAISE EXCEPTION 'The value of the argument for parameter in position "3" (start position) should be greater than or equal to 1';
+    ELSIF (v_occurrence <= 0) THEN
+        RAISE EXCEPTION 'The value of the argument parameter in position "4" (occurrence of match) should be greater than or equal to 1';
+    ELSIF (v_retopt NOT IN (0, 1)) THEN
+        RAISE EXCEPTION 'The value of the argument for parameter in position "5" (return-option) should be either 0 or 1';
+    ELSIF (coalesce(v_match_param, '') = '') THEN
+        v_match_param := 'c';
+    ELSIF (v_match_param !~ 'i|c|n|m|x') THEN
+        RAISE EXCEPTION 'The value of the argument for parameter in position "6" (match_parameter) must be one of the following: "i", "c", "n", "m", "x"';
+    END IF;
+
+    v_match_param := concat('g', v_match_param);
+    v_match_param := regexp_replace(v_match_param, 'm|x', '', 'g');
+    v_match_param := CASE
+                       WHEN v_match_param !~ 'n' THEN concat(v_match_param, 'p')
+                       ELSE regexp_replace(v_match_param, 'n', '', 'g')
+                    END;
+
+    FOR v_regexpres_row IN
+    (SELECT rownum,
+            regexpval,
+            char_length(regexpval) AS value_len
+       FROM (SELECT ROW_NUMBER() OVER (ORDER BY 1) AS rownum,
+                    regexpval
+               FROM (SELECT unnest(regexp_matches(v_src_string,
+                                                  p_regexp_pat,
+                                                  v_match_param)) AS regexpval
+                    ) AS regexpvals
+              WHERE char_length(regexpval) > 0
+            ) AS rankexpvals
+      ORDER BY rownum ASC)
+    LOOP
+        v_src_string := substr(v_src_string, strpos(v_src_string, v_regexpres_row.regexpval) + v_regexpres_row.value_len);
+        v_resposition := v_srcstr_len - char_length(v_src_string) - v_regexpres_row.value_len + 1;
+
+        IF (v_position > 1) THEN
+            v_resposition := v_resposition + v_position - 1;
+        END IF;
+
+        IF (v_retopt = 1) THEN
+            v_resposition := v_resposition + v_regexpres_row.value_len;
+        END IF;
+
+        v_match_count := v_regexpres_row.rownum;
+        EXIT WHEN v_match_count = v_occurrence;
+    END LOOP;
+
+    RETURN CASE
+              WHEN v_match_count != v_occurrence THEN 0
+              ELSE v_resposition
+           END;
+END;
+$BODY$
+LANGUAGE    plpgsql
+SECURITY    DEFINER;
+------------------------------------------------------------------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION mv$regExpReplace(
+	p_srcstring TEXT,
+	p_regexppat CHARACTER VARYING,
+	p_replacestring text DEFAULT ''::text,
+	p_position INTEGER DEFAULT 1,
+	p_occurrence INTEGER DEFAULT 0,
+	p_matchparam CHARACTER VARYING DEFAULT 'c'::character varying)
+    RETURNS TEXT
+AS $BODY$
+/* ---------------------------------------------------------------------------------------------------------------------------------
+Routine Name: mv$regExpReplace
+Author:       David Day
+Date:         03/07/2019
+------------------------------------------------------------------------------------------------------------------------------------
+Revision History    Push Down List
+------------------------------------------------------------------------------------------------------------------------------------
+Date        | Name          | Description
+------------+---------------+-------------------------------------------------------------------------------------------------------
+            |               |
+03/07/2019  | D Day      	| Initial version
+------------+---------------+-------------------------------------------------------------------------------------------------------
+Description:    Function to use regular expression pattern to replace value(s) from the input parameter p_src_string
+
+Arguments:      IN      p_srcstring             
+                IN      p_regexppat
+				IN		p_replacestring text
+                IN      p_position
+				IN 		p_occurrence
+                IN      p_matchparam			              
+Returns:                TEXT
+
+************************************************************************************************************************************
+Copyright 2018 Amazon.com, Inc. or its affiliates. All Rights Reserved. SPDX-License-Identifier: MIT-0
+***********************************************************************************************************************************/
+DECLARE
+    v_resstring TEXT;
+    v_regexpval TEXT;
+    v_resposition INTEGER;
+    v_regexpres_row RECORD;
+    v_match_count INTEGER := 0;
+    v_matchparam VARCHAR := trim(p_matchparam);
+    v_srcstring TEXT := substr(p_srcstring, p_position);
+    v_srcstrlen INTEGER := char_length(v_srcstring);
+	
+BEGIN
+    -- Possible combinations of the input parameters (processing some of them)
+    IF (char_length(v_srcstring) = 0 AND char_length(p_regexppat) = 0 AND p_position = 1 AND p_occurrence IN (0, 1)) THEN
+        RETURN p_replacestring;
+    ELSIF (char_length(v_srcstring) != 0 AND char_length(p_regexppat) = 0) THEN
+        RETURN p_srcstring;
+    END IF;
+
+    -- Block of input parameters validation checks
+    IF (coalesce(p_srcstring, '') = '' OR coalesce(p_regexppat, '') = '' OR p_position IS NULL OR p_occurrence IS NULL) THEN
+        RETURN NULL;
+    ELSIF (p_position <= 0) THEN
+        RAISE EXCEPTION 'The value for parameter in position "4" (start position) should be greater than or equal to 1';
+    ELSIF (p_occurrence < 0) THEN
+        RAISE EXCEPTION 'The value for parameter in position "5" (occurrence of match) should be greater than or equal to 0';
+    ELSIF (coalesce(v_matchparam, '') = '') THEN
+        v_matchparam := 'c';
+    ELSIF (v_matchparam !~ 'i|c|n|m|x') THEN
+        RAISE EXCEPTION 'The value of the argument for parameter in position "6" (match_parameter) must be one of the following: "i", "c", "n", "m", "x"';
+    END IF;
+																											  
+-- Translate regexp flags (match_parameter) between matching engines
+    v_matchparam := concat('g', v_matchparam);
+    v_matchparam := regexp_replace(v_matchparam, 'm|x', '', 'g');
+    v_matchparam := CASE
+                       WHEN v_matchparam !~ 'n' THEN concat(v_matchparam, 'p')
+                       ELSE regexp_replace(v_matchparam, 'n', '', 'g')
+                    END;
+
+    -- Replace all occurrences of match if particular one isn't specified
+    IF (p_occurrence = 0) THEN
+        v_resstring := regexp_replace(v_srcstring,
+                                      p_regexppat,
+                                      coalesce(p_replacestring, ''),
+                                      v_matchparam);
+
+        v_resstring := concat(substr(p_srcstring, 1, p_position - 1), v_resstring);
+    -- Replace the particular occurrence of regexp match (specified as "p_occurrence" param)
+    ELSE
+        FOR v_regexpres_row IN
+        (SELECT rownum,
+                regexpval,
+                char_length(regexpval) AS value_len
+           FROM (SELECT ROW_NUMBER() OVER (ORDER BY 1) AS rownum,
+                        regexpval
+                   FROM (SELECT unnest(regexp_matches(v_srcstring,
+                                                      p_regexppat,
+                                                      v_matchparam)) AS regexpval
+                        ) AS regexpvals
+                  WHERE char_length(regexpval) > 0
+                ) AS rankexpvals
+          ORDER BY rownum ASC)
+        LOOP
+            v_regexpval := v_regexpres_row.regexpval;
+            v_srcstring := substr(v_srcstring, strpos(v_srcstring, v_regexpval) + v_regexpres_row.value_len);
+            v_resposition := v_srcstrlen - char_length(v_srcstring) - v_regexpres_row.value_len + 1;
+
+            IF (p_position > 1) THEN
+                v_resposition := v_resposition + p_position - 1;
+            END IF;
+
+            v_match_count := v_regexpres_row.rownum;
+            EXIT WHEN v_match_count = p_occurrence;
+        END LOOP;
+
+        IF (v_match_count = p_occurrence) THEN
+            v_resstring := concat(substr(p_srcstring, 0, v_resposition),
+                           p_replacestring,
+                           substr(p_srcstring, v_resposition + char_length(v_regexpval)));
+        END IF;
+    END IF;
+
+    RETURN coalesce(v_resstring, p_srcstring);
+END;
+																		   
+$BODY$
+LANGUAGE    plpgsql
+SECURITY    DEFINER;
+------------------------------------------------------------------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION mv$regExpSubstr(
+	p_src_string TEXT,
+	p_regexp_pat CHARACTER VARYING,
+	p_position NUMERIC DEFAULT 1,
+	p_occurrence NUMERIC DEFAULT 1,
+	p_match_param CHARACTER VARYING DEFAULT 'c'::character varying)
+    RETURNS TEXT
+AS $BODY$
+/* ---------------------------------------------------------------------------------------------------------------------------------
+Routine Name: mv$regExpReplace
+Author:       David Day
+Date:         03/07/2019
+------------------------------------------------------------------------------------------------------------------------------------
+Revision History    Push Down List
+------------------------------------------------------------------------------------------------------------------------------------
+Date        | Name          | Description
+------------+---------------+-------------------------------------------------------------------------------------------------------
+            |               |
+03/07/2019  | D Day      	| Initial version
+------------+---------------+-------------------------------------------------------------------------------------------------------
+Description:    Function to search a string value and return the substring of itself based on the input
+				regular expression pattern.
+
+Arguments:      IN      p_srcstring             
+                IN      p_regexp_pat
+                IN      p_position
+				IN 		p_occurrence
+                IN      p_match_param			              
+Returns:                TEXT
+
+************************************************************************************************************************************
+Copyright 2018 Amazon.com, Inc. or its affiliates. All Rights Reserved. SPDX-License-Identifier: MIT-0
+***********************************************************************************************************************************/
+DECLARE
+    v_res_string TEXT;
+    v_regexp_val TEXT;
+    v_regexpres_row RECORD;
+    v_match_count INTEGER := 0;
+    v_position INTEGER := floor(p_position);
+    v_occurrence INTEGER := floor(p_occurrence);
+    v_match_param VARCHAR := trim(p_match_param);
+    v_src_string TEXT := substr(p_src_string, v_position);
+BEGIN
+    IF (coalesce(p_src_string, '') = '' OR coalesce(p_regexp_pat, '') = '' OR
+        p_position IS NULL OR p_occurrence IS NULL)
+    THEN
+        RETURN NULL;
+    ELSIF (v_position <= 0) THEN
+        RAISE EXCEPTION 'The value for parameter in position "3" (start position) should be greater than or equal to 1';
+    ELSIF (v_occurrence < 0) THEN
+        RAISE EXCEPTION 'The value for parameter in position "4" (occurrence of match) should be greater than or equal to 1';
+    ELSIF (coalesce(v_match_param, '') = '') THEN
+        v_match_param := 'c';
+    ELSIF (v_match_param !~ 'i|c|n|m|x') THEN
+        RAISE EXCEPTION 'The value of the argument for parameter in position "5" (match_parameter) must be one of the following: "i", "c", "n", "m", "x"';
+    END IF;
+
+    v_match_param := concat('g', v_match_param);
+    v_match_param := regexp_replace(v_match_param, 'm|x', '', 'g');
+    v_match_param := CASE
+                       WHEN v_match_param !~ 'n' THEN concat(v_match_param, 'p')
+                       ELSE regexp_replace(v_match_param, 'n', '', 'g')
+                    END;
+
+    FOR v_regexpres_row IN
+    (SELECT rownum,
+            regexpval,
+            char_length(regexpval) AS value_len
+       FROM (SELECT ROW_NUMBER() OVER (ORDER BY 1) AS rownum,
+                    regexpval
+               FROM (SELECT unnest(regexp_matches(v_src_string,
+                                                  p_regexp_pat,
+                                                  v_match_param)) AS regexpval
+                    ) AS regexpvals
+              WHERE char_length(regexpval) > 0
+            ) AS rankexpvals
+      ORDER BY rownum ASC)
+    LOOP
+        v_match_count := v_regexpres_row.rownum;
+        v_regexp_val := v_regexpres_row.regexpval;
+        v_src_string := substr(v_src_string, strpos(v_src_string, v_regexp_val) + v_regexpres_row.value_len);
+
+        IF (v_match_count = v_occurrence) THEN
+            v_res_string := v_regexp_val;
+            EXIT;
+        END IF;
+    END LOOP;
+
+    RETURN v_res_string;
+END;
+
+$BODY$
+LANGUAGE    plpgsql
+SECURITY    DEFINER;
+------------------------------------------------------------------------------------------------------------------------------------

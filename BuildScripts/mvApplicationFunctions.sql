@@ -208,6 +208,16 @@ BEGIN
                     tInnerRowidArray,
                     pFastRefresh
                 );
+				
+	cResult := mv$insertPgMviewOuterJoinDetails
+			(	rConst,
+                pOwner,
+                pViewName,
+                tSelectColumns,
+                tAliasArray,
+                tRowidArray,
+                tOuterTableArray
+			 );
 
     cResult := mv$refreshMaterializedView( pViewName, pOwner, FALSE );
     RETURN;
@@ -499,6 +509,7 @@ Date        | Name          | Description
 ------------+---------------+-------------------------------------------------------------------------------------------------------
             |               |
 11/03/2018  | M Revitt      | Initial version
+01/07/2019	| David Day		| Added function mv$deletePgMviewOjDetails to delete data from data dictionary table pgmview_oj_details. 
 ------------+---------------+-------------------------------------------------------------------------------------------------------
 Description:    Removes a materialized view, clears down the entries in the Materialized View Log adn then removes the entry from
                 the data dictionary table
@@ -530,6 +541,7 @@ BEGIN
     cResult     := mv$clearPgMviewLogBit(       rConst, pOwner, pViewName           );
     cResult     := mv$dropTable(                rConst, pOwner, aPgMview.view_name  );
     cResult     := mv$deletePgMview(               pOwner, pViewName           );
+	cResult		:= mv$deletePgMviewOjDetails(      pOwner, pViewName           );
 
     RETURN;
 END;

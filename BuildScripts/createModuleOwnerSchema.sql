@@ -153,11 +153,29 @@ CREATE TABLE IF NOT EXISTS :MODULEOWNER.pgmviews
 		)
 );
 
+CREATE TABLE IF NOT EXISTS :MODULEOWNER.pgmviews_oj_details
+(
+    owner 				TEXT 			NOT NULL,
+    pgmv_name 			TEXT 			NOT NULL,
+    table_alias 		TEXT 			NOT NULL,
+    rowid_column_name  	TEXT			NOT NULL,
+    source_table_name	TEXT			NOT NULL,
+    column_name_array 	TEXT[],
+    update_sql 			TEXT 			NOT NULL,
+    CONSTRAINT 
+		pk$_pgmviews_oj_tables
+		PRIMARY KEY 
+		(owner, 
+		 pgmv_name, 
+		 table_alias)
+);
+
 GRANT   USAGE   ON                      SCHEMA  :MODULEOWNER    TO  pgmv$_role;
 GRANT   SELECT  ON  ALL TABLES      IN  SCHEMA  :MODULEOWNER    TO  pgmv$_role;
 
-ALTER TABLE :MODULEOWNER.pgmviews       OWNER TO :MODULEOWNER;
-ALTER TABLE :MODULEOWNER.pgmview_logs   OWNER TO :MODULEOWNER;
+ALTER TABLE :MODULEOWNER.pgmviews       	   OWNER TO :MODULEOWNER;
+ALTER TABLE :MODULEOWNER.pgmview_logs   	   OWNER TO :MODULEOWNER;
+ALTER TABLE :MODULEOWNER.pgmviews_oj_details   OWNER TO :MODULEOWNER;
 
 ALTER EXTENSION "uuid-ossp" SET SCHEMA public;
 

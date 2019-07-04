@@ -62,6 +62,7 @@ DROP FUNCTION IF EXISTS mv$createRow$Column;
 DROP FUNCTION IF EXISTS mv$deconstructSqlStatement;
 DROP FUNCTION IF EXISTS mv$deleteMaterializedViewRows;
 DROP FUNCTION IF EXISTS mv$deletePgMview;
+DROP FUNCTION IF EXISTS mv$deletePgMviewOjDetails;
 DROP FUNCTION IF EXISTS mv$deletePgMviewLog;
 DROP FUNCTION IF EXISTS mv$dropTable;
 DROP FUNCTION IF EXISTS mv$dropTrigger;
@@ -860,6 +861,59 @@ BEGIN
     WHEN OTHERS
     THEN
         RAISE INFO      'Exception in function mv$deletePgMview';
+        RAISE INFO      'Error %:- %:',     SQLSTATE, SQLERRM;
+        RAISE EXCEPTION '%',                SQLSTATE;
+END;
+$BODY$
+LANGUAGE    plpgsql
+SECURITY    DEFINER;
+------------------------------------------------------------------------------------------------------------------------------------
+CREATE OR REPLACE
+FUNCTION    mv$deletePgMviewOjDetails
+            (
+                pOwner      IN      TEXT,
+                pViewName   IN      TEXT
+            )
+    RETURNS VOID
+AS
+$BODY$
+/* ---------------------------------------------------------------------------------------------------------------------------------
+Routine Name: mv$deletePgMviewOjDetails
+Author:       David Day
+Date:         01/07/2019
+------------------------------------------------------------------------------------------------------------------------------------
+Revision History    Push Down List
+------------------------------------------------------------------------------------------------------------------------------------
+Date        | Name          | Description
+------------+---------------+-------------------------------------------------------------------------------------------------------
+            |               |
+01/07/2019  | D David	    | Initial version
+------------+---------------+-------------------------------------------------------------------------------------------------------
+Description:    Every time a new materialized view is created, a record of the outer join table(s) details is also created in the data dictionary table
+                pgmviews_oj_details which is used as part of the outer join source table(s) DELETE process.
+
+                This function removes that row(s) when a materialized view is removed.
+
+Arguments:      IN      pOwner              The owner of the object
+                IN      pViewName           The name of the materialized view
+Returns:                VOID
+
+************************************************************************************************************************************
+Copyright 2019 Amazon.com, Inc. or its affiliates. All Rights Reserved. SPDX-License-Identifier: MIT-0
+***********************************************************************************************************************************/
+BEGIN
+
+    DELETE
+    FROM    pgmviews_oj_details
+    WHERE
+            owner       = pOwner
+    AND     pgmv_name   = pViewName;
+
+    RETURN;
+    EXCEPTION
+    WHEN OTHERS
+    THEN
+        RAISE INFO      'Exception in function mv$deletePgMviewOjDetails';
         RAISE INFO      'Error %:- %:',     SQLSTATE, SQLERRM;
         RAISE EXCEPTION '%',                SQLSTATE;
 END;

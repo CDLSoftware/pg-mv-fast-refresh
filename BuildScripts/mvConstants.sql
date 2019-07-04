@@ -166,6 +166,7 @@ AS
     UPDATE_COMMAND                  TEXT,
     WHERE_COMMAND                   TEXT,
     WHERE_NO_DATA                   TEXT,
+	EQUALS_NULL						TEXT,
 --
 -- Table and column name definitions
 ------------------------------------------------------------------------------------------------------------------------------------
@@ -431,6 +432,8 @@ BEGIN
     rMvConstants.UPDATE_COMMAND                 := 'UPDATE ';
     rMvConstants.WHERE_COMMAND                  := ' WHERE ';
     rMvConstants.WHERE_NO_DATA                  := ' WHERE 1 = 2 ';
+    rMvConstants.EQUALS_NULL                  	:= ' = null';
+	
 
 -- Table and column name definitions
 ------------------------------------------------------------------------------------------------------------------------------------
