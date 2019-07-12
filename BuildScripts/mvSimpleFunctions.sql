@@ -590,7 +590,7 @@ CREATE OR REPLACE
 FUNCTION    mv$createRow$Column
             (
                 pConst      IN      mv$allConstants,
-                pTableName  IN      TEXT
+                pTableAlias IN      TEXT
             )
     RETURNS TEXT
 AS
@@ -607,6 +607,9 @@ Date        | Name          | Description
             |               |
 18/06/2019  | M Revitt      | Add and Exception Handler
 15/01/2019  | M Revitt      | Initial version
+11/07/2019  | D Day         | Defect fix - changed code to use base table alias instead of base table name for the m_row$ column name
+            |               | used to refresh the materialized view as this was not working when query joined against the same table
+            |               | more than once.
 ------------+---------------+-------------------------------------------------------------------------------------------------------
 Description:    For every table that is used to construct this materialized view, add a MV_M_ROW$_COLUMN to the base table.
 
@@ -624,10 +627,13 @@ DECLARE
     tSqlStatement   TEXT;
     tRowidColumn    TEXT;
     iTableArryPos   INT     := 0;
+	tTableAlias		TEXT;
 
 BEGIN
 
-    tRowidColumn := SUBSTRING( pTableName, 1, pConst.MV_MAX_BASE_TABLE_LEN ) || pConst.UNDERSCORE_CHARACTER ||
+	tTableAlias := LOWER(TRIM(replace(pTableAlias,'.','')));
+
+    tRowidColumn := SUBSTRING( tTableAlias, 1, pConst.MV_MAX_TABLE_ALIAS_LEN ) || pConst.UNDERSCORE_CHARACTER ||
                                                                                 pConst.MV_M_ROW$_COLUMN;
 
     RETURN( tRowidColumn );
@@ -1115,6 +1121,8 @@ Date        | Name          | Description
 18/06/2019  | M Revitt      | Fix a logic bomb with the contruct of the inner table and outer table arrays
             |               | Add an exception handler
 11/03/2018  | M Revitt      | Initial version
+11/07/2019  | D Day         | Defect fix - changed mv$createRow$Column input parameter to use alias array instead of table array
+            |               | as this will be used as part of the m_row$ column name used to refresh the materialized view.
 ------------+---------------+-------------------------------------------------------------------------------------------------------
 Description:    One of the most difficult tasks with the materialized view fast refresh process is programatically determining
                 the columns, base tables and select criteria that have been used to construct the view.
@@ -1235,7 +1243,7 @@ BEGIN
         ELSIF POSITION( pConst.LEFT_TOKEN IN tTableName ) > 0   -- There has to be a table preceeding a left outer join
         THEN
             tInnerAlias := pAliasArray[iTableArryPos - 1];
-            tInnerRowid := mv$createRow$Column( pConst, pTableArray[iTableArryPos - 1] );
+            tInnerRowid := mv$createRow$Column( pConst, pAliasArray[iTableArryPos - 1] );
             tOuterTable := TRIM( SUBSTRING( tTableName,
                                             POSITION( pConst.JOIN_TOKEN   IN tTableName ) + LENGTH( pConst.JOIN_TOKEN),
                                             POSITION( pConst.ON_TOKEN     IN tTableName ) - LENGTH( pConst.ON_TOKEN)
@@ -1251,9 +1259,9 @@ BEGIN
 
         pTableArray[iTableArryPos]  := (REGEXP_SPLIT_TO_ARRAY( tTableName,  pConst.REGEX_MULTIPLE_SPACES ))[1];
         tTableAlias                 := (REGEXP_SPLIT_TO_ARRAY( tTableName,  pConst.REGEX_MULTIPLE_SPACES ))[2];
-        pRowidArray[iTableArryPos]  :=  mv$createRow$Column( pConst, pTableArray[iTableArryPos] );
         pAliasArray[iTableArryPos]  :=  COALESCE( NULLIF( NULLIF( tTableAlias, pConst.EMPTY_STRING), pConst.ON_TOKEN),
                                                                   pTableArray[iTableArryPos] ) || pConst.DOT_CHARACTER;
+        pRowidArray[iTableArryPos]  :=  mv$createRow$Column( pConst, pAliasArray[iTableArryPos] );
 
         pOuterTableArray[iTableArryPos]  :=(REGEXP_SPLIT_TO_ARRAY( tOuterTable, pConst.REGEX_MULTIPLE_SPACES ))[1];
         pInnerAliasArray[iTableArryPos]  := NULLIF( COALESCE( tInnerAlias, pAliasArray[iTableArryPos] ), pConst.NO_INNER_TOKEN );
