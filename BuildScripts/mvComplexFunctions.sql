@@ -63,6 +63,7 @@ DROP FUNCTION IF EXISTS mv$insertMaterializedViewRows;
 DROP FUNCTION IF EXISTS mv$insertPgMview;
 DROP FUNCTION IF EXISTS mv$insertOuterJoinRows;
 DROP FUNCTION IF EXISTS mv$insertPgMviewOuterJoinDetails;
+DROP FUNCTION IF EXISTS mv$checkParentToChildOuterJoinAlias;
 DROP FUNCTION IF EXISTS mv$executeMVFastRefresh;
 DROP FUNCTION IF EXISTS mv$refreshMaterializedViewFast;
 DROP FUNCTION IF EXISTS mv$refreshMaterializedViewFull;
@@ -1360,7 +1361,7 @@ BEGIN
 		
 			iAliasJoinLinksCounter := iAliasJoinLinksCounter +1;
 			tAlias := rAliasJoinLinks.alias||'.';
-			tSelectColumns 			:= SUBSTR(pSelectColumns,1,mv$regExpInstr(pSelectColumns,'[,]+[[:alnum:]]+[.]+'||'m_row\$'||''));
+			tSelectColumns 			:= SUBSTRING(pSelectColumns,1,mv$regExpInstr(pSelectColumns,'[,]+[[:alnum:]]+[.]+'||'m_row\$'||''));
 			tRegExpColumnNameAlias 	:= REPLACE(tAlias,'.','\.');
 			iColumnNameAliasCnt 	:= mv$regExpCount(tSelectColumns, tRegExpColumnNameAlias, 1);
 		
@@ -1369,7 +1370,7 @@ BEGIN
 				FOR i IN 1..iColumnNameAliasCnt 
 				LOOP
 				
-					tColumnNameSql := SUBSTR(tSelectColumns,mv$regExpInstr(tSelectColumns,
+					tColumnNameSql := SUBSTRING(tSelectColumns,mv$regExpInstr(tSelectColumns,
 							 tRegExpColumnNameAlias,
 							 1,
 							 i)-1);
@@ -1417,7 +1418,7 @@ BEGIN
 		
 		END LOOP;
 		
-		tUpdateSetSql := substring(tUpdateSetSql,1,length(tUpdateSetSql)-1);
+		tUpdateSetSql := SUBSTRING(tUpdateSetSql,1,length(tUpdateSetSql)-1);
 		
 		tSqlStatement := pConst.UPDATE_COMMAND ||
 						 pOwner		|| pConst.DOT_CHARACTER		|| pViewName	|| pConst.NEW_LINE		||
@@ -1467,7 +1468,7 @@ $BODY$;
 LANGUAGE    plpgsql
 SECURITY    DEFINER;
 ------------------------------------------------------------------------------------------------------------------------------------
-CREATE OR REPLACE FUNCTION pgrs_mview.mv$checkParentToChildOuterJoinAlias(
+CREATE OR REPLACE FUNCTION mv$checkParentToChildOuterJoinAlias(
 	pConst 					IN	"mv$allconstants",
 	pAlias 					IN	text,
 	pOuterJoinType 			IN	text,
