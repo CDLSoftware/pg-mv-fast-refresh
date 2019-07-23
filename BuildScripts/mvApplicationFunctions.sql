@@ -240,8 +240,7 @@ BEGIN
     cResult := mv$refreshMaterializedView( pViewName, pOwner, FALSE );
     RETURN;
 END;
-
-$BODY$;
+$BODY$
 LANGUAGE    plpgsql
 SECURITY    DEFINER;
 ------------------------------------------------------------------------------------------------------------------------------------

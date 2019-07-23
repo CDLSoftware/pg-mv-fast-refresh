@@ -1322,8 +1322,7 @@ BEGIN
         RAISE INFO      'Error Context:% %',CHR(10),  tTableNames;
         RAISE EXCEPTION '%',                SQLSTATE;
 END;
-
-$BODY$;
+$BODY$
 LANGUAGE    plpgsql
 SECURITY    DEFINER;
 ------------------------------------------------------------------------------------------------------------------------------------

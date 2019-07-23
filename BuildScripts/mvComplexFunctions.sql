@@ -1463,8 +1463,7 @@ BEGIN
         RAISE INFO      'Error Context:% %',CHR(10),  tSqlStatement;
         RAISE EXCEPTION '%',                SQLSTATE;
 END;
-
-$BODY$;
+$BODY$
 LANGUAGE    plpgsql
 SECURITY    DEFINER;
 ------------------------------------------------------------------------------------------------------------------------------------
@@ -1559,8 +1558,7 @@ BEGIN
         RAISE INFO      'Error Context:% %',CHR(10),  tSqlStatement;
         RAISE EXCEPTION '%',                SQLSTATE;
 END;
-
-$BODY$;
+$BODY$
 LANGUAGE    plpgsql
 SECURITY    DEFINER;
 ------------------------------------------------------------------------------------------------------------------------------------
