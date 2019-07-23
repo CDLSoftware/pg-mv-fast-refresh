@@ -1103,7 +1103,11 @@ FUNCTION    mv$extractCompoundViewTables
                 pRowidArray           OUT   TEXT[],
                 pOuterTableArray      OUT   TEXT[],
                 pInnerAliasArray      OUT   TEXT[],
-                pInnerRowidArray      OUT   TEXT[]
+                pInnerRowidArray      OUT   TEXT[],
+				pOuterLeftAliasArray  OUT	TEXT[],
+				pOuterRightAliasArray OUT	TEXT[],
+				pLeftOuterJoinArray   OUT	TEXT[],
+				pRightOuterJoinArray  OUT	TEXT[])
             )
     RETURNS RECORD
 AS
@@ -1117,12 +1121,13 @@ Revision History    Push Down List
 ------------------------------------------------------------------------------------------------------------------------------------
 Date        | Name          | Description
 ------------+---------------+-------------------------------------------------------------------------------------------------------
-            |               |
+23/07/2019	| D DAY			| Defect fix - added logic to get the LEFT and RIGHT outer join columns joining condition aliases to
+			|				| build dynamic UPDATE statement for outer join DELETE changes.
+11/07/2019  | D Day         | Defect fix - changed mv$createRow$Column input parameter to use alias array instead of table array
+            |               | as this will be used as part of the m_row$ column name used to refresh the materialized view.
 18/06/2019  | M Revitt      | Fix a logic bomb with the contruct of the inner table and outer table arrays
             |               | Add an exception handler
 11/03/2018  | M Revitt      | Initial version
-11/07/2019  | D Day         | Defect fix - changed mv$createRow$Column input parameter to use alias array instead of table array
-            |               | as this will be used as part of the m_row$ column name used to refresh the materialized view.
 ------------+---------------+-------------------------------------------------------------------------------------------------------
 Description:    One of the most difficult tasks with the materialized view fast refresh process is programatically determining
                 the columns, base tables and select criteria that have been used to construct the view.
@@ -1192,12 +1197,21 @@ PostGres Notes:
                 both input tables. As with USING, these columns appear only once in the output table. If there are no common
                 column names, NATURAL JOIN behaves like JOIN ... ON TRUE, producing a cross-product join.
 
-Arguments:      IN      pConst              The memory structure containing all constants
-                IN      pSqlStatement       The SQL Statement used to create the materialized view
-                    OUT pTableNames         The name of the materialized view source table
-                    OUT pSelectColumns      The list of columns in the SQL Statement used to create the materialized view
-                    OUT pWhereClause        The where clause from the SQL Statement used to create the materialized view
-Returns:                RECORD              The three out parameters
+Arguments:      IN      pConst              	The memory structure containing all constants
+                IN      pTableNames       		The materialized view query SQL statement taken from the position of the FROM clause including all source tables and joins to be
+												used for the OUT parameters logic
+                OUT 	pTableArray				An array containing the source tables 
+				OUT		pAliasArray				An array containing the table aliases			
+				OUT		pRowidArray				An array containing the m_row$ column names
+				OUT		pOuterTableArray		An array containing the outer join source tables
+				OUT		pInnerAliasArray		An array containing the inner join table aliases
+				OUT		pInnerRowidArray		An array containing the inner table m_row$ column aliases
+				OUT		pOuterLeftAliasArray	An array containing the left outer join column name joining condition aliases  
+				OUT		pOuterRightAliasArray	An array containing the right outer join column name joining condition aliases  
+				OUT		pLeftOuterJoinArray		An array confirming whether the source table is from a left outer join condition
+				OUT		pRightOuterJoinArray	An array confirming whether the source table is from a right outer join condition
+					
+Returns:                RECORD              The ten out parameters
 ************************************************************************************************************************************
 Copyright 2019 Amazon.com, Inc. or its affiliates. All Rights Reserved. SPDX-License-Identifier: MIT-0
 ***********************************************************************************************************************************/
@@ -1210,6 +1224,11 @@ DECLARE
     tTableNames     TEXT;
     tTableAlias     TEXT;
     iTableArryPos   INTEGER := 0;
+	
+	tOuterLeftAlias TEXT;
+	tOuterRightAlias TEXT;
+	tLeftOuterJoin TEXT;
+	tRightOuterJoin TEXT;
 
 BEGIN
 --  Replacing a single space with a double space is only required on the first pass to ensure that there is padding around all
@@ -1228,17 +1247,26 @@ BEGIN
 
     WHILE POSITION( pConst.COMMA_CHARACTER IN tTableNames ) > 0
     LOOP
+		
+		tOuterLeftAlias := NULL;
+		tOuterRightAlias := NULL;
+		tLeftOuterJoin := NULL;
+		tRightOuterJoin := NULL;
         tOuterTable := NULL;
         tInnerAlias := pConst.NO_INNER_TOKEN;       -- Tag to ignore the alias in this row
         tInnerRowid := pConst.NO_INNER_TOKEN;       -- Tag to ignore the alias in this row
 
-        tTableName :=  LTRIM( SPLIT_PART( tTableNames, pConst.COMMA_CHARACTER, 1 ));
+        tTableName := LTRIM( SPLIT_PART( tTableNames, pConst.COMMA_CHARACTER, 1 ));
 
         IF POSITION( pConst.RIGHT_TOKEN IN tTableName ) > 0
         THEN
             tOuterTable := pAliasArray[iTableArryPos - 1];  -- There has to be a table preceeding a right outer join
             tInnerRowid := NULL;                            -- The inner table is in this row, this allows us to collect it
             tInnerAlias := NULL;                            -- once we have processed the row further down.
+			
+			tOuterLeftAlias := TRIM(SUBSTRING(tTableName,POSITION( pConst.ON_TOKEN IN tTableName)+2,(mv$regExpInstr(tTableName,'\.',1,1))-(POSITION( pConst.ON_TOKEN IN tTableName)+2)));
+			tOuterRightAlias := TRIM(SUBSTRING(tTableName,POSITION( TRIM(pConst.EQUALS_COMMAND) IN tTableName)+1,(mv$regExpInstr(tTableName,'\.',1,2))-(POSITION( TRIM(pConst.EQUALS_COMMAND) IN tTableName)+1)));
+			tRightOuterJoin := pConst.RIGHT_OUTER_JOIN;
 
         ELSIF POSITION( pConst.LEFT_TOKEN IN tTableName ) > 0   -- There has to be a table preceeding a left outer join
         THEN
@@ -1247,7 +1275,12 @@ BEGIN
             tOuterTable := TRIM( SUBSTRING( tTableName,
                                             POSITION( pConst.JOIN_TOKEN   IN tTableName ) + LENGTH( pConst.JOIN_TOKEN),
                                             POSITION( pConst.ON_TOKEN     IN tTableName ) - LENGTH( pConst.ON_TOKEN)
-                                            - POSITION( pConst.JOIN_TOKEN IN tTableName )));
+                                            - POSITION( pConst.JOIN_TOKEN IN tTableName )));	
+			
+			tOuterLeftAlias := TRIM(SUBSTRING(tTableName,POSITION( pConst.ON_TOKEN IN tTableName)+2,(mv$regExpInstr(tTableName,'\.',1,1))-(POSITION( pConst.ON_TOKEN IN tTableName)+2)));	
+			tOuterRightAlias := TRIM(SUBSTRING(tTableName,POSITION( TRIM(pConst.EQUALS_COMMAND) IN tTableName)+1,(mv$regExpInstr(tTableName,'\.',1,2))-(POSITION( TRIM(pConst.EQUALS_COMMAND) IN tTableName)+1)));
+			tLeftOuterJoin := pConst.LEFT_OUTER_JOIN;;
+			
         END IF;
 
         -- The LEFT, RIGHT and JOIN tokens are only required for outer join pattern matching
@@ -1261,7 +1294,7 @@ BEGIN
         tTableAlias                 := (REGEXP_SPLIT_TO_ARRAY( tTableName,  pConst.REGEX_MULTIPLE_SPACES ))[2];
         pAliasArray[iTableArryPos]  :=  COALESCE( NULLIF( NULLIF( tTableAlias, pConst.EMPTY_STRING), pConst.ON_TOKEN),
                                                                   pTableArray[iTableArryPos] ) || pConst.DOT_CHARACTER;
-        pRowidArray[iTableArryPos]  :=  mv$createRow$Column( pConst, pAliasArray[iTableArryPos] );
+		pRowidArray[iTableArryPos]  :=  mv$createRow$Column( pConst, pAliasArray[iTableArryPos] );
 
         pOuterTableArray[iTableArryPos]  :=(REGEXP_SPLIT_TO_ARRAY( tOuterTable, pConst.REGEX_MULTIPLE_SPACES ))[1];
         pInnerAliasArray[iTableArryPos]  := NULLIF( COALESCE( tInnerAlias, pAliasArray[iTableArryPos] ), pConst.NO_INNER_TOKEN );
@@ -1269,6 +1302,12 @@ BEGIN
 
         tTableNames     := TRIM( SUBSTRING( tTableNames,
                                  POSITION( pConst.COMMA_CHARACTER IN tTableNames ) + LENGTH( pConst.COMMA_CHARACTER )));
+		
+		pOuterLeftAliasArray[iTableArryPos] 	:= tOuterLeftAlias;
+		pOuterRightAliasArray[iTableArryPos] 	:= tOuterRightAlias;
+		pLeftOuterJoinArray[iTableArryPos] 		:= tLeftOuterJoin;
+		pRightOuterJoinArray[iTableArryPos] 	:= tRightOuterJoin;
+		
         iTableArryPos   := iTableArryPos + 1;
 
     END LOOP;
@@ -1283,7 +1322,8 @@ BEGIN
         RAISE INFO      'Error Context:% %',CHR(10),  tTableNames;
         RAISE EXCEPTION '%',                SQLSTATE;
 END;
-$BODY$
+
+$BODY$;
 LANGUAGE    plpgsql
 SECURITY    DEFINER;
 ------------------------------------------------------------------------------------------------------------------------------------

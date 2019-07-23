@@ -1047,7 +1047,8 @@ Date        | Name          | Description
 ------------+---------------+-------------------------------------------------------------------------------------------------------
 Description:    Dynamically builds UPDATE statement(s) for any outer join table to nullify all the alias outer join column(s)
 				including rowid held in the materialized view table when an DELETE is done against the 
-				source table.
+				source table. This logic support outer join table parent to child join relationships so that all child table columns
+				and linking rowids are included in the UPDATE statement.
 				
 				This function inserts data into the data dictionary table pgmview_oj_details 
 
@@ -1077,88 +1078,346 @@ DECLARE
 	tMvColumnName					TEXT;
 	tTableName						TEXT;
 	tMvRowidColumnName				TEXT;
-    rPgMviewColumnNames     		RECORD;
 	iMvColumnNameExists				INTEGER DEFAULT 0;	
 	iMvColumnNameLoopCnt			INTEGER DEFAULT 0;
 	
 	tUpdateSetSql					TEXT;
 	tSqlStatement					TEXT;
-	
 	tWhereClause					TEXT;
-	
+
+    rPgMviewColumnNames     		RECORD;
 	rMvOuterJoinDetails				RECORD;
+	rAliasJoinLinks					RECORD;
+	rBuildAliasArray				RECORD;
+	rMainAliasArray					RECORD;
+	rLeftOuterJoinAliasArray		RECORD;
+	rRightJoinAliasArray			RECORD;
+	rRightOuterJoinAliasArray		RECORD;
+	rLeftJoinAliasArray				RECORD;
 	
+	iWhileCounter					INTEGER DEFAULT 0;
+	iAliasJoinLinksCounter			INTEGER DEFAULT 0;	
+	iMainLoopCounter				INTEGER DEFAULT 0;	
+	iWhileLoopCounter			    INTEGER DEFAULT 0;
+	iLoopCounter					INTEGER DEFAULT 0;
+	iRightLoopCounter				INTEGER DEFAULT 0;	
+	iLeftAliasLoopCounter			INTEGER DEFAULT 0;
+	iRightAliasLoopCounter			INTEGER DEFAULT 0;
+	iLeftLoopCounter				INTEGER DEFAULT 0;
+	
+	tOuterJoinAlias					TEXT;	
+	tAlias							TEXT;	
+	
+	tParentToChildAliasArray		TEXT[];	
+	tAliasArray						TEXT[];
+	tMainAliasArray					TEXT[];
+	tRightJoinAliasArray			TEXT[];
+	tBuildAliasArray				TEXT[];
+	tLeftJoinAliasArray				TEXT[];
+	
+	tRightJoinAliasExists			TEXT DEFAULT 'N';	
+	tLeftJoinAliasExists			TEXT DEFAULT 'N';
 	
 BEGIN
 
 	FOR rMvOuterJoinDetails IN (SELECT inline.oj_table AS table_name
 								,      inline.oj_table_alias AS table_name_alias
 								,	   inline.oj_rowid AS rowid_column_name
+								,      inline.oj_outer_left_alias AS outer_left_alias
+								,      inline.oj_outer_right_alias AS outer_right_alias
+								,      inline.oj_left_outer_join AS left_outer_join
+								,      inline.oj_right_outer_join AS right_outer_join
 								FROM (
 									SELECT 	UNNEST(pOuterTableArray) AS oj_table
 									, 		UNNEST(pAliasArray) AS oj_table_alias
-									, 		UNNEST(pRowidArray) AS oj_rowid) inline
+									, 		UNNEST(pRowidArray) AS oj_rowid
+								    ,       UNNEST(pOuterLeftAliasArray) AS oj_outer_left_alias
+									,		UNNEST(pOuterRightAliasArray) AS oj_outer_right_alias
+									,		UNNEST(pLeftOuterJoinArray) AS oj_left_outer_join
+									,		UNNEST(pRightOuterJoinArray) AS oj_right_outer_join) inline
 								WHERE inline.oj_table IS NOT NULL) 
 	LOOP
-			 
-		tColumnNameArray	 := '{}';
-		tUpdateSetSql 		 := ' ';
-		iMvColumnNameLoopCnt := 0;
+	
+		iMainLoopCounter := iMainLoopCounter +1;		
+		tOuterJoinAlias := TRIM(REPLACE(rMvOuterJoinDetails.table_name_alias,'.',''));
+		iWhileLoopCounter := 0;
+		iWhileCounter := 0;	
+		tParentToChildAliasArray[iMainLoopCounter] := tOuterJoinAlias;
+		tAliasArray[iMainLoopCounter] := tOuterJoinAlias;
+										
+		WHILE iWhileCounter = 0 LOOP
 		
+			IF rMvOuterJoinDetails.left_outer_join = pConst.LEFT_OUTER_JOIN THEN			
+			
+				iWhileLoopCounter := iWhileLoopCounter +1;
+				tMainAliasArray := '{}';
+				
+				IF tAliasArray <> '{}' THEN
+			
+					tMainAliasArray[iWhileLoopCounter] := tAliasArray;
+	
+					FOR rMainAliasArray IN (SELECT UNNEST(tMainAliasArray) AS left_alias) LOOP
+					
+						tOuterJoinAlias := TRIM(REPLACE(rMainAliasArray.left_alias,'{',''));
+						tOuterJoinAlias := TRIM(REPLACE(tOuterJoinAlias,'}',''));
+						iLeftAliasLoopCounter := 0;
+					
+						FOR rLeftOuterJoinAliasArray IN (SELECT UNNEST(pOuterLeftAliasArray) as left_alias) LOOP
+				
+							IF rLeftOuterJoinAliasArray.left_alias = tOuterJoinAlias THEN
+								iLeftAliasLoopCounter := iLeftAliasLoopCounter +1;
+							END IF;
+			
+						END LOOP;
+						
+						IF iLeftAliasLoopCounter > 0 THEN 
+								
+							SELECT 	pChildAliasArray 
+							FROM 	pgrs_mview.mv$checkParentToChildOuterJoinAlias(
+																pConst
+														,		tOuterJoinAlias
+														,		rMvOuterJoinDetails.left_outer_join
+														,		pOuterLeftAliasArray
+														,		pOuterRightAliasArray
+														,		pLeftOuterJoinArray) 
+							INTO	tRightJoinAliasArray;
+
+							IF tRightJoinAliasArray = '{}' THEN
+								tRightJoinAliasExists := 'N';
+								--RAISE INFO 'No Left Aliases Match Right Aliases';
+							ELSE
+								iRightLoopCounter := 0;
+
+								FOR rRightJoinAliasArray IN (SELECT UNNEST(tRightJoinAliasArray) as right_join_alias) LOOP
+									
+									iRightLoopCounter := iRightLoopCounter +1;
+									iMainLoopCounter := iMainLoopCounter +1;
+									tParentToChildAliasArray[iMainLoopCounter] := rRightJoinAliasArray.right_join_alias;
+									tRightJoinAliasExists := 'Y';
+									tBuildAliasArray[iRightLoopCounter] := rRightJoinAliasArray.right_join_alias;
+
+								END LOOP;
+							END IF;
+
+							IF (tRightJoinAliasArray <> '{}' OR tRightJoinAliasExists = 'Y') THEN
+
+								tAliasArray := '{}';
+
+								FOR rBuildAliasArray IN (SELECT UNNEST(tBuildAliasArray) AS right_join_alias) LOOP
+
+									iLoopCounter = iLoopCounter +1;
+									iLeftAliasLoopCounter := 0;
+
+									FOR rLeftOuterJoinAliasArray IN (SELECT UNNEST(pOuterLeftAliasArray) AS left_alias) LOOP
+
+										IF rMainAliasArray.left_alias = rBuildAliasArray.right_join_alias THEN
+											iLeftAliasLoopCounter := iLeftAliasLoopCounter +1;
+										END IF;
+
+									END LOOP;
+
+									IF iLeftAliasLoopCounter > 0 THEN
+										tAliasArray[iLoopCounter] := rBuildAliasArray.right_join_alias;
+									END IF;
+
+								END LOOP;
+
+							ELSE
+
+								tRightJoinAliasExists = 'N';
+								tRightJoinAliasArray = '{}';
+								tAliasArray = '{}';
+
+							END IF;
+
+						ELSE
+						
+							tRightJoinAliasExists = 'N';
+							tRightJoinAliasArray = '{}';
+							tAliasArray = '{}';					
+						
+						END IF;
+						
+					END LOOP;
+				
+				ELSE
+					iWhileCounter := 1;	
+				END IF;
+				
+			ELSIF rMvOuterJoinDetails.right_outer_join = pConst.RIGHT_OUTER_JOIN THEN
+			
+				iWhileLoopCounter := iWhileLoopCounter +1;
+				tMainAliasArray := '{}';
+				
+				IF tAliasArray <> '{}' THEN
+			
+					tMainAliasArray[iWhileLoopCounter] := tAliasArray;
+	
+					FOR rMainAliasArray IN (SELECT UNNEST(tMainAliasArray) AS right_alias) LOOP
+					
+						tOuterJoinAlias := TRIM(REPLACE(rMainAliasArray.right_alias,'{',''));
+						tOuterJoinAlias := TRIM(REPLACE(tOuterJoinAlias,'}',''));
+						iRightAliasLoopCounter := 0;
+					
+						FOR rRightOuterJoinAliasArray IN (SELECT UNNEST(pOuterRightAliasArray) as right_alias) LOOP
+				
+							IF rRightOuterJoinAliasArray.right_alias = tOuterJoinAlias THEN
+								iRightAliasLoopCounter := iRightAliasLoopCounter +1;
+							END IF;
+			
+						END LOOP;
+						
+						IF iRightAliasLoopCounter > 0 THEN 
+								
+							SELECT 	pChildAliasArray 
+							FROM 	pgrs_mview.mv$checkParentToChildOuterJoinAlias(
+																pConst
+														,		tOuterJoinAlias
+														,		rMvOuterJoinDetails.right_outer_join
+														,		pOuterLeftAliasArray
+														,		pOuterRightAliasArray
+														,		pRightOuterJoinArray) 
+							INTO	tLeftJoinAliasArray;
+
+							IF tLeftJoinAliasArray = '{}' THEN
+								tLeftJoinAliasExists := 'N';
+								--RAISE INFO 'No Right Aliases Match Right Aliases';
+							ELSE
+								iLeftLoopCounter := 0;
+
+								FOR rLeftJoinAliasArray IN (SELECT UNNEST(tLeftJoinAliasArray) as left_join_alias) LOOP
+									
+									iLeftLoopCounter := iLeftLoopCounter +1;
+									iMainLoopCounter := iMainLoopCounter +1;
+									tParentToChildAliasArray[iMainLoopCounter] := rLeftJoinAliasArray.left_join_alias;
+									tLeftJoinAliasExists := 'Y';
+									tBuildAliasArray[iLeftLoopCounter] := rLeftJoinAliasArray.left_join_alias;
+
+								END LOOP;
+							END IF;
+
+							IF (tLeftJoinAliasArray <> '{}' OR tLeftJoinAliasExists = 'Y') THEN
+
+								tAliasArray := '{}';
+
+								FOR rBuildAliasArray IN (SELECT UNNEST(tBuildAliasArray) AS left_join_alias) LOOP
+
+									iLoopCounter = iLoopCounter +1;
+									iRightAliasLoopCounter := 0;
+
+									FOR rRightOuterJoinAliasArray IN (SELECT UNNEST(pOuterRightAliasArray) AS right_alias) LOOP
+
+										IF rMainAliasArray.right_alias = rBuildAliasArray.left_join_alias THEN
+											iRightAliasLoopCounter := iRightAliasLoopCounter +1;
+										END IF;
+
+									END LOOP;
+
+									IF iRightAliasLoopCounter > 0 THEN
+										tAliasArray[iLoopCounter] := rBuildAliasArray.left_join_alias;
+									END IF;
+
+								END LOOP;
+
+							ELSE
+
+								tLeftJoinAliasExists = 'N';
+								tLeftJoinAliasArray = '{}';
+								tAliasArray = '{}';
+
+							END IF;
+
+						ELSE
+						
+							tLeftJoinAliasExists = 'N';
+							tLeftJoinAliasArray = '{}';
+							tAliasArray = '{}';					
+						
+						END IF;
+						
+					END LOOP;
+				
+				ELSE
+					iWhileCounter := 1;	
+				END IF;
+			
+			END IF;
+			
+		END LOOP;
+		
+		-- Key values for the main UPDATE statement breakdown
 		tMvRowidColumnName 		:= rMvOuterJoinDetails.rowid_column_name;
 		tWhereClause 			:= pConst.WHERE_COMMAND || tMvRowidColumnName  || pConst.IN_ROWID_LIST;
-		tRegexp_rowid 			:= REPLACE(tMvRowidColumnName,'$','\$');
-		tSelectColumns 			:= SUBSTR(pSelectColumns,1,mv$regExpInstr(pSelectColumns,'[,]+[[:alnum:]]+[.]+'||'m_row\$'||''));
-		tRegExpColumnNameAlias 	:= REPLACE(rMvOuterJoinDetails.table_name_alias,'.','\.');
-		iColumnNameAliasCnt 	:= mv$regExpCount(tSelectColumns, tRegExpColumnNameAlias, 1);
 		tColumnNameAlias 		:= rMvOuterJoinDetails.table_name_alias;
 		tTableName 				:= rMvOuterJoinDetails.table_name;
+		tColumnNameArray	 	:= '{}';
+		tUpdateSetSql 		 	:= ' ';
+		iMvColumnNameLoopCnt 	:= 0;
+		iAliasJoinLinksCounter 	:= 0;
 		
-		IF iColumnNameAliasCnt > 0 THEN
-	
-			FOR i IN 1..iColumnNameAliasCnt 
-			LOOP
-			
-				tColumnNameSql := SUBSTR(tSelectColumns,mv$regExpInstr(tSelectColumns,
-                         tRegExpColumnNameAlias,
-                         1,
-                         i)-1);
-				tColumnNameSql := mv$regExpReplace(tColumnNameSql,'(^[[:space:]]+)',null);
-				tColumnNameSql := mv$regExpSubstr(tColumnNameSql,'(.*'||tRegExpColumnNameAlias||'+[[:alnum:]]+(.*?[^,|$]))',1,1,'i');
-				tMvColumnName  := TRIM(REPLACE(mv$regExpSubstr(tColumnNameSql, '\S+$'),',',''));
-				tMvColumnName  := LOWER(TRIM(REPLACE(tMvColumnName,tColumnNameAlias,'')));
-				
-				tColumnNameArray[i] := tMvColumnName;
-				
-				FOR rPgMviewColumnNames IN (SELECT column_name
-											FROM   information_schema.columns
-											WHERE  table_schema    = LOWER( pOwner )
-											AND    table_name      = LOWER( pViewName ) )
+		-- Building the UPDATE statement including any child relationship columns and m_row$ based on these aliases
+		FOR rAliasJoinLinks IN (SELECT UNNEST(tParentToChildAliasArray) AS alias) LOOP
+		
+			iAliasJoinLinksCounter := iAliasJoinLinksCounter +1;
+			tAlias := rAliasJoinLinks.alias||'.';
+			tSelectColumns 			:= SUBSTR(pSelectColumns,1,mv$regExpInstr(pSelectColumns,'[,]+[[:alnum:]]+[.]+'||'m_row\$'||''));
+			tRegExpColumnNameAlias 	:= REPLACE(tAlias,'.','\.');
+			iColumnNameAliasCnt 	:= mv$regExpCount(tSelectColumns, tRegExpColumnNameAlias, 1);
+		
+			IF iColumnNameAliasCnt > 0 THEN
+		
+				FOR i IN 1..iColumnNameAliasCnt 
 				LOOP
 				
-					IF rPgMviewColumnNames.column_name = tMvColumnName THEN
-						
-						iMvColumnNameLoopCnt := iMvColumnNameLoopCnt + 1;
-						
-						IF iMvColumnNameLoopCnt = 1 THEN 	
-							tUpdateSetSql := pConst.SET_COMMAND || tMvColumnName || pConst.EQUALS_NULL || pConst.COMMA_CHARACTER;
-						ELSE	
-							tUpdateSetSql := tUpdateSetSql || tMvColumnName || pConst.EQUALS_NULL || pConst.COMMA_CHARACTER ;
-						END IF;
+					tColumnNameSql := SUBSTR(tSelectColumns,mv$regExpInstr(tSelectColumns,
+							 tRegExpColumnNameAlias,
+							 1,
+							 i)-1);
+					tColumnNameSql := mv$regExpReplace(tColumnNameSql,'(^[[:space:]]+)',null);
+					tColumnNameSql := mv$regExpSubstr(tColumnNameSql,'(.*'||tRegExpColumnNameAlias||'+[[:alnum:]]+(.*?[^,|$]))',1,1,'i');
+					tMvColumnName  := TRIM(REPLACE(mv$regExpSubstr(tColumnNameSql, '\S+$'),',',''));
+					tMvColumnName  := LOWER(TRIM(REPLACE(tMvColumnName,tAlias,'')));
 					
-						EXIT WHEN iMvColumnNameLoopCnt > 0;
+					tColumnNameArray[i] := tMvColumnName;
+					
+					FOR rPgMviewColumnNames IN (SELECT column_name
+												FROM   information_schema.columns
+												WHERE  table_schema    = LOWER( pOwner )
+												AND    table_name      = LOWER( pViewName ) )
+					LOOP
+					
+						IF rPgMviewColumnNames.column_name = tMvColumnName THEN
+							
+							iMvColumnNameLoopCnt := iMvColumnNameLoopCnt + 1;
+							
+							IF iMvColumnNameLoopCnt = 1 THEN 	
+								tUpdateSetSql := pConst.SET_COMMAND || tMvColumnName || pConst.EQUALS_NULL || pConst.COMMA_CHARACTER;
+							ELSE	
+								tUpdateSetSql := tUpdateSetSql || tMvColumnName || pConst.EQUALS_NULL || pConst.COMMA_CHARACTER ;
+							END IF;
 						
-					END IF;
+							EXIT WHEN iMvColumnNameLoopCnt > 0;
+							
+						END IF;
 
+					END LOOP;
+					
 				END LOOP;
 				
-			END LOOP;
-			
-			tUpdateSetSql := tUpdateSetSql || tMvRowidColumnName || pConst.EQUALS_NULL;
-			
-		ELSE	
-			tUpdateSetSql := pConst.SET_COMMAND || tMvRowidColumnName || pConst.EQUALS_NULL;
-		END IF;
+				tUpdateSetSql := tUpdateSetSql || rAliasJoinLinks.alias|| pConst.UNDERSCORE_CHARACTER || pConst.MV_M_ROW$_COLUMN || pConst.EQUALS_NULL || pConst.COMMA_CHARACTER;
+				
+			ELSE
+				IF iAliasJoinLinksCounter = 1 THEN
+					tUpdateSetSql := pConst.SET_COMMAND || rAliasJoinLinks.alias|| pConst.UNDERSCORE_CHARACTER || pConst.MV_M_ROW$_COLUMN || pConst.EQUALS_NULL || pConst.COMMA_CHARACTER;			
+				ELSE	
+					tUpdateSetSql := tUpdateSetSql || rAliasJoinLinks.alias || pConst.UNDERSCORE_CHARACTER || pConst.MV_M_ROW$_COLUMN || pConst.EQUALS_NULL || pConst.COMMA_CHARACTER;		
+				END IF;
+					
+			END IF;
+		
+		END LOOP;
+		
+		tUpdateSetSql := substring(tUpdateSetSql,1,length(tUpdateSetSql)-1);
 		
 		tSqlStatement := pConst.UPDATE_COMMAND ||
 						 pOwner		|| pConst.DOT_CHARACTER		|| pViewName	|| pConst.NEW_LINE		||
@@ -1182,6 +1441,15 @@ BEGIN
 		,   tColumnNameArray
 		,	tSqlStatement);
 		
+		iMainLoopCounter := 0;
+		tParentToChildAliasArray := '{}';
+		tAliasArray  := '{}';
+		tMainAliasArray := '{}';
+		iWhileCounter := 0;
+		iWhileLoopCounter := 0;
+		iLoopCounter := 0;
+		
+		
 	END LOOP;
 
     RETURN;
@@ -1194,10 +1462,108 @@ BEGIN
         RAISE INFO      'Error Context:% %',CHR(10),  tSqlStatement;
         RAISE EXCEPTION '%',                SQLSTATE;
 END;
-$BODY$
+
+$BODY$;
 LANGUAGE    plpgsql
 SECURITY    DEFINER;
 ------------------------------------------------------------------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION pgrs_mview.mv$checkParentToChildOuterJoinAlias(
+	pConst 					IN	"mv$allconstants",
+	pAlias 					IN	text,
+	pOuterJoinType 			IN	text,
+	pOuterLeftAliasArray 	IN	text[],
+	pOuterRightAliasArray 	IN	text[],
+	pOuterJoinTypeArray 	IN 	text[],
+	pChildAliasArray 		OUT text[])
+    RETURNS text[]
+    LANGUAGE 'plpgsql'
+
+    COST 100
+    VOLATILE SECURITY DEFINER 
+AS $BODY$
+
+/* ---------------------------------------------------------------------------------------------------------------------------------
+Routine Name: mv$checkParentToChildOuterJoinAlias
+Author:       David Day
+Date:         18/07/2019
+------------------------------------------------------------------------------------------------------------------------------------
+Revision History    Push Down List
+------------------------------------------------------------------------------------------------------------------------------------
+Date        | Name          | Description
+------------+---------------+-------------------------------------------------------------------------------------------------------
+            |               |
+18/07/2019  | D Day      | Initial version
+------------+---------------+-------------------------------------------------------------------------------------------------------
+Description: 	Function to check either left or right outer join parent to child column joining aliases to be used to build
+				the dynamic UPDATE statement for outer join table DELETE changes.
+
+Arguments:      IN      pConst	
+
+Arguments:      IN      pAlias           
+                IN      pOuterJoinType        
+				IN		pOuterLeftAliasArray	
+                IN      pOuterRightAliasArray  
+                IN      pOuterJoinTypeArray
+                OUT     pChildAliasArray		
+
+Returns:                OUT array value for parameter pChildAliasArray
+************************************************************************************************************************************
+Copyright 2018 Amazon.com, Inc. or its affiliates. All Rights Reserved. SPDX-License-Identifier: MIT-0
+***********************************************************************************************************************************/
+DECLARE
+	
+	
+	rMvOuterJoinDetails				RECORD;	
+	iLoopCounter					INTEGER DEFAULT 0;
+	
+BEGIN
+
+	pChildAliasArray := '{}';
+
+	FOR rMvOuterJoinDetails IN (SELECT inline.oj_left_alias
+								,	   inline.oj_right_alias
+								,      inline.oj_type
+								FROM (
+									SELECT 	UNNEST(pOuterLeftAliasArray) AS oj_left_alias
+									,		UNNEST(pOuterRightAliasArray) AS oj_right_alias
+									, 		UNNEST(pOuterJoinTypeArray) AS oj_type) inline
+								WHERE inline.oj_type = pOuterJoinType) 
+	LOOP
+		
+		iLoopCounter := iLoopCounter + 1;
+		
+		IF iLoopCounter = 1 THEN
+			pChildAliasArray := '{}';
+		END IF;
+	
+		IF pAlias = rMvOuterJoinDetails.oj_left_alias AND pOuterJoinType = pConst.LEFT_OUTER_JOIN THEN
+		
+			pChildAliasArray[iLoopCounter] := rMvOuterJoinDetails.oj_right_alias;
+			
+		ELSIF pAlias = rMvOuterJoinDetails.oj_right_alias AND pOuterJoinType = pConst.RIGHT_OUTER_JOIN THEN
+		
+			pChildAliasArray[iLoopCounter] := rMvOuterJoinDetails.oj_left_alias;
+		
+		END IF;
+		
+	END LOOP;
+	
+	RETURN;
+
+    EXCEPTION
+    WHEN OTHERS
+    THEN
+        RAISE INFO      'Exception in function mv$checkParentToChildOuterJoinAlias';
+        RAISE INFO      'Error %:- %:',     SQLSTATE, SQLERRM;
+        RAISE INFO      'Error Context:% %',CHR(10),  tSqlStatement;
+        RAISE EXCEPTION '%',                SQLSTATE;
+END;
+
+$BODY$;
+LANGUAGE    plpgsql
+SECURITY    DEFINER;
+------------------------------------------------------------------------------------------------------------------------------------
+
 CREATE OR REPLACE
 FUNCTION    mv$updateOuterJoinColumnsNull
             (

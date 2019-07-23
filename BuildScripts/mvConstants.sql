@@ -169,6 +169,8 @@ AS
     WHERE_COMMAND                   TEXT,
     WHERE_NO_DATA                   TEXT,
 	EQUALS_NULL						TEXT,
+	LEFT_OUTER_JOIN					TEXT,
+	RIGHT_OUTER_JOIN				TEXT,
 --
 -- Table and column name definitions
 ------------------------------------------------------------------------------------------------------------------------------------
@@ -436,7 +438,8 @@ BEGIN
     rMvConstants.WHERE_COMMAND                  := ' WHERE ';
     rMvConstants.WHERE_NO_DATA                  := ' WHERE 1 = 2 ';
     rMvConstants.EQUALS_NULL                  	:= ' = null';
-	
+	rMvConstants.LEFT_OUTER_JOIN				:= 'LOJ';
+	rMvConstants.RIGHT_OUTER_JOIN				:= 'ROJ';	
 
 -- Table and column name definitions
 ------------------------------------------------------------------------------------------------------------------------------------

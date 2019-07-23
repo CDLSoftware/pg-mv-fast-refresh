@@ -90,6 +90,8 @@ Date        | Name          | Description
 ------------+---------------+-------------------------------------------------------------------------------------------------------
             |               |
 12/11/2018  | M Revitt      | Initial version
+23/07/2019  | D Day			| Added function mv$insertPgMviewOuterJoinDetails to handle Outer Join table DELETE
+			|				| changes.
 ------------+---------------+-------------------------------------------------------------------------------------------------------
 Description:    Creates a materialized view, as a base table, and then populates the data dictionary table before calling the full
                 refresh routine to populate it.
@@ -114,20 +116,24 @@ Returns:                VOID
 Copyright 2019 Amazon.com, Inc. or its affiliates. All Rights Reserved. SPDX-License-Identifier: MIT-0
 ***********************************************************************************************************************************/
 DECLARE
-    cResult             CHAR(1)     := NULL;
+    cResult             	CHAR(1)     := NULL;
 
-    rConst              mv$allConstants;
+    rConst              	mv$allConstants;
 
-    tSelectColumns      TEXT        := NULL;
-    tTableNames         TEXT        := NULL;
-    tViewColumns        TEXT        := NULL;
-    tWhereClause        TEXT        := NULL;
-    tRowidArray         TEXT[];
-    tTableArray         TEXT[];
-    tAliasArray         TEXT[];
-    tOuterTableArray    TEXT[];
-    tInnerAliasArray    TEXT[];
-    tInnerRowidArray    TEXT[];
+    tSelectColumns      	TEXT        := NULL;
+    tTableNames         	TEXT        := NULL;
+    tViewColumns        	TEXT        := NULL;
+    tWhereClause        	TEXT        := NULL;
+    tRowidArray         	TEXT[];
+    tTableArray         	TEXT[];
+    tAliasArray         	TEXT[];
+    tOuterTableArray    	TEXT[];
+    tInnerAliasArray    	TEXT[];
+    tInnerRowidArray    	TEXT[];
+	tOuterLeftAliasArray 	TEXT[];
+	tOuterRightAliasArray 	TEXT[];
+	tLeftOuterJoinArray 	TEXT[];
+	tRightOuterJoinArray 	TEXT[];
 
 BEGIN
 
@@ -150,7 +156,11 @@ BEGIN
             pRowidArray,
             pOuterTableArray,
             pInnerAliasArray,
-            pInnerRowidArray
+            pInnerRowidArray,
+			pOuterLeftAliasArray,
+			pOuterRightAliasArray,
+			pLeftOuterJoinArray,
+			pRightOuterJoinArray
 
     FROM
             mv$extractCompoundViewTables( rConst, tTableNames )
@@ -160,7 +170,11 @@ BEGIN
             tRowidArray,
             tOuterTableArray,
             tInnerAliasArray,
-            tInnerRowidArray;
+            tInnerRowidArray,
+			tOuterLeftAliasArray,
+			tOuterRightAliasArray,
+			tLeftOuterJoinArray,
+			tRightOuterJoinArray;
 
     tViewColumns    :=  mv$createPgMv$Table
                         (
@@ -190,7 +204,7 @@ BEGIN
     INTO
         tViewColumns,
         tSelectColumns;
-
+	
     cResult :=  mv$insertPgMview
                 (
                     rConst,
@@ -216,13 +230,18 @@ BEGIN
                 tSelectColumns,
                 tAliasArray,
                 tRowidArray,
-                tOuterTableArray
+                tOuterTableArray,
+				tOuterLeftAliasArray,
+				tOuterRightAliasArray,
+				tLeftOuterJoinArray,
+				tRightOuterJoinArray
 			 );
 
     cResult := mv$refreshMaterializedView( pViewName, pOwner, FALSE );
     RETURN;
 END;
-$BODY$
+
+$BODY$;
 LANGUAGE    plpgsql
 SECURITY    DEFINER;
 ------------------------------------------------------------------------------------------------------------------------------------
