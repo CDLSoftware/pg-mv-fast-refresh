@@ -1282,7 +1282,7 @@ BEGIN
 
 							IF tLeftJoinAliasArray = '{}' THEN
 								tLeftJoinAliasExists := 'N';
-								--RAISE INFO 'No Right Aliases Match Right Aliases';
+								--RAISE INFO 'No Right Aliases Match Left Aliases';
 							ELSE
 								iLeftLoopCounter := 0;
 
