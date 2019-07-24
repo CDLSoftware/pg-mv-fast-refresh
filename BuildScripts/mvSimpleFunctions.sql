@@ -1551,7 +1551,8 @@ Revision History    Push Down List
 ------------------------------------------------------------------------------------------------------------------------------------
 Date        | Name          | Description
 ------------+---------------+-------------------------------------------------------------------------------------------------------
-            |               |
+24/07/2019  | D Day         | Added COALESCE function to replace null with 0 as this was not raising expection if materialized view
+			|				| does not exist.
 11/03/2018  | M Revitt      | Initial version
 ------------+---------------+-------------------------------------------------------------------------------------------------------
 Description:    Returns all of the data stored in the data dictionary about this materialized view.
@@ -1579,7 +1580,7 @@ BEGIN
     INTO    aPgMview;
     CLOSE   cgetPgMviewTableData;
 
-    IF 0 = cardinality( aPgMview.table_array )
+    IF 0 = COALESCE(cardinality( aPgMview.table_array ),0)
     THEN
         RAISE EXCEPTION 'Materialised View ''%'' does not have a base table', pOwner || pConst.DOT_CHARACTER || pViewName;
     ELSE
