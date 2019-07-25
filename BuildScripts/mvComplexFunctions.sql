@@ -1105,6 +1105,7 @@ DECLARE
 	iLeftAliasLoopCounter			INTEGER DEFAULT 0;
 	iRightAliasLoopCounter			INTEGER DEFAULT 0;
 	iLeftLoopCounter				INTEGER DEFAULT 0;
+	iColumnNameAliasLoopCnt			INTEGER DEFAULT 0;
 	
 	tOuterJoinAlias					TEXT;	
 	tAlias							TEXT;	
@@ -1355,15 +1356,16 @@ BEGIN
 		tUpdateSetSql 		 	:= ' ';
 		iMvColumnNameLoopCnt 	:= 0;
 		iAliasJoinLinksCounter 	:= 0;
+		iColumnNameAliasLoopCnt := 0;
 		
 		-- Building the UPDATE statement including any child relationship columns and m_row$ based on these aliases
 		FOR rAliasJoinLinks IN (SELECT UNNEST(tParentToChildAliasArray) AS alias) LOOP
 		
-			iAliasJoinLinksCounter := iAliasJoinLinksCounter +1;
-			tAlias := rAliasJoinLinks.alias||'.';
+			iAliasJoinLinksCounter 	:= iAliasJoinLinksCounter +1;
+			tAlias 					:= rAliasJoinLinks.alias||'.';
 			tSelectColumns 			:= SUBSTRING(pSelectColumns,1,mv$regExpInstr(pSelectColumns,'[,]+[[:alnum:]]+[.]+'||'m_row\$'||''));
 			tRegExpColumnNameAlias 	:= REPLACE(tAlias,'.','\.');
-			iColumnNameAliasCnt 	:= mv$regExpCount(tSelectColumns, tRegExpColumnNameAlias, 1);
+			iColumnNameAliasCnt 	:= mv$regExpCount(tSelectColumns, '[^[:alnum:]]+('||tRegExpColumnNameAlias||')', 1);
 		
 			IF iColumnNameAliasCnt > 0 THEN
 		
@@ -1379,8 +1381,6 @@ BEGIN
 					tMvColumnName  := TRIM(REPLACE(mv$regExpSubstr(tColumnNameSql, '\S+$'),',',''));
 					tMvColumnName  := LOWER(TRIM(REPLACE(tMvColumnName,tAlias,'')));
 					
-					tColumnNameArray[i] := tMvColumnName;
-					
 					FOR rPgMviewColumnNames IN (SELECT column_name
 												FROM   information_schema.columns
 												WHERE  table_schema    = LOWER( pOwner )
@@ -1388,8 +1388,10 @@ BEGIN
 					LOOP
 					
 						IF rPgMviewColumnNames.column_name = tMvColumnName THEN
-							
-							iMvColumnNameLoopCnt := iMvColumnNameLoopCnt + 1;
+						
+							iColumnNameAliasLoopCnt := iColumnNameAliasLoopCnt + 1;						
+							iMvColumnNameLoopCnt := iMvColumnNameLoopCnt + 1;							
+							tColumnNameArray[iColumnNameAliasLoopCnt] := tMvColumnName;
 							
 							IF iMvColumnNameLoopCnt = 1 THEN 	
 								tUpdateSetSql := pConst.SET_COMMAND || tMvColumnName || pConst.EQUALS_NULL || pConst.COMMA_CHARACTER;
@@ -1405,12 +1407,18 @@ BEGIN
 					
 				END LOOP;
 				
+				iColumnNameAliasLoopCnt := iColumnNameAliasLoopCnt + 1;
+				tColumnNameArray[iColumnNameAliasLoopCnt] := rAliasJoinLinks.alias|| pConst.UNDERSCORE_CHARACTER || pConst.MV_M_ROW$_COLUMN;
 				tUpdateSetSql := tUpdateSetSql || rAliasJoinLinks.alias|| pConst.UNDERSCORE_CHARACTER || pConst.MV_M_ROW$_COLUMN || pConst.EQUALS_NULL || pConst.COMMA_CHARACTER;
 				
 			ELSE
 				IF iAliasJoinLinksCounter = 1 THEN
+					iColumnNameAliasLoopCnt := iColumnNameAliasLoopCnt + 1;
+					tColumnNameArray[iColumnNameAliasLoopCnt] := rAliasJoinLinks.alias|| pConst.UNDERSCORE_CHARACTER || pConst.MV_M_ROW$_COLUMN;
 					tUpdateSetSql := pConst.SET_COMMAND || rAliasJoinLinks.alias|| pConst.UNDERSCORE_CHARACTER || pConst.MV_M_ROW$_COLUMN || pConst.EQUALS_NULL || pConst.COMMA_CHARACTER;			
-				ELSE	
+				ELSE
+					iColumnNameAliasLoopCnt := iColumnNameAliasLoopCnt + 1;
+					tColumnNameArray[iColumnNameAliasLoopCnt] := rAliasJoinLinks.alias|| pConst.UNDERSCORE_CHARACTER || pConst.MV_M_ROW$_COLUMN;
 					tUpdateSetSql := tUpdateSetSql || rAliasJoinLinks.alias || pConst.UNDERSCORE_CHARACTER || pConst.MV_M_ROW$_COLUMN || pConst.EQUALS_NULL || pConst.COMMA_CHARACTER;		
 				END IF;
 					
