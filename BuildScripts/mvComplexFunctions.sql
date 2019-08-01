@@ -1484,10 +1484,6 @@ CREATE OR REPLACE FUNCTION mv$checkParentToChildOuterJoinAlias(
 	pOuterJoinTypeArray 	IN 	text[],
 	pChildAliasArray 		OUT text[])
     RETURNS text[]
-    LANGUAGE 'plpgsql'
-
-    COST 100
-    VOLATILE SECURITY DEFINER 
 AS $BODY$
 
 /* ---------------------------------------------------------------------------------------------------------------------------------

@@ -893,7 +893,7 @@ Revision History    Push Down List
 Date        | Name          | Description
 ------------+---------------+-------------------------------------------------------------------------------------------------------
             |               |
-01/07/2019  | D David	    | Initial version
+01/07/2019  | D Day	    	| Initial version
 ------------+---------------+-------------------------------------------------------------------------------------------------------
 Description:    Every time a new materialized view is created, a record of the outer join table(s) details is also created in the data dictionary table
                 pgmviews_oj_details which is used as part of the outer join source table(s) DELETE process.
@@ -1107,7 +1107,7 @@ FUNCTION    mv$extractCompoundViewTables
 				pOuterLeftAliasArray  OUT	TEXT[],
 				pOuterRightAliasArray OUT	TEXT[],
 				pLeftOuterJoinArray   OUT	TEXT[],
-				pRightOuterJoinArray  OUT	TEXT[])
+				pRightOuterJoinArray  OUT	TEXT[]
             )
     RETURNS RECORD
 AS
@@ -1121,7 +1121,7 @@ Revision History    Push Down List
 ------------------------------------------------------------------------------------------------------------------------------------
 Date        | Name          | Description
 ------------+---------------+-------------------------------------------------------------------------------------------------------
-23/07/2019	| D DAY			| Defect fix - added logic to get the LEFT and RIGHT outer join columns joining condition aliases to
+23/07/2019	| D Day			| Defect fix - added logic to get the LEFT and RIGHT outer join columns joining condition aliases to
 			|				| build dynamic UPDATE statement for outer join DELETE changes.
 11/07/2019  | D Day         | Defect fix - changed mv$createRow$Column input parameter to use alias array instead of table array
             |               | as this will be used as part of the m_row$ column name used to refresh the materialized view.
@@ -1279,7 +1279,7 @@ BEGIN
 			
 			tOuterLeftAlias := TRIM(SUBSTRING(tTableName,POSITION( pConst.ON_TOKEN IN tTableName)+2,(mv$regExpInstr(tTableName,'\.',1,1))-(POSITION( pConst.ON_TOKEN IN tTableName)+2)));	
 			tOuterRightAlias := TRIM(SUBSTRING(tTableName,POSITION( TRIM(pConst.EQUALS_COMMAND) IN tTableName)+1,(mv$regExpInstr(tTableName,'\.',1,2))-(POSITION( TRIM(pConst.EQUALS_COMMAND) IN tTableName)+1)));
-			tLeftOuterJoin := pConst.LEFT_OUTER_JOIN;;
+			tLeftOuterJoin := pConst.LEFT_OUTER_JOIN;
 			
         END IF;
 
