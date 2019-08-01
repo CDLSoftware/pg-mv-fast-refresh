@@ -25,14 +25,13 @@ GRANT ALL ON SCHEMA kingfisher_core TO kingfisher_core;
 
 # Additional permissions to get the fast refresh module working against the owner of the materialized view logs e.g. soe and the schema you'd like to create the materialized views tables e.g. kingfisher_core
 
-ALTER   USER        soe						SET     SEARCH_PATH=soe,PUBLIC,pgrs_mview,kingfisher_core;
-ALTER   USER        kingfisher_core			SET     SEARCH_PATH=kingfisher_core,PUBLIC,pgrs_mview,soe;
-ALTER   USER        pgrs_mview    			SET     SEARCH_PATH=pgrs_mview,PUBLIC,soe,kingfisher_core;
+ALTER DATABASE strata SET SEARCH_PATH=soe,pgrs_mview,kingfisher_core,public
 
-GRANT   kingfisher_core,  soe       TO      dbadmin;
-GRANT   kingfisher_core,  soe       TO      pgrs_mview;
+# Setting search_path at database level should be enough - however if it needs to be set at user level as well here are the commands below:-
+# ALTER   USER        soe						SET     SEARCH_PATH=soe,pgrs_mview,kingfisher_core,public;
+# ALTER   USER        kingfisher_core			SET     SEARCH_PATH=kingfisher_core,soe,pgrs_mview,public;
+# ALTER   USER        pgrs_mview    			SET     SEARCH_PATH=pgrs_mview,soe,kingfisher_core,public;
+# ALTER   USER        dbadmin    				SET     SEARCH_PATH=soe,pgrs_mview,kingfisher_core,public;
 
-GRANT   pgmv$_role   TO      kingfisher_core;
-GRANT   pgmv$_role   TO      soe;
 
-ALTER   DATABASE    strata        SET     SEARCH_PATH=dbadmin,PUBLIC,pgrs_mview,soe,kingfisher_core;
+

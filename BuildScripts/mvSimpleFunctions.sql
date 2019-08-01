@@ -62,6 +62,7 @@ DROP FUNCTION IF EXISTS mv$createRow$Column;
 DROP FUNCTION IF EXISTS mv$deconstructSqlStatement;
 DROP FUNCTION IF EXISTS mv$deleteMaterializedViewRows;
 DROP FUNCTION IF EXISTS mv$deletePgMview;
+DROP FUNCTION IF EXISTS mv$deletePgMviewOjDetails;
 DROP FUNCTION IF EXISTS mv$deletePgMviewLog;
 DROP FUNCTION IF EXISTS mv$dropTable;
 DROP FUNCTION IF EXISTS mv$dropTrigger;
@@ -589,7 +590,7 @@ CREATE OR REPLACE
 FUNCTION    mv$createRow$Column
             (
                 pConst      IN      mv$allConstants,
-                pTableName  IN      TEXT
+                pTableAlias IN      TEXT
             )
     RETURNS TEXT
 AS
@@ -606,6 +607,9 @@ Date        | Name          | Description
             |               |
 18/06/2019  | M Revitt      | Add and Exception Handler
 15/01/2019  | M Revitt      | Initial version
+11/07/2019  | D Day         | Defect fix - changed code to use base table alias instead of base table name for the m_row$ column name
+            |               | used to refresh the materialized view as this was not working when query joined against the same table
+            |               | more than once.
 ------------+---------------+-------------------------------------------------------------------------------------------------------
 Description:    For every table that is used to construct this materialized view, add a MV_M_ROW$_COLUMN to the base table.
 
@@ -623,10 +627,13 @@ DECLARE
     tSqlStatement   TEXT;
     tRowidColumn    TEXT;
     iTableArryPos   INT     := 0;
+	tTableAlias		TEXT;
 
 BEGIN
 
-    tRowidColumn := SUBSTRING( pTableName, 1, pConst.MV_MAX_BASE_TABLE_LEN ) || pConst.UNDERSCORE_CHARACTER ||
+	tTableAlias := LOWER(TRIM(replace(pTableAlias,'.','')));
+
+    tRowidColumn := SUBSTRING( tTableAlias, 1, pConst.MV_MAX_TABLE_ALIAS_LEN ) || pConst.UNDERSCORE_CHARACTER ||
                                                                                 pConst.MV_M_ROW$_COLUMN;
 
     RETURN( tRowidColumn );
@@ -868,6 +875,59 @@ LANGUAGE    plpgsql
 SECURITY    DEFINER;
 ------------------------------------------------------------------------------------------------------------------------------------
 CREATE OR REPLACE
+FUNCTION    mv$deletePgMviewOjDetails
+            (
+                pOwner      IN      TEXT,
+                pViewName   IN      TEXT
+            )
+    RETURNS VOID
+AS
+$BODY$
+/* ---------------------------------------------------------------------------------------------------------------------------------
+Routine Name: mv$deletePgMviewOjDetails
+Author:       David Day
+Date:         01/07/2019
+------------------------------------------------------------------------------------------------------------------------------------
+Revision History    Push Down List
+------------------------------------------------------------------------------------------------------------------------------------
+Date        | Name          | Description
+------------+---------------+-------------------------------------------------------------------------------------------------------
+            |               |
+01/07/2019  | D Day	    	| Initial version
+------------+---------------+-------------------------------------------------------------------------------------------------------
+Description:    Every time a new materialized view is created, a record of the outer join table(s) details is also created in the data dictionary table
+                pgmviews_oj_details which is used as part of the outer join source table(s) DELETE process.
+
+                This function removes that row(s) when a materialized view is removed.
+
+Arguments:      IN      pOwner              The owner of the object
+                IN      pViewName           The name of the materialized view
+Returns:                VOID
+
+************************************************************************************************************************************
+Copyright 2019 Amazon.com, Inc. or its affiliates. All Rights Reserved. SPDX-License-Identifier: MIT-0
+***********************************************************************************************************************************/
+BEGIN
+
+    DELETE
+    FROM    pgmviews_oj_details
+    WHERE
+            owner       = pOwner
+    AND     pgmv_name   = pViewName;
+
+    RETURN;
+    EXCEPTION
+    WHEN OTHERS
+    THEN
+        RAISE INFO      'Exception in function mv$deletePgMviewOjDetails';
+        RAISE INFO      'Error %:- %:',     SQLSTATE, SQLERRM;
+        RAISE EXCEPTION '%',                SQLSTATE;
+END;
+$BODY$
+LANGUAGE    plpgsql
+SECURITY    DEFINER;
+------------------------------------------------------------------------------------------------------------------------------------
+CREATE OR REPLACE
 FUNCTION    mv$deletePgMviewLog
             (
                 pOwner      IN      TEXT,
@@ -1043,7 +1103,11 @@ FUNCTION    mv$extractCompoundViewTables
                 pRowidArray           OUT   TEXT[],
                 pOuterTableArray      OUT   TEXT[],
                 pInnerAliasArray      OUT   TEXT[],
-                pInnerRowidArray      OUT   TEXT[]
+                pInnerRowidArray      OUT   TEXT[],
+				pOuterLeftAliasArray  OUT	TEXT[],
+				pOuterRightAliasArray OUT	TEXT[],
+				pLeftOuterJoinArray   OUT	TEXT[],
+				pRightOuterJoinArray  OUT	TEXT[]
             )
     RETURNS RECORD
 AS
@@ -1057,7 +1121,10 @@ Revision History    Push Down List
 ------------------------------------------------------------------------------------------------------------------------------------
 Date        | Name          | Description
 ------------+---------------+-------------------------------------------------------------------------------------------------------
-            |               |
+23/07/2019	| D Day			| Defect fix - added logic to get the LEFT and RIGHT outer join columns joining condition aliases to
+			|				| build dynamic UPDATE statement for outer join DELETE changes.
+11/07/2019  | D Day         | Defect fix - changed mv$createRow$Column input parameter to use alias array instead of table array
+            |               | as this will be used as part of the m_row$ column name used to refresh the materialized view.
 18/06/2019  | M Revitt      | Fix a logic bomb with the contruct of the inner table and outer table arrays
             |               | Add an exception handler
 11/03/2018  | M Revitt      | Initial version
@@ -1130,12 +1197,21 @@ PostGres Notes:
                 both input tables. As with USING, these columns appear only once in the output table. If there are no common
                 column names, NATURAL JOIN behaves like JOIN ... ON TRUE, producing a cross-product join.
 
-Arguments:      IN      pConst              The memory structure containing all constants
-                IN      pSqlStatement       The SQL Statement used to create the materialized view
-                    OUT pTableNames         The name of the materialized view source table
-                    OUT pSelectColumns      The list of columns in the SQL Statement used to create the materialized view
-                    OUT pWhereClause        The where clause from the SQL Statement used to create the materialized view
-Returns:                RECORD              The three out parameters
+Arguments:      IN      pConst              	The memory structure containing all constants
+                IN      pTableNames       		The materialized view query SQL statement taken from the position of the FROM clause including all source tables and joins to be
+												used for the OUT parameters logic
+                OUT 	pTableArray				An array containing the source tables 
+				OUT		pAliasArray				An array containing the table aliases			
+				OUT		pRowidArray				An array containing the m_row$ column names
+				OUT		pOuterTableArray		An array containing the outer join source tables
+				OUT		pInnerAliasArray		An array containing the inner join table aliases
+				OUT		pInnerRowidArray		An array containing the inner table m_row$ column aliases
+				OUT		pOuterLeftAliasArray	An array containing the left outer join column name joining condition aliases  
+				OUT		pOuterRightAliasArray	An array containing the right outer join column name joining condition aliases  
+				OUT		pLeftOuterJoinArray		An array confirming whether the source table is from a left outer join condition
+				OUT		pRightOuterJoinArray	An array confirming whether the source table is from a right outer join condition
+					
+Returns:                RECORD              The ten out parameters
 ************************************************************************************************************************************
 Copyright 2019 Amazon.com, Inc. or its affiliates. All Rights Reserved. SPDX-License-Identifier: MIT-0
 ***********************************************************************************************************************************/
@@ -1148,6 +1224,11 @@ DECLARE
     tTableNames     TEXT;
     tTableAlias     TEXT;
     iTableArryPos   INTEGER := 0;
+	
+	tOuterLeftAlias TEXT;
+	tOuterRightAlias TEXT;
+	tLeftOuterJoin TEXT;
+	tRightOuterJoin TEXT;
 
 BEGIN
 --  Replacing a single space with a double space is only required on the first pass to ensure that there is padding around all
@@ -1166,26 +1247,40 @@ BEGIN
 
     WHILE POSITION( pConst.COMMA_CHARACTER IN tTableNames ) > 0
     LOOP
+		
+		tOuterLeftAlias := NULL;
+		tOuterRightAlias := NULL;
+		tLeftOuterJoin := NULL;
+		tRightOuterJoin := NULL;
         tOuterTable := NULL;
         tInnerAlias := pConst.NO_INNER_TOKEN;       -- Tag to ignore the alias in this row
         tInnerRowid := pConst.NO_INNER_TOKEN;       -- Tag to ignore the alias in this row
 
-        tTableName :=  LTRIM( SPLIT_PART( tTableNames, pConst.COMMA_CHARACTER, 1 ));
+        tTableName := LTRIM( SPLIT_PART( tTableNames, pConst.COMMA_CHARACTER, 1 ));
 
         IF POSITION( pConst.RIGHT_TOKEN IN tTableName ) > 0
         THEN
             tOuterTable := pAliasArray[iTableArryPos - 1];  -- There has to be a table preceeding a right outer join
             tInnerRowid := NULL;                            -- The inner table is in this row, this allows us to collect it
             tInnerAlias := NULL;                            -- once we have processed the row further down.
+			
+			tOuterLeftAlias := TRIM(SUBSTRING(tTableName,POSITION( pConst.ON_TOKEN IN tTableName)+2,(mv$regExpInstr(tTableName,'\.',1,1))-(POSITION( pConst.ON_TOKEN IN tTableName)+2)));
+			tOuterRightAlias := TRIM(SUBSTRING(tTableName,POSITION( TRIM(pConst.EQUALS_COMMAND) IN tTableName)+1,(mv$regExpInstr(tTableName,'\.',1,2))-(POSITION( TRIM(pConst.EQUALS_COMMAND) IN tTableName)+1)));
+			tRightOuterJoin := pConst.RIGHT_OUTER_JOIN;
 
         ELSIF POSITION( pConst.LEFT_TOKEN IN tTableName ) > 0   -- There has to be a table preceeding a left outer join
         THEN
             tInnerAlias := pAliasArray[iTableArryPos - 1];
-            tInnerRowid := mv$createRow$Column( pConst, pTableArray[iTableArryPos - 1] );
+            tInnerRowid := mv$createRow$Column( pConst, pAliasArray[iTableArryPos - 1] );
             tOuterTable := TRIM( SUBSTRING( tTableName,
                                             POSITION( pConst.JOIN_TOKEN   IN tTableName ) + LENGTH( pConst.JOIN_TOKEN),
                                             POSITION( pConst.ON_TOKEN     IN tTableName ) - LENGTH( pConst.ON_TOKEN)
-                                            - POSITION( pConst.JOIN_TOKEN IN tTableName )));
+                                            - POSITION( pConst.JOIN_TOKEN IN tTableName )));	
+			
+			tOuterLeftAlias := TRIM(SUBSTRING(tTableName,POSITION( pConst.ON_TOKEN IN tTableName)+2,(mv$regExpInstr(tTableName,'\.',1,1))-(POSITION( pConst.ON_TOKEN IN tTableName)+2)));	
+			tOuterRightAlias := TRIM(SUBSTRING(tTableName,POSITION( TRIM(pConst.EQUALS_COMMAND) IN tTableName)+1,(mv$regExpInstr(tTableName,'\.',1,2))-(POSITION( TRIM(pConst.EQUALS_COMMAND) IN tTableName)+1)));
+			tLeftOuterJoin := pConst.LEFT_OUTER_JOIN;
+			
         END IF;
 
         -- The LEFT, RIGHT and JOIN tokens are only required for outer join pattern matching
@@ -1197,9 +1292,9 @@ BEGIN
 
         pTableArray[iTableArryPos]  := (REGEXP_SPLIT_TO_ARRAY( tTableName,  pConst.REGEX_MULTIPLE_SPACES ))[1];
         tTableAlias                 := (REGEXP_SPLIT_TO_ARRAY( tTableName,  pConst.REGEX_MULTIPLE_SPACES ))[2];
-        pRowidArray[iTableArryPos]  :=  mv$createRow$Column( pConst, pTableArray[iTableArryPos] );
         pAliasArray[iTableArryPos]  :=  COALESCE( NULLIF( NULLIF( tTableAlias, pConst.EMPTY_STRING), pConst.ON_TOKEN),
                                                                   pTableArray[iTableArryPos] ) || pConst.DOT_CHARACTER;
+		pRowidArray[iTableArryPos]  :=  mv$createRow$Column( pConst, pAliasArray[iTableArryPos] );
 
         pOuterTableArray[iTableArryPos]  :=(REGEXP_SPLIT_TO_ARRAY( tOuterTable, pConst.REGEX_MULTIPLE_SPACES ))[1];
         pInnerAliasArray[iTableArryPos]  := NULLIF( COALESCE( tInnerAlias, pAliasArray[iTableArryPos] ), pConst.NO_INNER_TOKEN );
@@ -1207,6 +1302,12 @@ BEGIN
 
         tTableNames     := TRIM( SUBSTRING( tTableNames,
                                  POSITION( pConst.COMMA_CHARACTER IN tTableNames ) + LENGTH( pConst.COMMA_CHARACTER )));
+		
+		pOuterLeftAliasArray[iTableArryPos] 	:= tOuterLeftAlias;
+		pOuterRightAliasArray[iTableArryPos] 	:= tOuterRightAlias;
+		pLeftOuterJoinArray[iTableArryPos] 		:= tLeftOuterJoin;
+		pRightOuterJoinArray[iTableArryPos] 	:= tRightOuterJoin;
+		
         iTableArryPos   := iTableArryPos + 1;
 
     END LOOP;
@@ -1450,7 +1551,8 @@ Revision History    Push Down List
 ------------------------------------------------------------------------------------------------------------------------------------
 Date        | Name          | Description
 ------------+---------------+-------------------------------------------------------------------------------------------------------
-            |               |
+24/07/2019  | D Day         | Added COALESCE function to replace null with 0 as this was not raising expection if materialized view
+			|				| does not exist.
 11/03/2018  | M Revitt      | Initial version
 ------------+---------------+-------------------------------------------------------------------------------------------------------
 Description:    Returns all of the data stored in the data dictionary about this materialized view.
@@ -1478,7 +1580,7 @@ BEGIN
     INTO    aPgMview;
     CLOSE   cgetPgMviewTableData;
 
-    IF 0 = cardinality( aPgMview.table_array )
+    IF 0 = COALESCE(cardinality( aPgMview.table_array ),0)
     THEN
         RAISE EXCEPTION 'Materialised View ''%'' does not have a base table', pOwner || pConst.DOT_CHARACTER || pViewName;
     ELSE

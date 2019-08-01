@@ -12,6 +12,7 @@ Date        | Name          | Description
 07/05/2019  | M Revitt      | Split out the trigger commands into mv$buildTriggerConstants for performance reasons
 26/04/2019  | M Revitt      | Change from variables to a new type for performance reasons
 11/03/2018  | M Revitt      | Initial version
+11/07/2019  | D DAY         | Defect fix - Added new constant MV_MAX_TABLE_ALIAS_LEN to be used for the m_row$ column naming
 ------------+---------------+-------------------------------------------------------------------------------------------------------
 Background:     PostGre does not support Materialized View Fast Refreshes, this suite of scripts is a PL/SQL coded mechanism to
                 provide that functionality, the next phase of this projecdt is to fold these changes into the PostGre kernel.
@@ -107,6 +108,7 @@ AS
     MAX_BITMAP_SIZE                 BIGINT,
     MAX_PGMVIEWS_PER_TABLE          SMALLINT,
     MV_MAX_BASE_TABLE_LEN           SMALLINT,
+	MV_MAX_TABLE_ALIAS_LEN          SMALLINT,
     SUBTRACT_COMMAND                TEXT,
     TWO_TO_THE_POWER_OF             TEXT,
 --
@@ -166,6 +168,9 @@ AS
     UPDATE_COMMAND                  TEXT,
     WHERE_COMMAND                   TEXT,
     WHERE_NO_DATA                   TEXT,
+	EQUALS_NULL						TEXT,
+	LEFT_OUTER_JOIN					TEXT,
+	RIGHT_OUTER_JOIN				TEXT,
 --
 -- Table and column name definitions
 ------------------------------------------------------------------------------------------------------------------------------------
@@ -378,6 +383,7 @@ BEGIN
     rMvConstants.MAX_BITMAP_SIZE                := 9223372036854775807; -- (2^63 - 1) the maximum value for a 64-bit signed integer
     rMvConstants.MAX_PGMVIEWS_PER_TABLE         := 62;
     rMvConstants.MV_MAX_BASE_TABLE_LEN          := 22;
+	rMvConstants.MV_MAX_TABLE_ALIAS_LEN		    := 22;
     rMvConstants.SUBTRACT_COMMAND               := ' - ';
     rMvConstants.TWO_TO_THE_POWER_OF            := ' POWER( 2, ';
 
@@ -431,6 +437,9 @@ BEGIN
     rMvConstants.UPDATE_COMMAND                 := 'UPDATE ';
     rMvConstants.WHERE_COMMAND                  := ' WHERE ';
     rMvConstants.WHERE_NO_DATA                  := ' WHERE 1 = 2 ';
+    rMvConstants.EQUALS_NULL                  	:= ' = null';
+	rMvConstants.LEFT_OUTER_JOIN				:= 'LOJ';
+	rMvConstants.RIGHT_OUTER_JOIN				:= 'ROJ';	
 
 -- Table and column name definitions
 ------------------------------------------------------------------------------------------------------------------------------------

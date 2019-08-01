@@ -1,6 +1,6 @@
 #! /bin/bash
 
-. ./$MODULE_HOME/module_set_variables.sh
+. ./module_set_variables.sh
 
 echo "INFO: Set variables" >> $LOG_FILE
 echo "INFO: LOG_FILE parameter set to $LOG_FILE" >> $LOG_FILE
@@ -18,7 +18,7 @@ echo "INFO: Connect to postgres database $DBNAME via PSQL session" >> $LOG_FILE
   psql --host=$HOSTNAME --port=$PORT --username=$PGUSERNAME --dbname=$DBNAME -v MODULE_HOME=$MODULE_HOME -v MODULEOWNERPASS=$MODULEOWNERPASS -v MODULEOWNER=$MODULEOWNER -v PGUSERNAME=$PGUSERNAME -v DBNAME=$DBNAME << EOF1 >> $LOG_FILE 2>&1
 
     \i :MODULE_HOME/BuildScripts/createModuleOwnerSchema.sql;
-	
+
 	\q
 	
 EOF1
@@ -27,8 +27,10 @@ PGPASSWORD=$MODULEOWNERPASS
 
 echo "INFO: Run $MODULEOWNER schema object build scripts" >> $LOG_FILE
 echo "INFO: Connect to postgres database $DBNAME via PSQL session" >> $LOG_FILE
-  psql --host=$HOSTNAME --port=$PORT --username=$MODULEOWNER --dbname=$DBNAME -v MODULE_HOME=$MODULE_HOME << EOF2 >> $LOG_FILE 2>&1
+  psql --host=$HOSTNAME --port=$PORT --username=$MODULEOWNER --dbname=$DBNAME -v MODULE_HOME=$MODULE_HOME -v MODULEOWNER=$MODULEOWNER << EOF2 >> $LOG_FILE 2>&1
   
+	SET search_path = :MODULEOWNER,catalog,public;
+
    \i :MODULE_HOME/BuildScripts/mvConstants.sql;
    \i :MODULE_HOME/BuildScripts/mvSimpleFunctions.sql;
    \i :MODULE_HOME/BuildScripts/mvComplexFunctions.sql;

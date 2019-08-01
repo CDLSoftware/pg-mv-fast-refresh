@@ -90,6 +90,8 @@ Date        | Name          | Description
 ------------+---------------+-------------------------------------------------------------------------------------------------------
             |               |
 12/11/2018  | M Revitt      | Initial version
+23/07/2019  | D Day			| Added function mv$insertPgMviewOuterJoinDetails to handle Outer Join table DELETE
+			|				| changes.
 ------------+---------------+-------------------------------------------------------------------------------------------------------
 Description:    Creates a materialized view, as a base table, and then populates the data dictionary table before calling the full
                 refresh routine to populate it.
@@ -114,20 +116,24 @@ Returns:                VOID
 Copyright 2019 Amazon.com, Inc. or its affiliates. All Rights Reserved. SPDX-License-Identifier: MIT-0
 ***********************************************************************************************************************************/
 DECLARE
-    cResult             CHAR(1)     := NULL;
+    cResult             	CHAR(1)     := NULL;
 
-    rConst              mv$allConstants;
+    rConst              	mv$allConstants;
 
-    tSelectColumns      TEXT        := NULL;
-    tTableNames         TEXT        := NULL;
-    tViewColumns        TEXT        := NULL;
-    tWhereClause        TEXT        := NULL;
-    tRowidArray         TEXT[];
-    tTableArray         TEXT[];
-    tAliasArray         TEXT[];
-    tOuterTableArray    TEXT[];
-    tInnerAliasArray    TEXT[];
-    tInnerRowidArray    TEXT[];
+    tSelectColumns      	TEXT        := NULL;
+    tTableNames         	TEXT        := NULL;
+    tViewColumns        	TEXT        := NULL;
+    tWhereClause        	TEXT        := NULL;
+    tRowidArray         	TEXT[];
+    tTableArray         	TEXT[];
+    tAliasArray         	TEXT[];
+    tOuterTableArray    	TEXT[];
+    tInnerAliasArray    	TEXT[];
+    tInnerRowidArray    	TEXT[];
+	tOuterLeftAliasArray 	TEXT[];
+	tOuterRightAliasArray 	TEXT[];
+	tLeftOuterJoinArray 	TEXT[];
+	tRightOuterJoinArray 	TEXT[];
 
 BEGIN
 
@@ -150,7 +156,11 @@ BEGIN
             pRowidArray,
             pOuterTableArray,
             pInnerAliasArray,
-            pInnerRowidArray
+            pInnerRowidArray,
+			pOuterLeftAliasArray,
+			pOuterRightAliasArray,
+			pLeftOuterJoinArray,
+			pRightOuterJoinArray
 
     FROM
             mv$extractCompoundViewTables( rConst, tTableNames )
@@ -160,7 +170,11 @@ BEGIN
             tRowidArray,
             tOuterTableArray,
             tInnerAliasArray,
-            tInnerRowidArray;
+            tInnerRowidArray,
+			tOuterLeftAliasArray,
+			tOuterRightAliasArray,
+			tLeftOuterJoinArray,
+			tRightOuterJoinArray;
 
     tViewColumns    :=  mv$createPgMv$Table
                         (
@@ -190,7 +204,7 @@ BEGIN
     INTO
         tViewColumns,
         tSelectColumns;
-
+	
     cResult :=  mv$insertPgMview
                 (
                     rConst,
@@ -208,6 +222,20 @@ BEGIN
                     tInnerRowidArray,
                     pFastRefresh
                 );
+				
+	cResult := mv$insertPgMviewOuterJoinDetails
+			(	rConst,
+                pOwner,
+                pViewName,
+                tSelectColumns,
+                tAliasArray,
+                tRowidArray,
+                tOuterTableArray,
+				tOuterLeftAliasArray,
+				tOuterRightAliasArray,
+				tLeftOuterJoinArray,
+				tRightOuterJoinArray
+			 );
 
     cResult := mv$refreshMaterializedView( pViewName, pOwner, FALSE );
     RETURN;
@@ -499,6 +527,7 @@ Date        | Name          | Description
 ------------+---------------+-------------------------------------------------------------------------------------------------------
             |               |
 11/03/2018  | M Revitt      | Initial version
+01/07/2019	| David Day		| Added function mv$deletePgMviewOjDetails to delete data from data dictionary table pgmview_oj_details. 
 ------------+---------------+-------------------------------------------------------------------------------------------------------
 Description:    Removes a materialized view, clears down the entries in the Materialized View Log adn then removes the entry from
                 the data dictionary table
@@ -530,6 +559,7 @@ BEGIN
     cResult     := mv$clearPgMviewLogBit(       rConst, pOwner, pViewName           );
     cResult     := mv$dropTable(                rConst, pOwner, aPgMview.view_name  );
     cResult     := mv$deletePgMview(               pOwner, pViewName           );
+	cResult		:= mv$deletePgMviewOjDetails(      pOwner, pViewName           );
 
     RETURN;
 END;
