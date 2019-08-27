@@ -1023,13 +1023,17 @@ SECURITY    DEFINER;
 ------------------------------------------------------------------------------------------------------------------------------------
 CREATE OR REPLACE
 FUNCTION    mv$insertPgMviewOuterJoinDetails
-			(	pConst              IN      mv$allConstants,
-                pOwner              IN      TEXT,
-                pViewName           IN      TEXT,
-                pSelectColumns      IN      TEXT,
-                pAliasArray         IN      TEXT[],
-                pRowidArray         IN      TEXT[],
-                pOuterTableArray    IN      TEXT[]
+			(	pConst                IN      mv$allConstants,
+                pOwner                IN      TEXT,
+                pViewName             IN      TEXT,
+                pSelectColumns        IN      TEXT,
+                pAliasArray           IN      TEXT[],
+                pRowidArray           IN      TEXT[],
+                pOuterTableArray      IN      TEXT[],
+	            pouterLeftAliasArray  IN      TEXT[],
+	            pOuterRightAliasArray IN      TEXT[],
+	            pLeftOuterJoinArray   IN      TEXT[],
+	            pRightOuterJoinArray  IN      TEXT[]
 			 )
     RETURNS VOID
 AS
@@ -1055,12 +1059,16 @@ Description:    Dynamically builds UPDATE statement(s) for any outer join table 
 
 Arguments:      IN      pConst	
 
-Arguments:      IN      pOwner              The owner of the object
-                IN      pViewName           The name of the materialized view
-				IN		pSelectColumns		The column list from the SQL query that will be used to build the UPDATE statement
-                IN      pAliasArray         An array that holds the list of table aliases
-                IN      pRowidArray    		An array that holds the list of rowid columns
-                IN      pOuterTableArray    An array that holds the list of outer joined tables in a multi table materialized view		
+Arguments:      IN      pOwner                  The owner of the object
+                IN      pViewName               The name of the materialized view
+				IN		pSelectColumns		    The column list from the SQL query that will be used to build the UPDATE statement
+                IN      pAliasArray             An array that holds the list of table aliases
+                IN      pRowidArray    		    An array that holds the list of rowid columns
+                IN      pOuterTableArray        An array that holds the list of outer joined tables in a multi table materialized view
+                IN      pouterLeftAliasArray    An array that holds the list of outer joined tables left aliases
+                IN      pOuterRightAliasArray   An array that holds the list of outer joined tables right aliases
+                IN      pLeftOuterJoinArray     An array that holds the the position list of whether it was a left outer join
+                IN      pRightOuterJoinArray    An array that holds the the position list of whether it was a right outer join
 
 Returns:                VOID
 ************************************************************************************************************************************
