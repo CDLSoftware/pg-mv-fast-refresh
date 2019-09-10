@@ -118,6 +118,7 @@ AS
     NEW_LINE                        TEXT,
     CARRIAGE_RETURN                 TEXT,
     SPACE_CHARACTER                 TEXT,
+    TAB_CHARACTER                 	TEXT,
     SINGLE_QUOTE_CHARACTER          TEXT,
     OPEN_BRACKET                    TEXT,
     CLOSE_BRACKET                   TEXT,
@@ -393,6 +394,7 @@ BEGIN
     rMvConstants.NEW_LINE                       := CHR(10);
     rMvConstants.CARRIAGE_RETURN                := CHR(13);
     rMvConstants.SPACE_CHARACTER                := CHR(32);
+    rMvConstants.TAB_CHARACTER                	:= CHR(9);
     rMvConstants.UNDERSCORE_CHARACTER           := CHR(95);
     rMvConstants.LEFT_BRACE_CHARACTER           := CHR(123);
     rMvConstants.RIGHT_BRACE_CHARACTER          := CHR(125);
