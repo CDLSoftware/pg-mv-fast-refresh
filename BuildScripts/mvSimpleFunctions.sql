@@ -1923,7 +1923,8 @@ Revision History    Push Down List
 ------------------------------------------------------------------------------------------------------------------------------------
 Date        | Name          | Description
 ------------+---------------+-------------------------------------------------------------------------------------------------------
-            |               |
+
+10/09/2019  | D Day         | Change code to handle tab characters
 15/01/2019  | M Revitt      | Initial version
 ------------+---------------+-------------------------------------------------------------------------------------------------------
 Description:    A huge amount of coding in this program is to locate specific key words within text strings. This is largely a
@@ -1943,18 +1944,26 @@ DECLARE
 
 BEGIN
 
-    tTokanisedString :=
-        REPLACE( REPLACE( REPLACE( REPLACE( REPLACE( REPLACE( REPLACE( REPLACE( REPLACE(
+ tTokanisedString :=
+        REPLACE( REPLACE( REPLACE( REPLACE( REPLACE( REPLACE( REPLACE( REPLACE( REPLACE( REPLACE( REPLACE( REPLACE( REPLACE(
+														REPLACE( REPLACE( REPLACE(
         pSearchString,
         pConst.SPACE_CHARACTER || pSearchValue  || pConst.SPACE_CHARACTER,   pTokan ),
         pConst.SPACE_CHARACTER || pSearchValue  || pConst.NEW_LINE,          pTokan ),
         pConst.SPACE_CHARACTER || pSearchValue  || pConst.CARRIAGE_RETURN,   pTokan ),
+        pConst.SPACE_CHARACTER || pSearchValue  || pConst.TAB_CHARACTER,   	 pTokan ),
         pConst.NEW_LINE        || pSearchValue  || pConst.SPACE_CHARACTER,   pTokan ),
         pConst.NEW_LINE        || pSearchValue  || pConst.NEW_LINE,          pTokan ),
         pConst.NEW_LINE        || pSearchValue  || pConst.CARRIAGE_RETURN,   pTokan ),
+        pConst.NEW_LINE 	   || pSearchValue  || pConst.TAB_CHARACTER,   	 pTokan ),
         pConst.CARRIAGE_RETURN || pSearchValue  || pConst.SPACE_CHARACTER,   pTokan ),
         pConst.CARRIAGE_RETURN || pSearchValue  || pConst.NEW_LINE,          pTokan ),
-        pConst.CARRIAGE_RETURN || pSearchValue  || pConst.CARRIAGE_RETURN,   pTokan );
+        pConst.CARRIAGE_RETURN || pSearchValue  || pConst.CARRIAGE_RETURN,   pTokan ),
+        pConst.CARRIAGE_RETURN || pSearchValue  || pConst.TAB_CHARACTER,   	 pTokan ),
+		pConst.TAB_CHARACTER   || pSearchValue  || pConst.SPACE_CHARACTER,   pTokan ),
+		pConst.TAB_CHARACTER   || pSearchValue  || pConst.NEW_LINE,          pTokan ),
+		pConst.TAB_CHARACTER   || pSearchValue  || pConst.CARRIAGE_RETURN,   pTokan ),
+		pConst.TAB_CHARACTER   || pSearchValue  || pConst.TAB_CHARACTER,   	 pTokan );
 
     RETURN( tTokanisedString );
 
