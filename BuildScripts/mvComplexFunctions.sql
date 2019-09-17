@@ -98,7 +98,8 @@ Revision History    Push Down List
 ------------------------------------------------------------------------------------------------------------------------------------
 Date        | Name          | Description
 ------------+---------------+-------------------------------------------------------------------------------------------------------
-            |               |
+17/09/2019  | D Day         | Bug fix - Added logic to ignore table name if it already exists when clearing the bits in the mview logs
+			|				| mview logs
 04/06/2019  | M Revitt      | Initial version
 ------------+---------------+-------------------------------------------------------------------------------------------------------
 Description:    Performs a full refresh of the materialized view, which consists of truncating the table and then re-populating it.
@@ -120,9 +121,14 @@ Copyright 2018 Amazon.com, Inc. or its affiliates. All Rights Reserved. SPDX-Lic
 ***********************************************************************************************************************************/
 DECLARE
 
-    cResult         CHAR(1);
-    aViewLog        pgmview_logs;
-    aPgMview        pgmviews;
+    cResult         		CHAR(1);
+    aViewLog        		pgmview_logs;
+    aPgMview        		pgmviews;
+	
+	tTableName				TEXT;
+	tDistinctTableArray		TEXT[];
+	
+	iTableAlreadyExistsCnt 	INTEGER DEFAULT 0;
 
 BEGIN
     aPgMview := mv$getPgMviewTableData( pConst, pOwner, pViewName );
@@ -130,17 +136,29 @@ BEGIN
     FOR i IN ARRAY_LOWER( aPgMview.table_array, 1 ) .. ARRAY_UPPER( aPgMview.table_array, 1 )
     LOOP
         aViewLog := mv$getPgMviewLogTableData( pConst, aPgMview.table_array[i] );
+		
+		tTableName := aPgMview.table_array[i];		
+		tDistinctTableArray[i] := tTableName;
+		
+		SELECT count(1) INTO STRICT iTableAlreadyExistsCnt 
+		FROM (SELECT unnest(tDistinctTableArray) as table_name) inline
+		WHERE inline.table_name = tTableName;
+		
+		IF iTableAlreadyExistsCnt = 1
+		THEN
 
-        cResult :=  mv$clearPgMvLogTableBits
-                    (
-                        pConst,
-                        aViewLog.owner,
-                        aViewLog.pglog$_name,
-                        aPgMview.bit_array[i],
-                        pConst.MAX_BITMAP_SIZE
-                    );
+			cResult :=  mv$clearPgMvLogTableBits
+						(
+							pConst,
+							aViewLog.owner,
+							aViewLog.pglog$_name,
+							aPgMview.bit_array[i],
+							pConst.MAX_BITMAP_SIZE
+						);
 
-        cResult := mv$clearSpentPgMviewLogs( pConst, aViewLog.owner, aViewLog.pglog$_name );
+			cResult := mv$clearSpentPgMviewLogs( pConst, aViewLog.owner, aViewLog.pglog$_name );
+			
+		END IF;
 
     END LOOP;
     RETURN;
@@ -175,7 +193,8 @@ Revision History    Push Down List
 ------------------------------------------------------------------------------------------------------------------------------------
 Date        | Name          | Description
 ------------+---------------+-------------------------------------------------------------------------------------------------------
-            |               |
+17/09/2019  | D Day         | Bug fix - Added logic to ignore table name if it already exists to stop pgmview_logs table
+			|				| pg_mview_bitmap column not being updated multiple times.
 11/03/2018  | M Revitt      | Initial version
 ------------+---------------+-------------------------------------------------------------------------------------------------------
 Description:    Determins which which bit has been assigned to the base table and then adds that to the PgMview bitmap in the
@@ -192,10 +211,15 @@ Copyright 2018 Amazon.com, Inc. or its affiliates. All Rights Reserved. SPDX-Lic
 ***********************************************************************************************************************************/
 DECLARE
 
-    cResult     CHAR(1);
-    iBitValue   INTEGER     := NULL;
-    aViewLog    pgmview_logs;
-    aPgMview    pgmviews;
+    cResult     			CHAR(1);
+    iBitValue   			INTEGER     := NULL;
+    aViewLog    			pgmview_logs;
+    aPgMview    			pgmviews;
+	
+	tTableName				TEXT;
+	tDistinctTableArray		TEXT[];
+	
+	iTableAlreadyExistsCnt 	INTEGER DEFAULT 0;
 
 BEGIN
     aPgMview    := mv$getPgMviewTableData( pConst, pOwner, pViewName );
@@ -203,13 +227,25 @@ BEGIN
     FOR i IN ARRAY_LOWER( aPgMview.log_array, 1 ) .. ARRAY_UPPER( aPgMview.log_array, 1 )
     LOOP
         aViewLog := mv$getPgMviewLogTableData( pConst, aPgMview.table_array[i] );
+		
+		tTableName := aPgMview.log_array[i];		
+		tDistinctTableArray[i] := tTableName;
+		
+		SELECT count(1) INTO STRICT iTableAlreadyExistsCnt 
+		FROM (SELECT unnest(tDistinctTableArray) as table_name) inline
+		WHERE inline.table_name = tTableName;
+		
+		IF iTableAlreadyExistsCnt = 1
+		THEN
+		
+			iBitValue := mv$getBitValue( pConst, aPgMview.bit_array[i] );
 
-        iBitValue := mv$getBitValue( pConst, aPgMview.bit_array[i] );
-
-        UPDATE  pgmview_logs
-        SET     pg_mview_bitmap = pg_mview_bitmap - iBitValue
-        WHERE   owner           = aViewLog.owner
-        AND     table_name      = aViewLog.table_name;
+			UPDATE  pgmview_logs
+			SET     pg_mview_bitmap = pg_mview_bitmap - iBitValue
+			WHERE   owner           = aViewLog.owner
+			AND     table_name      = aViewLog.table_name;
+		
+		END IF;
 
     END LOOP;
     RETURN;
@@ -440,7 +476,8 @@ Revision History    Push Down List
 ------------------------------------------------------------------------------------------------------------------------------------
 Date        | Name          | Description
 ------------+---------------+-------------------------------------------------------------------------------------------------------
-            |               |
+17/09/2019  | D Day         | Bug fix - Added logic to ignore table name if it already exists to bitmap value being set incorrectly
+			|				| in the data dictionary table pgmview_logs and the bit_array column in pgmviews table. 
 11/03/2018  | M Revitt      | Initial version
 ------------+---------------+-------------------------------------------------------------------------------------------------------
 Description:    Every time a new materialized view is created, a record of that view is also created in the data dictionary table
@@ -467,27 +504,87 @@ Copyright 2018 Amazon.com, Inc. or its affiliates. All Rights Reserved. SPDX-Lic
 ***********************************************************************************************************************************/
 DECLARE
 
-    aPgMviewLogData pgmview_logs;
+    aPgMviewLogData 		pgmview_logs;
 
-    iBit            SMALLINT    := NULL;
-    tLogArray       TEXT[];
-    iBitArray       INTEGER[];
+    iBit            		SMALLINT    := NULL;
+    tLogArray       		TEXT[];
+    iBitArray       		INTEGER[];
+	
+	tTableName				TEXT;
+	
+	tDistinctTableArray 	TEXT[];
+	
+	iOrigBitMapArray 		INTEGER[];
+	tOrigTableNameArray	 	TEXT[];
+	
+	iOrigBitMap				INTEGER;
+	tOrigTableName			TEXT;
+	
+	iTableAlreadyExistsCnt	INTEGER DEFAULT 0;
+	iLoopCounter			INTEGER DEFAULT 0; 
+	
+	rOrigMviewLogInfo 		RECORD;
 
 BEGIN
+
+	FOR rOrigMviewLogInfo IN (
+								SELECT pg_mview_bitmap, table_name
+								FROM pgmview_logs
+								WHERE table_name IN (SELECT DISTINCT inline.table_name 
+													 FROM (SELECT unnest(pTableArray) AS table_name
+														   GROUP BY 1
+														   HAVING COUNT(*) > 1) inline))
+	LOOP
+	
+		iLoopCounter := iLoopCounter +1;
+	
+		iOrigBitMapArray[iLoopCounter] := rOrigMviewLogInfo.pg_mview_bitmap;
+		tOrigTableNameArray[iLoopCounter] := rOrigMviewLogInfo.table_name;
+		
+	END LOOP;
+
+
     IF TRUE = pFastRefresh
     THEN
         FOR i IN array_lower( pTableArray, 1 ) .. array_upper( pTableArray, 1 )
         LOOP
             aPgMviewLogData     :=  mv$getPgMviewLogTableData( pConst, pTableArray[i] );
-            iBit                :=  mv$setPgMviewLogBit
-                                    (
-                                        pConst,
-                                        aPgMviewLogData.owner,
-                                        aPgMviewLogData.pglog$_name,
-                                        aPgMviewLogData.pg_mview_bitmap
-                                    );
-            tLogArray[i]        :=  aPgMviewLogData.pglog$_name;
-            iBitArray[i]        :=  iBit;
+			
+			tTableName := pTableArray[i];		
+			tDistinctTableArray[i] := tTableName;
+			
+			SELECT count(1) INTO STRICT iTableAlreadyExistsCnt 
+			FROM (SELECT unnest(tDistinctTableArray) as table_name) inline
+			WHERE inline.table_name = tTableName;
+			
+			IF iTableAlreadyExistsCnt = 1 
+			THEN			
+						
+				iBit                :=  mv$setPgMviewLogBit
+										(
+											pConst,
+											aPgMviewLogData.owner,
+											aPgMviewLogData.pglog$_name,
+											aPgMviewLogData.pg_mview_bitmap
+										);
+				tLogArray[i]        :=  aPgMviewLogData.pglog$_name;
+				iBitArray[i]        :=  iBit;
+				
+			ELSE
+			
+				SELECT inline.bitMapValue, inline.tableNameValue
+				INTO STRICT iOrigBitMap, 
+							tOrigTableName
+				FROM (SELECT unnest(iOrigBitMapArray) AS bitMapValue, 
+							 unnest(tOrigTableNameArray) AS tableNameValue) inline
+				WHERE inline.tableNameValue = tTableName;
+
+            	tLogArray[i]        := aPgMviewLogData.pglog$_name;
+				iBitArray[i]        := iOrigBitMap;
+			
+			END IF;
+				
+				
         END LOOP;
     END IF;
 
