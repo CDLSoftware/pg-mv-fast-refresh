@@ -1225,6 +1225,8 @@ DECLARE
 	tRightJoinAliasExists			TEXT DEFAULT 'N';	
 	tLeftJoinAliasExists			TEXT DEFAULT 'N';
 	
+	tIsTrueOrFalse					TEXT;
+	
 BEGIN
 
 	FOR rMvOuterJoinDetails IN (SELECT inline.oj_table AS table_name
@@ -1470,7 +1472,8 @@ BEGIN
 			tAlias 					:= rAliasJoinLinks.alias||'.';
 			tSelectColumns 			:= SUBSTRING(pSelectColumns,1,mv$regExpInstr(pSelectColumns,'[,]+[[:alnum:]]+[.]+'||'m_row\$'||''));
 			tRegExpColumnNameAlias 	:= REPLACE(tAlias,'.','\.');
-			iColumnNameAliasCnt 	:= mv$regExpCount(tSelectColumns, '[^[:alnum:]]+('||tRegExpColumnNameAlias||')', 1);
+			iColumnNameAliasCnt 	:= mv$regExpCount(tSelectColumns, '[A-Za-z0-9]+('||tRegExpColumnNameAlias||')', 1);
+			iColumnNameAliasCnt 	:= mv$regExpCount(tSelectColumns, '('||tRegExpColumnNameAlias||')', 1) - iColumnNameAliasCnt;
 		
 			IF iColumnNameAliasCnt > 0 THEN
 		
@@ -1493,15 +1496,24 @@ BEGIN
 					LOOP
 					
 						IF rPgMviewColumnNames.column_name = tMvColumnName THEN
-						
-							iColumnNameAliasLoopCnt := iColumnNameAliasLoopCnt + 1;						
-							iMvColumnNameLoopCnt := iMvColumnNameLoopCnt + 1;							
-							tColumnNameArray[iColumnNameAliasLoopCnt] := tMvColumnName;
+										
+							iMvColumnNameLoopCnt := iMvColumnNameLoopCnt + 1;	
+
+							-- Check for duplicates
+							SELECT tMvColumnName = ANY (tColumnNameArray) INTO tIsTrueOrFalse;	
 							
-							IF iMvColumnNameLoopCnt = 1 THEN 	
-								tUpdateSetSql := pConst.SET_COMMAND || tMvColumnName || pConst.EQUALS_NULL || pConst.COMMA_CHARACTER;
-							ELSE	
-								tUpdateSetSql := tUpdateSetSql || tMvColumnName || pConst.EQUALS_NULL || pConst.COMMA_CHARACTER ;
+							IF tIsTrueOrFalse = 'false' THEN
+
+								iColumnNameAliasLoopCnt := iColumnNameAliasLoopCnt + 1;	
+								
+								tColumnNameArray[iColumnNameAliasLoopCnt] := tMvColumnName;
+								
+								IF iMvColumnNameLoopCnt = 1 THEN 	
+									tUpdateSetSql := pConst.SET_COMMAND || tMvColumnName || pConst.EQUALS_NULL || pConst.COMMA_CHARACTER;
+								ELSE	
+									tUpdateSetSql := tUpdateSetSql || tMvColumnName || pConst.EQUALS_NULL || pConst.COMMA_CHARACTER ;
+								END IF;
+								
 							END IF;
 						
 							EXIT WHEN iMvColumnNameLoopCnt > 0;
