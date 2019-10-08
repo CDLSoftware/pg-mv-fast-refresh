@@ -1344,7 +1344,7 @@ Revision History    Push Down List
 ------------------------------------------------------------------------------------------------------------------------------------
 Date        | Name          | Description
 ------------+---------------+-------------------------------------------------------------------------------------------------------
-            |               |
+08/10/2019  | D DAY			| Change returns type from INTEGER to SMALLINT to match the bit data type.            |               |
 11/03/2018  | M Revitt      | Initial version
 ------------+---------------+-------------------------------------------------------------------------------------------------------
 Description:    When a new materialized view is registered against a base table, it is assigned a unique bit against which all

@@ -476,8 +476,8 @@ Revision History    Push Down List
 ------------------------------------------------------------------------------------------------------------------------------------
 Date        | Name          | Description
 ------------+---------------+-------------------------------------------------------------------------------------------------------
-17/09/2019  | D Day         | Bug fix - Added logic to ignore table name if it already exists to bitmap value being set incorrectly
-			|				| in the data dictionary table pgmview_logs and the bit_array column in pgmviews table. 
+17/09/2019  | D Day         | Bug fix - Added logic to ignore log table name if it already exists as this was causing the bit value being set incorrectly
+			|				| in the data dictionary table bit_array column in pgmviews table. 
 11/03/2018  | M Revitt      | Initial version
 ------------+---------------+-------------------------------------------------------------------------------------------------------
 Description:    Every time a new materialized view is created, a record of that view is also created in the data dictionary table
@@ -504,7 +504,9 @@ Copyright 2018 Amazon.com, Inc. or its affiliates. All Rights Reserved. SPDX-Lic
 ***********************************************************************************************************************************/
 DECLARE
 
-    aPgMviewLogData 		pgmview_logs;
+    aPgMviewLogData pgmview_logs;
+	
+	aPgMviewLogOriginalData pgmview_logs;
 
     iBit            		SMALLINT    := NULL;
     tLogArray       		TEXT[];
@@ -514,11 +516,8 @@ DECLARE
 	
 	tDistinctTableArray 	TEXT[];
 	
-	iOrigBitMapArray 		INTEGER[];
-	tOrigTableNameArray	 	TEXT[];
-	
-	iOrigBitMap				INTEGER;
-	tOrigTableName			TEXT;
+	iOrigBitValue			SMALLINT;
+	tOrigLogTableNameValue	TEXT;
 	
 	iTableAlreadyExistsCnt	INTEGER DEFAULT 0;
 	iLoopCounter			INTEGER DEFAULT 0; 
@@ -527,64 +526,49 @@ DECLARE
 
 BEGIN
 
-	FOR rOrigMviewLogInfo IN (
-								SELECT pg_mview_bitmap, table_name
-								FROM pgmview_logs
-								WHERE table_name IN (SELECT DISTINCT inline.table_name 
-													 FROM (SELECT unnest(pTableArray) AS table_name
-														   GROUP BY 1
-														   HAVING COUNT(*) > 1) inline))
-	LOOP
-	
-		iLoopCounter := iLoopCounter +1;
-	
-		iOrigBitMapArray[iLoopCounter] := rOrigMviewLogInfo.pg_mview_bitmap;
-		tOrigTableNameArray[iLoopCounter] := rOrigMviewLogInfo.table_name;
-		
-	END LOOP;
-
-
     IF TRUE = pFastRefresh
     THEN
+
         FOR i IN array_lower( pTableArray, 1 ) .. array_upper( pTableArray, 1 )
         LOOP
-            aPgMviewLogData     :=  mv$getPgMviewLogTableData( pConst, pTableArray[i] );
 			
+            aPgMviewLogData     :=  mv$getPgMviewLogTableData( pConst, pTableArray[i] );
+						
 			tTableName := pTableArray[i];		
 			tDistinctTableArray[i] := tTableName;
 			
 			SELECT count(1) INTO STRICT iTableAlreadyExistsCnt 
-			FROM (SELECT unnest(tDistinctTableArray) as table_name) inline
+			FROM (SELECT unnest(tDistinctTableArray) AS table_name) inline
 			WHERE inline.table_name = tTableName;
 			
 			IF iTableAlreadyExistsCnt = 1 
-			THEN			
-						
-				iBit                :=  mv$setPgMviewLogBit
-										(
-											pConst,
-											aPgMviewLogData.owner,
-											aPgMviewLogData.pglog$_name,
-											aPgMviewLogData.pg_mview_bitmap
-										);
-				tLogArray[i]        :=  aPgMviewLogData.pglog$_name;
-				iBitArray[i]        :=  iBit;
-				
-			ELSE
-			
-				SELECT inline.bitMapValue, inline.tableNameValue
-				INTO STRICT iOrigBitMap, 
-							tOrigTableName
-				FROM (SELECT unnest(iOrigBitMapArray) AS bitMapValue, 
-							 unnest(tOrigTableNameArray) AS tableNameValue) inline
-				WHERE inline.tableNameValue = tTableName;
+			THEN
 
-            	tLogArray[i]        := aPgMviewLogData.pglog$_name;
-				iBitArray[i]        := iOrigBitMap;
+            	iBit                :=  mv$setPgMviewLogBit
+            	                        (
+           	                             pConst,
+            	                            aPgMviewLogData.owner,
+           	                             	aPgMviewLogData.pglog$_name,
+            	                            aPgMviewLogData.pg_mview_bitmap
+                                   	 	);
+										
+            	tLogArray[i]        :=  aPgMviewLogData.pglog$_name;
+            	iBitArray[i]        :=  iBit;
+			
+			ELSE
+							
+				SELECT DISTINCT inline.bitvalue,
+				inline.LogTableNameValue
+				INTO iOrigBitValue, tOrigLogTableNameValue
+				FROM (SELECT unnest(iBitArray) bitValue,
+					  		 unnest(tLogArray) AS LogTableNameValue) inline
+				WHERE inline.LogTableNameValue = aPgMviewLogData.pglog$_name;
+				
+            	tLogArray[i]        := tOrigLogTableNameValue;
+				iBitArray[i]        := iOrigBitValue;
 			
 			END IF;
-				
-				
+			
         END LOOP;
     END IF;
 
@@ -663,9 +647,8 @@ Revision History    Push Down List
 ------------------------------------------------------------------------------------------------------------------------------------
 Date        | Name          | Description
 ------------+---------------+-------------------------------------------------------------------------------------------------------
-            |               |
+01/07/2019	| David Day		| Added function mv$updateOuterJoinColumnsNull to handle outer join deletes.            |               |
 11/03/2018  | M Revitt      | Initial version
-01/07/2019	| David Day		| Added function mv$updateOuterJoinColumnsNull to handle outer join deletes.
 ------------+---------------+-------------------------------------------------------------------------------------------------------
 Description:    Selects all of the data from the materialized view log, in the order it was created, and applies the changes to
                 the materialized view table and once the change has been applied the bit value for the materialized view is
@@ -1145,7 +1128,7 @@ Revision History    Push Down List
 Date        | Name          | Description
 ------------+---------------+-------------------------------------------------------------------------------------------------------
             |               |
-01/07/2019  | D Day      | Initial version
+01/07/2019  | D Day      	| Initial version
 ------------+---------------+-------------------------------------------------------------------------------------------------------
 Description:    Dynamically builds UPDATE statement(s) for any outer join table to nullify all the alias outer join column(s)
 				including rowid held in the materialized view table when an DELETE is done against the 
@@ -1613,7 +1596,7 @@ Revision History    Push Down List
 Date        | Name          | Description
 ------------+---------------+-------------------------------------------------------------------------------------------------------
             |               |
-18/07/2019  | D Day      | Initial version
+18/07/2019  | D Day      	| Initial version
 ------------+---------------+-------------------------------------------------------------------------------------------------------
 Description: 	Function to check either left or right outer join parent to child column joining aliases to be used to build
 				the dynamic UPDATE statement for outer join table DELETE changes.
@@ -1708,7 +1691,7 @@ Revision History    Push Down List
 Date        | Name          | Description
 ------------+---------------+-------------------------------------------------------------------------------------------------------
             |               |
-25/06/2019  | D Day      | Initial version
+25/06/2019  | D Day      	| Initial version
 ------------+---------------+-------------------------------------------------------------------------------------------------------
 Description:    Executes UPDATE statement to nullify outer join columns held in the materialized view table when a DELETE has been
 				done against the source table.
@@ -1768,7 +1751,7 @@ FUNCTION    mv$setPgMviewLogBit
                 pPgLog$Name     IN      TEXT,
                 pPbMviewBitmap  IN      BIGINT
             )
-    RETURNS INTEGER
+    RETURNS SMALLINT
 AS
 $BODY$
 /* ---------------------------------------------------------------------------------------------------------------------------------
@@ -1780,7 +1763,7 @@ Revision History    Push Down List
 ------------------------------------------------------------------------------------------------------------------------------------
 Date        | Name          | Description
 ------------+---------------+-------------------------------------------------------------------------------------------------------
-            |               |
+08/10/2019  | D Day         | Changed returns type from INTEGER to SMALLINT to match the bit data type.
 11/03/2018  | M Revitt      | Initial version
 ------------+---------------+-------------------------------------------------------------------------------------------------------
 Description:    Determins which which bit has been assigned to the base table and then adds that to the PgMview bitmap in the
