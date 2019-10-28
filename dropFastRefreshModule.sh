@@ -31,7 +31,7 @@ echo "INFO: Truncating modules tables" >> $LOG_FILE
 PGPASSWORD=$PGPASS
 
 
-psql --host=$HOSTNAME --port=$PORT --username=$MODULEOWNER --dbname=$DBNAME << EOF1 >> $LOG_FILE 2>&1
+psql --host=$HOSTNAME --port=$PORT --username=$PGUSERNAME --dbname=$DBNAME << EOF1 >> $LOG_FILE 2>&1
 
  REVOKE ALL PRIVILEGES ON DATABASE "$DBNAME" from $MODULEOWNER;
  DROP SCHEMA $MODULEOWNER CASCADE;
