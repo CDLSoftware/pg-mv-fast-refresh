@@ -9,7 +9,7 @@
 
 
 . ./module_set_variables.sh
-export LOG_FILE=/tmp/dropCreateFastRefreshModule_`date +%Y%m%d-%H%M`.log
+export LOG_FILE=/tmp/dropFastRefreshModule_`date +%Y%m%d-%H%M`.log
 echo "INFO: Set variables" >> $LOG_FILE
 echo "INFO: LOG_FILE parameter set to $LOG_FILE" >> $LOG_FILE
 echo "INFO: MODULEOWNER parameter set to $MODULEOWNER" >> $LOG_FILE
