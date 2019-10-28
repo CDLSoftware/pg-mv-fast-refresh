@@ -28,7 +28,7 @@ function dropmodule
 {
 echo "INFO: Truncating modules tables" >> $LOG_FILE
 
-PGPASSWORD=$MODULEOWNERPASS
+PGPASSWORD=$PGPASS
 
 
 psql --host=$HOSTNAME --port=$PORT --username=$MODULEOWNER --dbname=$DBNAME << EOF1 >> $LOG_FILE 2>&1
