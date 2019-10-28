@@ -52,7 +52,7 @@ EOF3
 
 function dropsourceschema
 {
-echo "INFO: Dropping Schema user $SCHEMAUSERNAME " >> $LOG_FILE
+echo "INFO: Dropping Schema user $SOURCEUSERNAME " >> $LOG_FILE
 
 PGPASSWORD=$PGPASS
 
@@ -92,9 +92,9 @@ EOF4
 }
 
 
-read -p "Are you sure you want to remove the schemas - $MVUSERNAME & $SCHEMAUSERNAME (y/n)?" choice
+read -p "Are you sure you want to remove the schemas - $MVUSERNAME and $SOURCEUSERNAME (y/n)?" choice
 case "$choice" in
-  y|Y ) echo "yes selected the schemas - $MVUSERNAME and $SCHEMAUSERNAME will be dropped"
+  y|Y ) echo "yes selected the schemas - $MVUSERNAME and $SOURCEUSERNAME will be dropped"
         dropmvschema
         dropsourceschema
         truncatemoduletbls;;
