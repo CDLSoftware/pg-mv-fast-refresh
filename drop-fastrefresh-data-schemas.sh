@@ -94,7 +94,7 @@ EOF4
 
 read -p "Are you sure you want to remove the schemas - $MVUSERNAME & $SCHEMAUSERNAME (y/n)?" choice
 case "$choice" in
-  y|Y ) echo "yes selected the schemas - $MVUSERNAME & $SCHEMAUSERNAME will be dropped"
+  y|Y ) echo "yes selected the schemas - $MVUSERNAME and $SCHEMAUSERNAME will be dropped"
         dropmvschema
         dropsourceschema
         truncatemoduletbls;;
