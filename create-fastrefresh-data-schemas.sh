@@ -8,7 +8,7 @@
 #
 
 
-. ../module_set_variables.sh
+. ./module_set_variables.sh
 export LOG_FILE=/tmp/create-fastrefresh-data-schemas_install_`date +%Y%m%d-%H%M`.log
 echo "INFO: Set variables" >> $LOG_FILE
 echo "INFO: LOG_FILE parameter set to $LOG_FILE" >> $LOG_FILE
