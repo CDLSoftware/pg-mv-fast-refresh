@@ -85,7 +85,7 @@ psql --host=$HOSTNAME --port=$PORT --username=$MODULEOWNER --dbname=$DBNAME << E
 
 truncate table pgmview_logs;
 truncate table pgmviews;
-truncate table pgmview_oj_details;
+truncate table pgmviews_oj_details;
 
 
 EOF4
@@ -94,11 +94,11 @@ EOF4
 
 read -p "Are you sure you want to remove the schemas - $MVUSERNAME & $SCHEMAUSERNAME (y/n)?" choice
 case "$choice" in
-  y|Y ) echo "yes the schemas - - $MVUSERNAME & $SCHEMAUSERNAME will be dropped"
+  y|Y ) echo "yes selected the schemas - $MVUSERNAME & $SCHEMAUSERNAME will be dropped"
         dropmvschema
         dropsourceschema
         truncatemoduletbls;;
-  n|N ) echo "no exiting";;
+  n|N ) echo "no selected so exiting";;
   * ) echo "invalid choice exiting";;
 esac
 
