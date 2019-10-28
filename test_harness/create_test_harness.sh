@@ -21,7 +21,6 @@ echo "INFO: PORT parameter set to $PORT" >> $LOG_FILE
 echo "INFO: DBNAME parameter set to $DBNAME" >> $LOG_FILE
 echo "INFO: MODULE_HOME parameter set to $MODULE_HOME" >> $LOG_FILE
 
-
 PGPASSWORD=$PGPASSWORD
 
 function createsourceschema
