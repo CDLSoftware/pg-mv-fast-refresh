@@ -1,5 +1,5 @@
 #! /bin/bash
-#File: dropCreateFastRefreshModule.sh
+#File: dropFastRefreshModule.sh
 #Desc:
 #
 # Amendment History:
@@ -37,7 +37,7 @@ psql --host=$HOSTNAME --port=$PORT --username=$MODULEOWNER --dbname=$DBNAME << E
  DROP SCHEMA $MODULEOWNER CASCADE;
  DROP ROLE pgmv$_role;
  REVOKE $MODULEOWNER from $PGUSERNAME;
- DROP EXTENSION "uuid-ossp:;
+ DROP EXTENSION "uuid-ossp";
  DROP ROLE $MODULEOWNER;
 
 
