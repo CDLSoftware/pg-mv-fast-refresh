@@ -1,5 +1,5 @@
 #! /bin/bash
-#File: drop-fastrefresh-data-schemas.sh
+#File: dropFastRefreshDataSchemas.sh
 #Desc:
 #
 # Amendment History:
@@ -9,7 +9,7 @@
 
 
 . ./module_set_variables.sh
-export LOG_FILE=/tmp/drop-fastrefresh-data-schemas_install_`date +%Y%m%d-%H%M`.log
+export LOG_FILE=/tmp/dropFastRefreshDataSchemas_`date +%Y%m%d-%H%M`.log
 echo "INFO: Set variables" >> $LOG_FILE
 echo "INFO: LOG_FILE parameter set to $LOG_FILE" >> $LOG_FILE
 echo "INFO: MODULEOWNER parameter set to $MODULEOWNER" >> $LOG_FILE
