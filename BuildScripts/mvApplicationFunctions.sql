@@ -407,7 +407,7 @@ DECLARE
 
     tSqlStatement       TEXT;
     uRow$               UUID;
-    aMikePgMviewLogs    pgmview_logs;
+    aMikePgMviewLogs    pg$mview_logs;
     rConst              mv$allConstants;
 
 BEGIN
@@ -423,7 +423,7 @@ BEGIN
         ELSE
             uRow$ := NEW.m_row$;
         END IF;
-
+--Mike Need to put this into the correct array element
         tSqlStatement := rConst.INSERT_INTO                 || aMikePgMviewLogs.pglog$_name     ||
                          rConst.MV_LOG$_INSERT_COLUMNS      ||
                          rConst.MV_LOG$_INSERT_VALUES_START || uRow$                            || rConst.QUOTE_COMMA_CHARACTERS ||
@@ -546,7 +546,7 @@ Copyright 2019 Amazon.com, Inc. or its affiliates. All Rights Reserved. SPDX-Lic
 ***********************************************************************************************************************************/
 DECLARE
 
-    aPgMview    pgmviews;
+    aPgMview    pg$mviews;
     rConst      mv$allConstants;
 
     cResult     CHAR(1);
@@ -608,7 +608,7 @@ Copyright 2019 Amazon.com, Inc. or its affiliates. All Rights Reserved. SPDX-Lic
 DECLARE
 
     rConst          mv$allConstants;
-    aViewLog        pgmview_logs;
+    aViewLog        pg$mview_logs;
 
     tSqlStatement       TEXT;
     tLog$Name           TEXT        := NULL;
@@ -645,9 +645,9 @@ SECURITY    DEFINER;
 
 ------------------------------------------------------------------------------------------------------------------------------------
 
-GRANT   EXECUTE ON  FUNCTION    mv$createMaterializedViewlog    TO  pgmv$_role;
-GRANT   EXECUTE ON  FUNCTION    mv$createMaterializedView       TO  pgmv$_role;
-GRANT   EXECUTE ON  FUNCTION    mv$refreshMaterializedView      TO  pgmv$_role;
-GRANT   EXECUTE ON  FUNCTION    mv$removeMaterializedView       TO  pgmv$_role;
-GRANT   EXECUTE ON  FUNCTION    mv$removeMaterializedViewLog    TO  pgmv$_role;
-GRANT   EXECUTE ON  FUNCTION    mv$help                         TO  pgmv$_role;
+GRANT   EXECUTE ON  FUNCTION    mv$createMaterializedViewlog    TO  pgmv$_execute;
+GRANT   EXECUTE ON  FUNCTION    mv$createMaterializedView       TO  pgmv$_execute;
+GRANT   EXECUTE ON  FUNCTION    mv$refreshMaterializedView      TO  pgmv$_execute;
+GRANT   EXECUTE ON  FUNCTION    mv$removeMaterializedView       TO  pgmv$_execute;
+GRANT   EXECUTE ON  FUNCTION    mv$removeMaterializedViewLog    TO  pgmv$_execute;
+GRANT   EXECUTE ON  FUNCTION    mv$help                         TO  pgmv$_execute;
