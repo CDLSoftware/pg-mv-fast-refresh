@@ -31,7 +31,6 @@ echo "INFO: Connect to postgres database $DBNAME via PSQL session" >> $LOG_FILE
   
 	SET search_path = :MODULEOWNER,catalog,public;
 
-   \i :MODULE_HOME/BuildScripts/mvTypes.sql;
    \i :MODULE_HOME/BuildScripts/mvConstants.sql;
    \i :MODULE_HOME/BuildScripts/mvSimpleFunctions.sql;
    \i :MODULE_HOME/BuildScripts/mvComplexFunctions.sql;
