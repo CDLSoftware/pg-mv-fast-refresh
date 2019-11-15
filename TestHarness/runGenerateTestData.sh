@@ -85,3 +85,4 @@ SECONDS=$((SECONDS % 60))
 
 LC_NUMERIC=en_US printf "%'.0f rows of data created in %02d:%02d\n" $TotalRows $MINUTES $SECONDS
 echo
+

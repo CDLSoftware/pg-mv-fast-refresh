@@ -8,6 +8,7 @@ Revision History    Push Down List
 Date        | Name          | Description
 ------------+---------------+-------------------------------------------------------------------------------------------------------
             |               |
+30/10/2019  | M Revitt      | Added an exception handler to the bottom of every function to aid bug and error tracking
 11/03/2018  | M Revitt      | Initial version
 ------------+---------------+-------------------------------------------------------------------------------------------------------
 Background:     PostGre does not support Materialized View Fast Refreshes, this suite of scripts is a PL/SQL coded mechanism to
@@ -54,7 +55,6 @@ DROP FUNCTION IF EXISTS mv$addIndexToMvLog$Table;
 DROP FUNCTION IF EXISTS mv$addRow$ToMv$Table;
 DROP FUNCTION IF EXISTS mv$addRow$ToSourceTable;
 DROP FUNCTION IF EXISTS mv$checkIfOuterJoinedTable;
-DROP FUNCTION IF EXISTS mv$clearPgMvLogTableBits;
 DROP FUNCTION IF EXISTS mv$clearSpentPgMviewLogs;
 DROP FUNCTION IF EXISTS mv$createMvLog$Table;
 DROP FUNCTION IF EXISTS mv$createMvLogTrigger;
@@ -103,6 +103,7 @@ Revision History    Push Down List
 Date        | Name          | Description
 ------------+---------------+-------------------------------------------------------------------------------------------------------
             |               |
+05/11/2019  | M Revitt      | mv$clearPgMvLogTableBits is now a complex function so move it into the conplex script
 07/06/2019  | M Revitt      | Initial version
 ------------+---------------+-------------------------------------------------------------------------------------------------------
 Description:    This function creates an index on the materilized view log table to speed up bit manipulation
@@ -338,73 +339,6 @@ BEGIN
         RAISE INFO      'Exception in function mv$checkIfOuterJoinedTable';
         RAISE INFO      'Error %:- %:',     SQLSTATE, SQLERRM;
         RAISE EXCEPTION '%',                SQLSTATE;
-
-END;
-$BODY$
-LANGUAGE    plpgsql
-SECURITY    DEFINER;
-------------------------------------------------------------------------------------------------------------------------------------
-CREATE OR REPLACE
-FUNCTION    mv$clearPgMvLogTableBits
-            (
-                pConst          IN      mv$allConstants,
-                pOwner          IN      TEXT,
-                pPgLog$Name     IN      TEXT,
-                pBit            IN      SMALLINT,
-                pMaxSequence    IN      BIGINT
-            )
-    RETURNS VOID
-AS
-$BODY$
-/* ---------------------------------------------------------------------------------------------------------------------------------
-Routine Name: mv$clearPgMvLogTableBits
-Author:       Mike Revitt
-Date:         12/11/2018
-------------------------------------------------------------------------------------------------------------------------------------
-Revision History    Push Down List
-------------------------------------------------------------------------------------------------------------------------------------
-Date        | Name          | Description
-------------+---------------+-------------------------------------------------------------------------------------------------------
-            |               |
-11/03/2018  | M Revitt      | Initial version
-------------+---------------+-------------------------------------------------------------------------------------------------------
-Description:    Bitmaps are how we manage multiple registrations against the same base table, every time the recorded row has been
-                applied to the materialized view we remove the bit that signifies the interest from the materialized view log
-
-Arguments:      IN      pConst              The memory structure containing all constants
-                IN      pOwner              The owner of the object
-                IN      pPgLog$Name         The name of the materialized view log table
-                IN      pBit                The bit to be cleared from the row
-                IN      pMaxSequence        The maximum value bitmap being used
-Returns:                VOID
-************************************************************************************************************************************
-Copyright 2019 Amazon.com, Inc. or its affiliates. All Rights Reserved. SPDX-License-Identifier: MIT-0
-***********************************************************************************************************************************/
-DECLARE
-
-    tSqlStatement   TEXT;
-
-BEGIN
-
-    tSqlStatement   := pConst.UPDATE_COMMAND        || pOwner || pConst.DOT_CHARACTER   || pPgLog$Name  ||
-                       pConst.SET_COMMAND           || pConst.MV_LOG$_DECREMENT_BITMAP  || pBit         || pConst.CLOSE_BRACKET  ||
-                       pConst.WHERE_COMMAND         || pConst.MV_SEQUENCE$_COLUMN       ||
-                       pConst.IN_SELECT_COMMAND     || pConst.MV_SEQUENCE$_COLUMN       ||
-                       pConst.FROM_COMMAND          || pOwner || pConst.DOT_CHARACTER   || pPgLog$Name  ||
-                       pConst.MV_LOG$_WHERE_BITMAP$ ||
-                       pConst.AND_COMMAND           || pConst.MV_SEQUENCE$_COLUMN       || pConst.LESS_THAN_EQUAL   ||
-                       pMaxSequence                 || pConst.CLOSE_BRACKET;
-
-    EXECUTE tSqlStatement USING pBit, pBit;
-    RETURN;
-
-    EXCEPTION
-    WHEN OTHERS
-    THEN
-        RAISE INFO      'Exception in function mv$clearPgMvLogTableBits';
-        RAISE INFO      'Error %:- %:',     SQLSTATE, SQLERRM;
-        RAISE INFO      'Error Context:% %',CHR(10),  tSqlStatement;
-        RAISE EXCEPTION '%',                SQLSTATE;
 END;
 $BODY$
 LANGUAGE    plpgsql
@@ -633,8 +567,8 @@ BEGIN
 
 	tTableAlias := LOWER(TRIM(replace(pTableAlias,'.','')));
 
-    tRowidColumn := SUBSTRING( tTableAlias, 1, pConst.MV_MAX_TABLE_ALIAS_LEN ) || pConst.UNDERSCORE_CHARACTER ||
-                                                                                pConst.MV_M_ROW$_COLUMN;
+    tRowidColumn := SUBSTRING( tTableAlias, 1, pConst.MV_MAX_BASE_TABLE_LEN ) || pConst.UNDERSCORE_CHARACTER ||
+                                                                                 pConst.MV_M_ROW$_COLUMN;
 
     RETURN( tRowidColumn );
 
@@ -843,7 +777,7 @@ Date        | Name          | Description
 04/06/2019  | M Revitt      | Initial version
 ------------+---------------+-------------------------------------------------------------------------------------------------------
 Description:    Every time a new materialized view is created, a record of that view is also created in the data dictionary table
-                pgmviews.
+                pg$mviews.
 
                 This function removes that row when a materialized view is removed.
 
@@ -857,7 +791,7 @@ Copyright 2019 Amazon.com, Inc. or its affiliates. All Rights Reserved. SPDX-Lic
 BEGIN
 
     DELETE
-    FROM    pgmviews
+    FROM    pg$mviews
     WHERE
             owner       = pOwner
     AND     view_name   = pViewName;
@@ -896,7 +830,7 @@ Date        | Name          | Description
 01/07/2019  | D Day	    	| Initial version
 ------------+---------------+-------------------------------------------------------------------------------------------------------
 Description:    Every time a new materialized view is created, a record of the outer join table(s) details is also created in the data dictionary table
-                pgmviews_oj_details which is used as part of the outer join source table(s) DELETE process.
+                pg$mviews_oj_details which is used as part of the outer join source table(s) DELETE process.
 
                 This function removes that row(s) when a materialized view is removed.
 
@@ -910,10 +844,10 @@ Copyright 2019 Amazon.com, Inc. or its affiliates. All Rights Reserved. SPDX-Lic
 BEGIN
 
     DELETE
-    FROM    pgmviews_oj_details
+    FROM    pg$mviews_oj_details
     WHERE
             owner       = pOwner
-    AND     pgmv_name   = pViewName;
+    AND     view_name   = pViewName;
 
     RETURN;
     EXCEPTION
@@ -949,7 +883,7 @@ Date        | Name          | Description
 04/06/2019  | M Revitt      | Initial version
 ------------+---------------+-------------------------------------------------------------------------------------------------------
 Description:    Every time a new materialized view log is created, a record of that log is also created in the data dictionary table
-                pgmview_logs.
+                pg$mview_logs.
 
                 This function removes that row when a materialized view log is removed.
 
@@ -963,7 +897,7 @@ Copyright 2019 Amazon.com, Inc. or its affiliates. All Rights Reserved. SPDX-Lic
 BEGIN
 
     DELETE
-    FROM    pgmview_logs
+    FROM    pg$mview_logs
     WHERE
             owner       = pOwner
     AND     table_name  = pTableName;
@@ -1223,7 +1157,7 @@ DECLARE
     tTableName      TEXT;
     tTableNames     TEXT;
     tTableAlias     TEXT;
-    iTableArryPos   INTEGER := 0;
+    iTableArryPos   INTEGER := pConst.ARRAY_LOWER_VALUE;
 	
 	tOuterLeftAlias TEXT;
 	tOuterRightAlias TEXT;
@@ -1330,9 +1264,9 @@ CREATE OR REPLACE
 FUNCTION    mv$findFirstFreeBit
             (
                 pConst      IN      mv$allConstants,
-                pBitMap     IN      BIGINT
+                pBitMap     IN      BIGINT[]
             )
-    RETURNS SMALLINT
+    RETURNS mv$bitValue
 AS
 $BODY$
 /* ---------------------------------------------------------------------------------------------------------------------------------
@@ -1344,39 +1278,66 @@ Revision History    Push Down List
 ------------------------------------------------------------------------------------------------------------------------------------
 Date        | Name          | Description
 ------------+---------------+-------------------------------------------------------------------------------------------------------
-08/10/2019  | D DAY			| Change returns type from INTEGER to SMALLINT to match the bit data type.            |               |
+30/10/2019  | M Revitt      | Changed return value to mv$bitValue and pBitMap to BIGINT[] to accomodate more than 62 MV's per table
+08/10/2019  | D DAY			| Change returns type from INTEGER to SMALLINT to match the bit data type.
 11/03/2018  | M Revitt      | Initial version
 ------------+---------------+-------------------------------------------------------------------------------------------------------
 Description:    When a new materialized view is registered against a base table, it is assigned a unique bit against which all
                 interest is registered.
 
                 The bit that is assigned is the lowest value bit that has not yet been assigned, as long as that balue is lower
-                then the maximum number of PgMviews per table
+                then the maximum number of pg$mviews per table
 
-Arguments:      IN      pBitMap             The bit map value constructed from assigned bits
-Returns:                SMALLINT            The next free bit
+Arguments:      IN      pBitMap[]           The bit map value constructed from assigned bits
+Returns:                mv$bitValue         A record containing the next free bit, the array row it is in and it's map
 ************************************************************************************************************************************
 Copyright 2019 Amazon.com, Inc. or its affiliates. All Rights Reserved. SPDX-License-Identifier: MIT-0
 ***********************************************************************************************************************************/
 DECLARE
 
     iBit        SMALLINT    := pConst.FIRST_PGMVIEW_BIT;
-    iBitNotSet  INTEGER     := pConst.BIT_NOT_SET;
+    iRowBit     SMALLINT    := pConst.FIRST_PGMVIEW_BIT;
+    iBitRow     SMALLINT    := pConst.ARRAY_LOWER_VALUE;
+    iBitValue   mv$bitValue;
 
 BEGIN
 
-    WHILE( pBitMap & POWER( pConst.BASE_TWO, iBit )::INTEGER ) <> iBitNotSet
-    AND pConst.MAX_PGMVIEWS_PER_TABLE >= iBit
+    WHILE ( pBitMap[iBitRow] & POWER( pConst.BASE_TWO, iRowBit )::BIGINT ) <> pConst.BITMAP_NOT_SET
+    AND     pConst.MAX_PGMVIEWS_PER_TABLE >= iBit
     LOOP
-        iBit := iBit + 1;
+        IF pConst.FIRST_PGMVIEW_BIT < iRowBit -- Only increment the row if this is not the first loop
+        THEN
+            iBitRow := iBitRow + 1;
+        END IF;
+        
+        iRowBit := pConst.FIRST_PGMVIEW_BIT;
+        
+        WHILE ( pBitMap[iBitRow] & POWER( pConst.BASE_TWO, iRowBit )::BIGINT ) <> pConst.BITMAP_NOT_SET
+        AND     pConst.MAX_PGMVIEWS_PER_ROW >= iRowBit
+        LOOP
+            iRowBit := iRowBit + 1;
+            iBit    := iBit    + 1;
+        END LOOP;
     END LOOP;
-
+    
     IF pConst.MAX_PGMVIEWS_PER_TABLE < iBit
     THEN
-        RAISE EXCEPTION 'Maximum number of PgMviews (%s) for table exceeded', pConst.MAX_PGMVIEWS_PER_TABLE;
+        RAISE EXCEPTION 'Maximum number of pg$mviews (%s) for table exceeded', pConst.MAX_PGMVIEWS_PER_TABLE;
     ELSE
-        RETURN( iBit );
+        iBitValue.BIT_VALUE := iBit;
+        iBitValue.BIT_ROW   := iBitRow;
+        iBitValue.ROW_BIT   := iRowBit;
+        iBitValue.BIT_MAP   := POWER(  pConst.BASE_TWO, iBitValue.ROW_BIT );
+
+        RETURN( iBitValue );
     END IF;
+    
+    EXCEPTION
+    WHEN OTHERS
+    THEN
+        RAISE INFO      'Exception in function mv$findFirstFreeBit';
+        RAISE INFO      'Error %:- %:',     SQLSTATE, SQLERRM;
+        RAISE EXCEPTION '%',                SQLSTATE;
 END;
 $BODY$
 LANGUAGE    plpgsql
@@ -1388,7 +1349,7 @@ FUNCTION    mv$getBitValue
                 pConst  IN      mv$allConstants,
                 pBit    IN      SMALLINT
             )
-    RETURNS BIGINT
+    RETURNS mv$bitValue
 AS
 $BODY$
 /* ---------------------------------------------------------------------------------------------------------------------------------
@@ -1401,24 +1362,35 @@ Revision History    Push Down List
 Date        | Name          | Description
 ------------+---------------+-------------------------------------------------------------------------------------------------------
             |               |
+30/10/2019  | M Revitt      | Modified to populate the BitValue record type to accomodate > 63 MV's per Table
 11/03/2018  | M Revitt      | Initial version
 ------------+---------------+-------------------------------------------------------------------------------------------------------
 Description:    Converts a bit into it's binary value.
 
 Arguments:      IN      pBit                The bit
-Returns:                INTEGER             The binary value of that bit
+Returns:                mv$bitValue         The record containing all the pertinant bit information
 ************************************************************************************************************************************
 Copyright 2019 Amazon.com, Inc. or its affiliates. All Rights Reserved. SPDX-License-Identifier: MIT-0
 ***********************************************************************************************************************************/
 DECLARE
 
-    iBitValue   BIGINT := 0;
-
+    iBitValue   mv$bitValue;
+    
 BEGIN
 
-    iBitValue := POWER( pConst.BASE_TWO, pBit );
+    iBitValue.BIT_VALUE := pBit;
+    iBitValue.BIT_ROW   := FLOOR ( iBitValue.BIT_VALUE / pConst.MAX_PGMVIEWS_PER_ROW ) + pConst.ARRAY_LOWER_VALUE;
+    iBitValue.ROW_BIT   := MOD(    iBitValue.BIT_VALUE,  pConst.MAX_PGMVIEWS_PER_ROW );
+    iBitValue.BIT_MAP   := POWER(  pConst.BASE_TWO, iBitValue.ROW_BIT );
+    
     RETURN( iBitValue );
-
+    
+    EXCEPTION
+    WHEN OTHERS
+    THEN
+        RAISE INFO      'Exception in function mv$getBitValue';
+        RAISE INFO      'Error %:- %:',     SQLSTATE, SQLERRM;
+        RAISE EXCEPTION '%',                SQLSTATE;
 END;
 $BODY$
 LANGUAGE    plpgsql
@@ -1431,7 +1403,7 @@ FUNCTION    mv$getPgMviewLogTableData
                 pOwner      IN      TEXT,
                 pTableName  IN      TEXT
             )
-    RETURNS pgmview_logs
+    RETURNS pg$mview_logs
 AS
 $BODY$
 /* ---------------------------------------------------------------------------------------------------------------------------------
@@ -1456,13 +1428,13 @@ Copyright 2019 Amazon.com, Inc. or its affiliates. All Rights Reserved. SPDX-Lic
 ***********************************************************************************************************************************/
 DECLARE
 
-    aPgMviewLog            pgmview_logs;
+    aPgMviewLog            pg$mview_logs;
 
     cgetPgMviewLogTableData    CURSOR
     FOR
     SELECT
             *
-    FROM    pgmview_logs
+    FROM    pg$mview_logs
     WHERE   owner       = pOwner
     AND     table_name  = pTableName;
 
@@ -1478,6 +1450,13 @@ BEGIN
     ELSE
         RETURN( aPgMviewLog );
     END IF;
+    
+    EXCEPTION
+    WHEN OTHERS
+    THEN
+        RAISE INFO      'Exception in function mv$getPgMviewLogTableData';
+        RAISE INFO      'Error %:- %:',     SQLSTATE, SQLERRM;
+        RAISE EXCEPTION '%',                SQLSTATE;
 END;
 $BODY$
 LANGUAGE    plpgsql
@@ -1489,7 +1468,7 @@ FUNCTION    mv$getPgMviewLogTableData
                 pConst      IN      mv$allConstants,
                 pTableName  IN      TEXT
             )
-    RETURNS pgmview_logs
+    RETURNS pg$mview_logs
 AS
 $BODY$
 /* ---------------------------------------------------------------------------------------------------------------------------------
@@ -1527,6 +1506,12 @@ BEGIN
 
     RETURN( mv$getPgMviewLogTableData( pConst, tOwner, pTableName ));
 
+    EXCEPTION
+    WHEN OTHERS
+    THEN
+        RAISE INFO      'Exception in function mv$getPgMviewLogTableData';
+        RAISE INFO      'Error %:- %:',     SQLSTATE, SQLERRM;
+        RAISE EXCEPTION '%',                SQLSTATE;
 END;
 $BODY$
 LANGUAGE    plpgsql
@@ -1539,7 +1524,7 @@ FUNCTION    mv$getPgMviewTableData
                 pOwner      IN      TEXT,
                 pViewName   IN      TEXT
             )
-    RETURNS PgMviews
+    RETURNS pg$mviews
 AS
 $BODY$
 /* ---------------------------------------------------------------------------------------------------------------------------------
@@ -1565,13 +1550,13 @@ Returns:                RECORD              The row of data from the data dictio
 Copyright 2019 Amazon.com, Inc. or its affiliates. All Rights Reserved. SPDX-License-Identifier: MIT-0
 ***********************************************************************************************************************************/
 DECLARE
-    aPgMview           PgMviews;
+    aPgMview           pg$mviews;
 
     cgetPgMviewTableData   CURSOR
     FOR
     SELECT
             *
-    FROM    PgMviews
+    FROM    pg$mviews
     WHERE   owner       = pOwner
     AND     view_name   = pViewName;
 BEGIN
@@ -1580,12 +1565,19 @@ BEGIN
     INTO    aPgMview;
     CLOSE   cgetPgMviewTableData;
 
-    IF 0 = COALESCE(cardinality( aPgMview.table_array ),0)
+    IF 0 = COALESCE( CARDINALITY( aPgMview.table_array ), 0 )
     THEN
         RAISE EXCEPTION 'Materialised View ''%'' does not have a base table', pOwner || pConst.DOT_CHARACTER || pViewName;
     ELSE
         RETURN( aPgMview );
     END IF;
+
+    EXCEPTION
+    WHEN OTHERS
+    THEN
+        RAISE INFO      'Exception in function mv$getPgMviewTableData';
+        RAISE INFO      'Error %:- %:',     SQLSTATE, SQLERRM;
+        RAISE EXCEPTION '%',                SQLSTATE;
 END;
 $BODY$
 LANGUAGE    plpgsql
@@ -1650,6 +1642,13 @@ BEGIN
         tColumnNames   := LEFT( tColumnNames,  LENGTH( tColumnNames  ) - 1 );  -- Remove trailing comma
         RETURN( tColumnNames );
     END IF;
+
+    EXCEPTION
+    WHEN OTHERS
+    THEN
+        RAISE INFO      'Exception in function mv$getPgMviewViewColumns';
+        RAISE INFO      'Error %:- %:',     SQLSTATE, SQLERRM;
+        RAISE EXCEPTION '%',                SQLSTATE;
 END;
 $BODY$
 LANGUAGE    plpgsql
@@ -1729,6 +1728,13 @@ BEGIN
     ELSE
         RETURN( tOwner );
     END IF;
+
+    EXCEPTION
+    WHEN OTHERS
+    THEN
+        RAISE INFO      'Exception in function mv$getSourceTableSchema';
+        RAISE INFO      'Error %:- %:',     SQLSTATE, SQLERRM;
+        RAISE EXCEPTION '%',                SQLSTATE;
 END;
 $BODY$
 LANGUAGE    plpgsql
@@ -1828,7 +1834,7 @@ Copyright 2019 Amazon.com, Inc. or its affiliates. All Rights Reserved. SPDX-Lic
 BEGIN
 
     INSERT  INTO
-            pgmview_logs
+            pg$mview_logs
             (
                 owner,  pglog$_name, table_name, trigger_name
             )
@@ -1967,6 +1973,12 @@ BEGIN
 
     RETURN( tTokanisedString );
 
+    EXCEPTION
+    WHEN OTHERS
+    THEN
+        RAISE INFO      'Exception in function mv$replaceCommandWithToken';
+        RAISE INFO      'Error %:- %:',     SQLSTATE, SQLERRM;
+        RAISE EXCEPTION '%',                SQLSTATE;
 END;
 $BODY$
 LANGUAGE    plpgsql

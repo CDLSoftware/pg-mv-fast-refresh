@@ -1,5 +1,5 @@
 /* ---------------------------------------------------------------------------------------------------------------------------------
-Routine Name: CreateModuleOwnerSchema.sql
+Routine Name: CreateMikeSnapshotDD.sql
 Author:       Mike Revitt
 Date:         12/11/2018
 ------------------------------------------------------------------------------------------------------------------------------------
@@ -9,7 +9,6 @@ Date        | Name          | Description
 ------------+---------------+-------------------------------------------------------------------------------------------------------
             |               |
 12/11/2018  | M Revitt      | Initial version
-05/11/2019  | T Mullen      | Reflecting the changes of table names
 ------------+---------------+-------------------------------------------------------------------------------------------------------
 Background:     PostGre does not support Materialized View Fast Refreshes, this suite of scripts is a PL/SQL coded mechanism to
                 provide that functionality, the next phase of this projecdt is to fold these changes into the PostGre kernel.
@@ -18,13 +17,13 @@ Description:    This script creates the SCHEMA and USER to hold the Materialized
                 data dictionary views, then it calls the create function scripts in the correct order
 
 Notes:          There are 2 data dictionary tables
-                o   pgmview_logs
-                o   pgmviews
+                o   pg$mview_logs
+                o   pg$mviews
 
-                Access is controlled via database role
-                o   pgmv$_role   -   is given the privileges to run the public materialized view functions
-								 -	 is given usage on the pgrs_mview schema
-								 -	 is given access to the DDL tables
+                Access is controlled via 3 database roles
+                o   pgmv$_execute   -   is given the privileges to run the public materialized view functions
+                o   pgmv$_usage     -   is given usage on the :v2 schema
+                o   pgmv$_view      -   is given access to the DDL tables
 
 Issues:         There is a bug in RDS for PostGres version 10.4 that prevents this code from working, this but is fixed in
                 versions 10.5 and 10.3
@@ -45,107 +44,60 @@ LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRA
 CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ***********************************************************************************************************************************/
 
+-- psql -h localhost -p 5432 -d postgres -U mike -f CreateMikeSnapshotDD.sql
+
 SET  CLIENT_MIN_MESSAGES = ERROR;
 
 CREATE EXTENSION    IF NOT  EXISTS "uuid-ossp";
 
 SET CLIENT_MIN_MESSAGES = NOTICE;
 
-CREATE OR REPLACE FUNCTION create_user_and_role(IN pis_password TEXT, IN pis_moduleowner TEXT)
-RETURNS void
-AS
-$BODY$
-DECLARE
+CREATE  ROLE    pgmv$_execute;
+CREATE  ROLE    pgmv$_usage;
+CREATE  ROLE    pgmv$_view;
 
-ls_password TEXT := pis_password;
+CREATE  USER        :v2     WITH    PASSWORD    'aws-oracle';
 
-ls_moduleowner TEXT := pis_moduleowner;
+ALTER   DATABASE    :v4     SET     SEARCH_PATH="$user",PUBLIC,:v2;
 
-ls_sql TEXT;
+GRANT   pgmv$_view, pgmv$_usage     TO  :v2;
+GRANT   :v2                         TO  :v1;
 
-BEGIN
-   IF NOT EXISTS (
-      SELECT
-      FROM   pg_user
-      WHERE  usename = pis_moduleowner) THEN
-	  
-	  ls_sql := 'CREATE USER '||ls_moduleowner||' WITH
-					LOGIN
-					NOSUPERUSER
-					NOCREATEDB
-					NOCREATEROLE
-					INHERIT
-					NOREPLICATION
-					CONNECTION LIMIT -1
-					PASSWORD '''||pis_password||''';';
-				
-	  EXECUTE ls_sql;
-	  
-   END IF;
-   
-   IF NOT EXISTS (
-      SELECT
-      FROM   pg_roles
-      WHERE  rolname = 'pgmv$_role') THEN
-	  
-	  ls_sql := 'CREATE ROLE pgmv$_role WITH
-				  NOLOGIN
-				  NOSUPERUSER
-				  INHERIT
-				  NOCREATEDB
-				  NOCREATEROLE
-				  NOREPLICATION;';
-				
-	  EXECUTE ls_sql;
-	  
-   END IF;
-
-END;
-$BODY$
-LANGUAGE  plpgsql;
-
-SELECT create_user_and_role(:'MODULEOWNERPASS',:'MODULEOWNER');
-
-ALTER   DATABASE    :DBNAME        SET     SEARCH_PATH=:PGUSERNAME,PUBLIC,:MODULEOWNER;
-
-GRANT   pgmv$_role     TO  :MODULEOWNER;
-GRANT   :MODULEOWNER   TO  :PGUSERNAME;
-
-CREATE  SCHEMA IF NOT EXISTS :MODULEOWNER    AUTHORIZATION   :MODULEOWNER;
-
-CREATE TABLE IF NOT EXISTS :MODULEOWNER.pg$mview_logs
-(
-	owner           TEXT        NOT NULL,
-    pglog$_name     TEXT        NOT NULL,
-    table_name      TEXT        NOT NULL,
-    trigger_name    TEXT        NOT NULL,
-    pg_mview_bitmap BIGINT[]    NOT NULL DEFAULT array[0],
-    CONSTRAINT
-        pk_pg$mview_logs
+CREATE  SCHEMA      :v2 AUTHORIZATION   :v2
+    CREATE
+    TABLE   pg$mview_logs
+    (
+        owner           TEXT        NOT NULL,
+        pglog$_name     TEXT        NOT NULL,
+        table_name      TEXT        NOT NULL,
+        trigger_name    TEXT        NOT NULL,
+        pg_mview_bitmap BIGINT[]    NOT NULL DEFAULT array[0],
+        CONSTRAINT
+            pk_pg$mview_logs
             PRIMARY KEY
             (
                 owner,
                 table_name
             )
-);
+    )
 
-
-CREATE TABLE IF NOT EXISTS :MODULEOWNER.pg$mviews
-(
-	owner               TEXT        NOT NULL,
-    view_name           TEXT        NOT NULL,
-    pgmv_columns        TEXT        NOT NULL,
-    select_columns      TEXT        NOT NULL,
-    table_names         TEXT        NOT NULL,
-    where_clause        TEXT,
-    table_array         TEXT[],
-    alias_array         TEXT[],
-    rowid_array         TEXT[],
-    log_array           TEXT[],
-    bit_array           SMALLINT[],
-    outer_table_array   TEXT[],
-    inner_alias_array   TEXT[],
-    inner_rowid_array   TEXT[],
+    CREATE
+    TABLE   pg$mviews
+    (
+        owner               TEXT        NOT NULL,
+        view_name           TEXT        NOT NULL,
+        pgmv_columns        TEXT        NOT NULL,
+        select_columns      TEXT        NOT NULL,
+        table_names         TEXT        NOT NULL,
+        where_clause        TEXT,
+        table_array         TEXT[],
+        alias_array         TEXT[],
+        rowid_array         TEXT[],
+        log_array           TEXT[],
+        bit_array           SMALLINT[],
+        outer_table_array   TEXT[],
+        inner_alias_array   TEXT[],
+        inner_rowid_array   TEXT[],
         CONSTRAINT
             pk_pg$mviews
             PRIMARY KEY
@@ -153,11 +105,12 @@ CREATE TABLE IF NOT EXISTS :MODULEOWNER.pg$mviews
                 owner,
                 view_name
             )
-);
+    )
 
-CREATE TABLE IF NOT EXISTS :MODULEOWNER.pg$mviews_oj_details
-(
-    owner               TEXT        NOT NULL,
+    CREATE
+    TABLE   pg$mviews_oj_details
+    (
+        owner               TEXT        NOT NULL,
         view_name           TEXT        NOT NULL,
         table_alias         TEXT        NOT NULL,
         rowid_column_name   TEXT        NOT NULL,
@@ -169,18 +122,10 @@ CREATE TABLE IF NOT EXISTS :MODULEOWNER.pg$mviews_oj_details
             PRIMARY KEY
             (
                 owner,
-                view_name,
-                table_alias
+                view_name
             )
-
-);
-
-GRANT   USAGE   ON                      SCHEMA  :MODULEOWNER    TO  pgmv$_role;
-GRANT   SELECT  ON  ALL TABLES      IN  SCHEMA  :MODULEOWNER    TO  pgmv$_role;
-
-ALTER TABLE :MODULEOWNER.pg$mviews       	   OWNER TO :MODULEOWNER;
-ALTER TABLE :MODULEOWNER.pg$mview_logs   	   OWNER TO :MODULEOWNER;
-ALTER TABLE :MODULEOWNER.pg$mviews_oj_details  OWNER TO :MODULEOWNER;
-
-ALTER EXTENSION "uuid-ossp" SET SCHEMA public;
+    );
+    
+GRANT   USAGE   ON                      SCHEMA  :v2    TO  pgmv$_usage;
+GRANT   SELECT  ON  ALL TABLES      IN  SCHEMA  :v2    TO  pgmv$_view;
 
