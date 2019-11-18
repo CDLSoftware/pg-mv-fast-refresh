@@ -1275,14 +1275,14 @@ DECLARE
 	
 	iWhileCounter					INTEGER DEFAULT 0;
 	iAliasJoinLinksCounter			INTEGER DEFAULT 0;	
-	iMainLoopCounter				INTEGER DEFAULT pConst.ARRAY_LOWER_VALUE;
-	iWhileLoopCounter			    INTEGER DEFAULT pConst.ARRAY_LOWER_VALUE;
-	iLoopCounter					INTEGER DEFAULT pConst.ARRAY_LOWER_VALUE;
-	iRightLoopCounter				INTEGER DEFAULT pConst.ARRAY_LOWER_VALUE;
+	iMainLoopCounter				INTEGER DEFAULT 0;
+	iWhileLoopCounter			    INTEGER DEFAULT 0;
+	iLoopCounter					INTEGER DEFAULT 0;
+	iRightLoopCounter				INTEGER DEFAULT 0;
 	iLeftAliasLoopCounter			INTEGER DEFAULT 0;
 	iRightAliasLoopCounter			INTEGER DEFAULT 0;
-	iLeftLoopCounter				INTEGER DEFAULT pConst.ARRAY_LOWER_VALUE;
-	iColumnNameAliasLoopCnt			INTEGER DEFAULT pConst.ARRAY_LOWER_VALUE;
+	iLeftLoopCounter				INTEGER DEFAULT 0;
+	iColumnNameAliasLoopCnt			INTEGER DEFAULT 0;
 	
 	tOuterJoinAlias					TEXT;	
 	tAlias							TEXT;	
@@ -1707,7 +1707,7 @@ DECLARE
 	
 	
 	rMvOuterJoinDetails     RECORD;
-	iLoopCounter            INTEGER DEFAULT pConst.ARRAY_LOWER_VALUE;
+	iLoopCounter            INTEGER DEFAULT 0;
 	
 BEGIN
 
