@@ -51,6 +51,10 @@ CREATE EXTENSION    IF NOT  EXISTS "uuid-ossp";
 
 SET CLIENT_MIN_MESSAGES = NOTICE;
 
+CREATE  ROLE    pgmv$_execute;
+CREATE  ROLE    pgmv$_usage;
+CREATE  ROLE    pgmv$_view;
+
 CREATE OR REPLACE FUNCTION create_user_and_role(IN pis_password TEXT, IN pis_moduleowner TEXT)
 RETURNS void
 AS
@@ -64,7 +68,8 @@ ls_moduleowner TEXT := pis_moduleowner;
 ls_sql TEXT;
 
 BEGIN
-   IF NOT EXISTS (
+ RAISE INFO 'password % %',pis_password, ls_moduleowner; 
+ IF NOT EXISTS (
       SELECT
       FROM   pg_user
       WHERE  usename = pis_moduleowner) THEN
@@ -109,13 +114,16 @@ SELECT create_user_and_role(:'MODULEOWNERPASS',:'MODULEOWNER');
 ALTER   DATABASE    :DBNAME        SET     SEARCH_PATH=:PGUSERNAME,PUBLIC,:MODULEOWNER;
 
 GRANT   pgmv$_role     TO  :MODULEOWNER;
+GRANT   pgmv$_execute  TO  :MODULEOWNER;
+GRANT   pgmv$_usage    TO  :MODULEOWNER;
+GRANT   pgmv$_view     TO  :MODULEOWNER;
 GRANT   :MODULEOWNER   TO  :PGUSERNAME;
 
 CREATE  SCHEMA IF NOT EXISTS :MODULEOWNER    AUTHORIZATION   :MODULEOWNER;
 
 CREATE TABLE IF NOT EXISTS :MODULEOWNER.pg$mview_logs
 (
-	owner           TEXT        NOT NULL,
+    owner           TEXT        NOT NULL,
     pglog$_name     TEXT        NOT NULL,
     table_name      TEXT        NOT NULL,
     trigger_name    TEXT        NOT NULL,
@@ -132,7 +140,7 @@ CREATE TABLE IF NOT EXISTS :MODULEOWNER.pg$mview_logs
 
 CREATE TABLE IF NOT EXISTS :MODULEOWNER.pg$mviews
 (
-	owner               TEXT        NOT NULL,
+    owner               TEXT        NOT NULL,
     view_name           TEXT        NOT NULL,
     pgmv_columns        TEXT        NOT NULL,
     select_columns      TEXT        NOT NULL,
@@ -157,7 +165,7 @@ CREATE TABLE IF NOT EXISTS :MODULEOWNER.pg$mviews
 
 CREATE TABLE IF NOT EXISTS :MODULEOWNER.pg$mviews_oj_details
 (
-    owner               TEXT        NOT NULL,
+        owner               TEXT        NOT NULL,
         view_name           TEXT        NOT NULL,
         table_alias         TEXT        NOT NULL,
         rowid_column_name   TEXT        NOT NULL,
@@ -176,7 +184,9 @@ CREATE TABLE IF NOT EXISTS :MODULEOWNER.pg$mviews_oj_details
 );
 
 GRANT   USAGE   ON                      SCHEMA  :MODULEOWNER    TO  pgmv$_role;
+GRANT   USAGE   ON                      SCHEMA  :MODULEOWNER    TO  pgmv$_usage;
 GRANT   SELECT  ON  ALL TABLES      IN  SCHEMA  :MODULEOWNER    TO  pgmv$_role;
+GRANT   SELECT  ON  ALL TABLES      IN  SCHEMA  :MODULEOWNER    TO  pgmv$_view;
 
 ALTER TABLE :MODULEOWNER.pg$mviews       	   OWNER TO :MODULEOWNER;
 ALTER TABLE :MODULEOWNER.pg$mview_logs   	   OWNER TO :MODULEOWNER;

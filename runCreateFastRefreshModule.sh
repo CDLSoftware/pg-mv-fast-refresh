@@ -24,6 +24,7 @@ echo "INFO: Connect to postgres database $DBNAME via PSQL session" >> $LOG_FILE
 EOF1
 
 PGPASSWORD=$MODULEOWNERPASS
+echo "this is the pass $MODULEOWNERPASS  this is the pgpassword $PGPASSWORD"
 
 echo "INFO: Run $MODULEOWNER schema object build scripts" >> $LOG_FILE
 echo "INFO: Connect to postgres database $DBNAME via PSQL session" >> $LOG_FILE
@@ -42,6 +43,8 @@ echo "INFO: Connect to postgres database $DBNAME via PSQL session" >> $LOG_FILE
 EOF2
 
 $MODULE_HOME/module_error_chks.sh
+
+echo "Check log file - $LOG_FILE"
 
 exitcode=$?
 if [ $exitcode != 0 ]; then

@@ -39,7 +39,10 @@ psql --host=$HOSTNAME --port=$PORT --username=$PGUSERNAME --dbname=$DBNAME << EO
  REVOKE $MODULEOWNER from $PGUSERNAME;
  DROP EXTENSION "uuid-ossp";
  DROP ROLE $MODULEOWNER;
-
+ DROP ROLE pgmv\$_role;
+ DROP ROLE pgmv\$_execute;
+ DROP ROLE pgmv\$_view;
+ DROP ROLE pgmv\$_usage;
 
 EOF1
 }
