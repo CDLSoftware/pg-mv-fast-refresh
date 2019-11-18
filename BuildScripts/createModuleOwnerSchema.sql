@@ -68,7 +68,6 @@ ls_moduleowner TEXT := pis_moduleowner;
 ls_sql TEXT;
 
 BEGIN
- RAISE INFO 'password % %',pis_password, ls_moduleowner; 
  IF NOT EXISTS (
       SELECT
       FROM   pg_user
