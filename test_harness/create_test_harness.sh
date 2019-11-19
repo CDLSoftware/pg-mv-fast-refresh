@@ -111,13 +111,20 @@ ALTER DATABASE $DBNAME SET SEARCH_PATH=public,$MODULEOWNER,$MVUSERNAME,$SOURCEUS
 
 GRANT $SOURCEUSERNAME TO $MODULEOWNER;
 GRANT USAGE ON SCHEMA $SOURCEUSERNAME TO $MODULEOWNER;
-GRANT ALL PRIVILEGES ON DATABASE strata TO $MODULEOWNER;
+GRANT ALL PRIVILEGES ON DATABASE $DBNAME TO $MODULEOWNER;
 GRANT ALL ON SCHEMA $MVUSERNAME  TO $MODULEOWNER;
 GRANT USAGE ON SCHEMA $MVUSERNAME  TO $MODULEOWNER;
 GRANT $MVUSERNAME  TO $MODULEOWNER;
 GRANT $MODULEOWNER TO $MVUSERNAME;
 GRANT USAGE ON SCHEMA $MODULEOWNER TO $MVUSERNAME;
 GRANT ALL ON SCHEMA $SOURCEUSERNAME TO $MODULEOWNER;
+
+
+GRANT   $SOURCEUSERNAME,$MVUSERNAME     TO dbadmin;
+GRANT   $SOURCEUSERNAME,$MVUSERNAME   TO   $MODULEOWNER;
+
+GRANT   pgmv\$_view, pgmv\$_usage                     TO      $MVUSERNAME;
+GRANT   pgmv\$_view, pgmv\$_usage,    pgmv\$_execute   TO      $SOURCEUSERNAME;
 
 
 EOF2
@@ -137,199 +144,199 @@ psql --host=$HOSTNAME --port=$PORT --username=$SOURCEUSERNAME --dbname=$DBNAME <
 
 -- FUNCTIONAL TEST SETUP
 
--- create t1 table
+-- create test1 table
 
-CREATE TABLE $SOURCEUSERNAME.t1
+CREATE TABLE $SOURCEUSERNAME.test1
 (
     id numeric NOT NULL,
     lookup_id numeric,
     code character varying(10) COLLATE pg_catalog."default",
-    CONSTRAINT t1_pkey PRIMARY KEY (id)
+    CONSTRAINT test1_pkey PRIMARY KEY (id)
 );
 
--- create t2 table
+-- create test2 table
 
-CREATE TABLE $SOURCEUSERNAME.t2
+CREATE TABLE $SOURCEUSERNAME.test2
 (
     id numeric NOT NULL,
     description character varying(100) COLLATE pg_catalog."default",
     metavals_id numeric,
     age integer NOT NULL,
-    CONSTRAINT t2_pkey PRIMARY KEY (id)
+    CONSTRAINT test2_pkey PRIMARY KEY (id)
 );
 
--- create t3 table
+-- create test3 table
 
-CREATE TABLE $SOURCEUSERNAME.t3
+CREATE TABLE $SOURCEUSERNAME.test3
 (
     lookup_id numeric NOT NULL,
     lookup_code character varying(10) COLLATE pg_catalog."default" NOT NULL,
     lookup_description character varying(50) COLLATE pg_catalog."default" NOT NULL,
-    CONSTRAINT t3_pkey PRIMARY KEY (lookup_id)
+    CONSTRAINT test3_pkey PRIMARY KEY (lookup_id)
 );
 
--- create t4 table
+-- create test4 table
 
-CREATE TABLE $SOURCEUSERNAME.t4
+CREATE TABLE $SOURCEUSERNAME.test4
 (
     metavals_id numeric NOT NULL,
     code character varying(10) COLLATE pg_catalog."default" NOT NULL,
     description character varying(30) COLLATE pg_catalog."default",
-    CONSTRAINT t4_pkey PRIMARY KEY (metavals_id)
+    CONSTRAINT test4_pkey PRIMARY KEY (metavals_id)
 );
 
--- create t5 table
+-- create test5 table
 
-CREATE TABLE $SOURCEUSERNAME.t5
+CREATE TABLE $SOURCEUSERNAME.test5
 (
     id numeric NOT NULL,
     rep_ind character varying(1) COLLATE pg_catalog."default",
     trans_id numeric,
-    CONSTRAINT t5_pkey PRIMARY KEY (id)
+    CONSTRAINT test5_pkey PRIMARY KEY (id)
 );
 
--- create t6 table
+-- create test6 table
 
-CREATE TABLE $SOURCEUSERNAME.t6
+CREATE TABLE $SOURCEUSERNAME.test6
 (
     trans_id numeric NOT NULL,
     payment_reference character varying(20) COLLATE pg_catalog."default" NOT NULL,
-    CONSTRAINT t6_pkey PRIMARY KEY (trans_id)
+    CONSTRAINT test6_pkey PRIMARY KEY (trans_id)
 );
 
--- insert records into t1 table
+-- insert records into test1 table
 
-INSERT INTO $SOURCEUSERNAME.t1(
+INSERT INTO $SOURCEUSERNAME.test1(
 	id, lookup_id, code)
 	VALUES (1, 10, 'hello');
 
-INSERT INTO $SOURCEUSERNAME.t1(
+INSERT INTO $SOURCEUSERNAME.test1(
 	id, lookup_id, code)
 	VALUES (2, 20, 'bye');
 
-INSERT INTO $SOURCEUSERNAME.t1(
+INSERT INTO $SOURCEUSERNAME.test1(
 	id, lookup_id, code)
 	VALUES (3, 30, 'cya');
 
-INSERT INTO $SOURCEUSERNAME.t1(
+INSERT INTO $SOURCEUSERNAME.test1(
 	id, lookup_id, code)
 	VALUES (4, 50, 'goodbye');
 
-INSERT INTO $SOURCEUSERNAME.t1(
+INSERT INTO $SOURCEUSERNAME.test1(
 	id, lookup_id, code)
 	VALUES (5, 50, 'hi');
 
-INSERT INTO $SOURCEUSERNAME.t1(
+INSERT INTO $SOURCEUSERNAME.test1(
 	id, lookup_id, code)
 	VALUES (6, 20, 'bye');
 
--- insert records into t2 table
+-- insert records into test2 table
 
-INSERT INTO $SOURCEUSERNAME.t2(
+INSERT INTO $SOURCEUSERNAME.test2(
 	id, description, metavals_id, age)
 	VALUES (1, 'house', 100, 20);
 
-INSERT INTO $SOURCEUSERNAME.t2(
+INSERT INTO $SOURCEUSERNAME.test2(
 	id, description, metavals_id, age)
 	VALUES (2, 'flat', 200, 35);
 
-INSERT INTO $SOURCEUSERNAME.t2(
+INSERT INTO $SOURCEUSERNAME.test2(
 	id, description, metavals_id, age)
 	VALUES (3, 'bungalow', 300, 30);
 
-INSERT INTO $SOURCEUSERNAME.t2(
+INSERT INTO $SOURCEUSERNAME.test2(
 	id, description, metavals_id, age)
 	VALUES (4, 'palace', 300, 30);
 
-INSERT INTO $SOURCEUSERNAME.t2(
+INSERT INTO $SOURCEUSERNAME.test2(
 	id, description, metavals_id, age)
 	VALUES (5, 'office', 400, 50);
 
--- insert records into t3 table
+-- insert records into test3 table
 
-INSERT INTO $SOURCEUSERNAME.t3(
+INSERT INTO $SOURCEUSERNAME.test3(
 	lookup_id, lookup_code, lookup_description)
 	VALUES (10, 'ENG', 'ENGLAND');
 
-INSERT INTO $SOURCEUSERNAME.t3(
+INSERT INTO $SOURCEUSERNAME.test3(
 	lookup_id, lookup_code, lookup_description)
 	VALUES (20, 'WAL', 'WALES');
 
-INSERT INTO $SOURCEUSERNAME.t3(
+INSERT INTO $SOURCEUSERNAME.test3(
 	lookup_id, lookup_code, lookup_description)
 	VALUES (30, 'SCO', 'SCOTLAND');
 
-INSERT INTO $SOURCEUSERNAME.t3(
+INSERT INTO $SOURCEUSERNAME.test3(
 	lookup_id, lookup_code, lookup_description)
 	VALUES (40, 'IRE', 'IRELAND');
 
-INSERT INTO $SOURCEUSERNAME.t3(
+INSERT INTO $SOURCEUSERNAME.test3(
 	lookup_id, lookup_code, lookup_description)
 	VALUES (50, 'FRA', 'FRANCE');
 
--- insert records into t4 table
+-- insert records into test4 table
 
-INSERT INTO $SOURCEUSERNAME.t4(
+INSERT INTO $SOURCEUSERNAME.test4(
 	metavals_id, code, description)
 	VALUES (100,'CHAIR','SMALL CHAIR');
 
-INSERT INTO $SOURCEUSERNAME.t4(
+INSERT INTO $SOURCEUSERNAME.test4(
 	metavals_id, code, description)
 	VALUES (200,'TABLE','SMALL TABLE');
 
-INSERT INTO $SOURCEUSERNAME.t4(
+INSERT INTO $SOURCEUSERNAME.test4(
 	metavals_id, code, description)
 	VALUES (300,'LIGHT','BRIGHT LIGHT');
 
-INSERT INTO $SOURCEUSERNAME.t4(
+INSERT INTO $SOURCEUSERNAME.test4(
 	metavals_id, code, description)
 	VALUES (400,'BED','KING SIZE BED');
 
-INSERT INTO $SOURCEUSERNAME.t4(
+INSERT INTO $SOURCEUSERNAME.test4(
 	metavals_id, code, description)
 	VALUES (500,'CUPBOARD','BEDSIDE CUPBOARD');
 
--- insert records into t5 table
+-- insert records into test5 table
 
-INSERT INTO $SOURCEUSERNAME.t5(
+INSERT INTO $SOURCEUSERNAME.test5(
 	id, rep_ind, trans_id)
 	VALUES (1, 'Y', 1000);
 
-INSERT INTO $SOURCEUSERNAME.t5(
+INSERT INTO $SOURCEUSERNAME.test5(
 	id, rep_ind, trans_id)
 	VALUES (2, 'Y', 2000);
 
-INSERT INTO $SOURCEUSERNAME.t5(
+INSERT INTO $SOURCEUSERNAME.test5(
 	id, rep_ind, trans_id)
 	VALUES (3, 'N', 3000);
 
-INSERT INTO $SOURCEUSERNAME.t5(
+INSERT INTO $SOURCEUSERNAME.test5(
 	id, rep_ind, trans_id)
 	VALUES (4, 'Y', 4000);
 
-INSERT INTO $SOURCEUSERNAME.t5(
+INSERT INTO $SOURCEUSERNAME.test5(
 	id, rep_ind, trans_id)
 	VALUES (5, 'N', 5000);
 
--- insert records into t6 table
+-- insert records into test6 table
 
-INSERT INTO $SOURCEUSERNAME.t6(
+INSERT INTO $SOURCEUSERNAME.test6(
 	trans_id, payment_reference)
 	VALUES (1000, 'GZ-1000');
 
-INSERT INTO $SOURCEUSERNAME.t6(
+INSERT INTO $SOURCEUSERNAME.test6(
 	trans_id, payment_reference)
 	VALUES (2000, 'AZ-2000');
 
-INSERT INTO $SOURCEUSERNAME.t6(
+INSERT INTO $SOURCEUSERNAME.test6(
 	trans_id, payment_reference)
 	VALUES (3000, 'BZ-3000');
 
-INSERT INTO $SOURCEUSERNAME.t6(
+INSERT INTO $SOURCEUSERNAME.test6(
 	trans_id, payment_reference)
 	VALUES (4000, 'QZ-4000');
 
-INSERT INTO $SOURCEUSERNAME.t6(
+INSERT INTO $SOURCEUSERNAME.test6(
 	trans_id, payment_reference)
 	VALUES (5000, 'VZ-5000');
 
@@ -351,12 +358,12 @@ DO
 DECLARE
     cResult CHAR(1) := NULL;
 BEGIN
-    cResult := $MODULEOWNER.mv\$createMaterializedViewlog( 't1','$SOURCEUSERNAME');
-    cResult := $MODULEOWNER.mv\$createMaterializedViewlog( 't2','$SOURCEUSERNAME');
-    cResult := $MODULEOWNER.mv\$createMaterializedViewlog( 't3','$SOURCEUSERNAME');
-    cResult := $MODULEOWNER.mv\$createMaterializedViewlog( 't4','$SOURCEUSERNAME');
-    cResult := $MODULEOWNER.mv\$createMaterializedViewlog( 't5','$SOURCEUSERNAME');
-    cResult := $MODULEOWNER.mv\$createMaterializedViewlog( 't6','$SOURCEUSERNAME');
+    cResult := $MODULEOWNER.mv\$createMaterializedViewlog( 'test1','$SOURCEUSERNAME');
+    cResult := $MODULEOWNER.mv\$createMaterializedViewlog( 'test2','$SOURCEUSERNAME');
+    cResult := $MODULEOWNER.mv\$createMaterializedViewlog( 'test3','$SOURCEUSERNAME');
+    cResult := $MODULEOWNER.mv\$createMaterializedViewlog( 'test4','$SOURCEUSERNAME');
+    cResult := $MODULEOWNER.mv\$createMaterializedViewlog( 'test5','$SOURCEUSERNAME');
+    cResult := $MODULEOWNER.mv\$createMaterializedViewlog( 'test6','$SOURCEUSERNAME');
 
 END
 \$do\$;
@@ -385,31 +392,31 @@ DECLARE
 BEGIN
 
     pSqlStatement := '
-SELECT t1.id t1_id,
-t1.lookup_id t1_lookup_id,
-t1.code t1_code,
-t2.id t2_id,
-t2.description t2_desc,
-t2.metavals_id t2_metavals_id,
-t2.age t2_age,
-t3.lookup_id t3_lookup_id,
-t3.lookup_code t3_lookup_code,
-t3.lookup_description t3_lookup_desc,
-t4.metavals_id t4_metavals_id,
-t4.code t4_code,
-t4.description t4_desc,
-t5.id t5_id,
-t5.rep_ind t5_rep_ind,
-t5.trans_id t5_trans_id,
-t6.trans_id t6_trans_id,
-t6.payment_reference t6_payment_ref
+SELECT test1.id test1_id,
+test1.lookup_id test1_lookup_id,
+test1.code test1_code,
+test2.id test2_id,
+test2.description test2_desc,
+test2.metavals_id test2_metavals_id,
+test2.age test2_age,
+test3.lookup_id test3_lookup_id,
+test3.lookup_code test3_lookup_code,
+test3.lookup_description test3_lookup_desc,
+test4.metavals_id test4_metavals_id,
+test4.code test4_code,
+test4.description test4_desc,
+test5.id test5_id,
+test5.rep_ind test5_rep_ind,
+test5.trans_id test5_trans_id,
+test6.trans_id test6_trans_id,
+test6.payment_reference test6_payment_ref
 FROM
-t1
-INNER JOIN t2 ON t1.id = t2.id
-LEFT JOIN t3 ON t1.lookup_id = t3.lookup_id
-LEFT JOIN t4 ON t2.metavals_id = t4.metavals_id
-INNER JOIN t5 ON t1.id = t5.id
-LEFT JOIN t6 ON t5.trans_id = t6.trans_id';
+test1
+INNER JOIN test2 ON test1.id = test2.id
+LEFT JOIN test3 ON test1.lookup_id = test3.lookup_id
+LEFT JOIN test4 ON test2.metavals_id = test4.metavals_id
+INNER JOIN test5 ON test1.id = test5.id
+LEFT JOIN test6 ON test5.trans_id = test6.trans_id';
     cResult := mv\$createMaterializedView
     (
         pViewName           => 'mv_fast_refresh_funct_test',

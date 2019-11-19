@@ -1,31 +1,27 @@
 /* ---------------------------------------------------------------------------------------------------------------------------------
-Routine Name: destroyMikeSnapshotDD.sql
+Routine Name: destroyMikeTestData.sql
 Author:       Mike Revitt
-Date:         08/04/2019
+Date:         08/04/2018
 ------------------------------------------------------------------------------------------------------------------------------------
 Revision History    Push Down List
 ------------------------------------------------------------------------------------------------------------------------------------
 Date        | Name          | Description
 ------------+---------------+-------------------------------------------------------------------------------------------------------
             |               |
-08/04/2019  | M Revitt      | Initial version
+08/04/2018  | M Revitt      | Initial version
 ------------+---------------+-------------------------------------------------------------------------------------------------------
 Background:     PostGre does not support Materialized View Fast Refreshes, this suite of scripts is a PL/SQL coded mechanism to
                 provide that functionality, the next phase of this projecdt is to fold these changes into the PostGre kernel.
 
-Description:    Remove DDL tables, users and roles
+Description:    Remove Mike Test Data objects
 
 Issues:         There is a bug in RDS for PostGres version 10.4 that prevents this code from working, this but is fixed in
                 versions 10.5 and 10.3
 
                 https://forums.aws.amazon.com/thread.jspa?messageID=860564
 
-Help:           Help can be invoked by running the rollowing command from within PostGre
-
-                DO $$ BEGIN RAISE NOTICE '%', mv$stringConstants('HELP_TEXT'); END $$;
-
 ************************************************************************************************************************************
-Copyright 2019 Amazon.com, Inc. or its affiliates. All Rights Reserved.
+Copyright 2018 Amazon.com, Inc. or its affiliates. All Rights Reserved.
 
 Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files
 (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify,
@@ -38,22 +34,41 @@ LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRA
 CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ***********************************************************************************************************************************/
 
--- psql -h localhost -p 5432 -d postgres -U mike -f CreateMikeSnapshotDD.sql
+-- psql -h localhost -p 5432 -d postgres -U cdl_data -q -f createMikeTestData.sql -v v1=cdl_data -v v2=cdl_view
 
-SET  CLIENT_MIN_MESSAGES = ERROR;
+SET CLIENT_MIN_MESSAGES = ERROR;
 
-DROP    TABLE       IF  EXISTS  mike_pgmview.mike$_pgmviews     CASCADE;
-DROP    TABLE       IF  EXISTS  mike_pgmview.mike$_pgmview_logs CASCADE;
+DROP        VIEW    IF  EXISTS  :v1.mv1;
+DROP        VIEW    IF  EXISTS  :v1.mv2;
+DROP        VIEW    IF  EXISTS  :v1.mv3;
+DROP        VIEW    IF  EXISTS  :v1.mv4;
 
-DROP    SCHEMA      IF  EXISTS  mike_pgmview                    CASCADE;
+DROP        TRIGGER IF  EXISTS  trig$_t1        ON  :v1.t1;
+DROP        TRIGGER IF  EXISTS  trig$_t2        ON  :v1.t2;
+DROP        TRIGGER IF  EXISTS  trig$_t3        ON  :v1.t3;
 
-DROP    OWNED       BY          mike_pgmview;
+DROP        TABLE   IF  EXISTS  :v1.pgmv$_mv1   CASCADE;
+DROP        TABLE   IF  EXISTS  :v1.pgmv$_mv2   CASCADE;
+DROP        TABLE   IF  EXISTS  :v1.pgmv$_mv3   CASCADE;
+DROP        TABLE   IF  EXISTS  :v1.pgmv$_mv4   CASCADE;
+DROP        TABLE   IF  EXISTS  :v1.log$_t1     CASCADE;
+DROP        TABLE   IF  EXISTS  :v1.log$_t2     CASCADE;
+DROP        TABLE   IF  EXISTS  :v1.log$_t3     CASCADE;
+DROP        TABLE   IF  EXISTS  :v1.t1          CASCADE;
+DROP        TABLE   IF  EXISTS  :v1.t2          CASCADE;
+DROP        TABLE   IF  EXISTS  :v1.t3          CASCADE;
 
-\c postgres mike
-DROP    USER        IF  EXISTS  mike_pgmview;
-DROP    ROLE        IF  EXISTS  pgmv$_execute;
-DROP    ROLE        IF  EXISTS  pgmv$_usage;
-DROP    ROLE        IF  EXISTS  pgmv$_view;
+DROP        SCHEMA  IF  EXISTS  :v1             CASCADE;
+DROP        SCHEMA  IF  EXISTS  :v2             CASCADE;
+
+DROP        OWNED   BY          :v1;
+DROP        OWNED   BY          :v2;
+
+DROP        USER    IF  EXISTS  :v1;
+DROP        USER    IF  EXISTS  :v2;
+
+TRUNCATE    TABLE   pg$mviews;
+TRUNCATE    TABLE   pg$mview_logs;
 
 SET CLIENT_MIN_MESSAGES = NOTICE;
 

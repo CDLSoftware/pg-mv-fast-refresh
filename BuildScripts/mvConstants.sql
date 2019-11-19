@@ -8,11 +8,15 @@ Revision History    Push Down List
 Date        | Name          | Description
 ------------+---------------+-------------------------------------------------------------------------------------------------------
             |               |
+05/11/2019  | M Revitt      | Changes to allow bitmap column to be manipulated as an array
+            |               | Removed MV_LOG$_DECREMENT_BITMAP
+29/10/2019  | M Revitt      | Move the type definitions into their own file and add MAX_PGMVIEWS_ROWS to allow for upto 310
+            |               | MAterialised Views per base table ( 5 * 62 )
+11/07/2019  | D DAY         | Defect fix - Added new constant MV_MAX_TABLE_ALIAS_LEN to be used for the m_row$ column naming
 04/06/2019  | M Revitt      | Add drop commands
 07/05/2019  | M Revitt      | Split out the trigger commands into mv$buildTriggerConstants for performance reasons
 26/04/2019  | M Revitt      | Change from variables to a new type for performance reasons
 11/03/2018  | M Revitt      | Initial version
-11/07/2019  | D DAY         | Defect fix - Added new constant MV_MAX_TABLE_ALIAS_LEN to be used for the m_row$ column naming
 ------------+---------------+-------------------------------------------------------------------------------------------------------
 Background:     PostGre does not support Materialized View Fast Refreshes, this suite of scripts is a PL/SQL coded mechanism to
                 provide that functionality, the next phase of this projecdt is to fold these changes into the PostGre kernel.
@@ -66,184 +70,11 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 SET     CLIENT_MIN_MESSAGES = ERROR;
 
-DROP TYPE     IF EXISTS mv$allConstants CASCADE;
 DROP FUNCTION IF EXISTS mv$buildAllConstants;
 DROP FUNCTION IF EXISTS mv$buildTriggerConstants;
 DROP FUNCTION IF EXISTS mv$help;
 
 SET CLIENT_MIN_MESSAGES = NOTICE;
-
-CREATE
-TYPE    mv$allConstants
-AS
-(
--- Database Role used to access materialized views
-------------------------------------------------------------------------------------------------------------------------------------
-    PGMV_SELECT_ROLE                TEXT,
---
--- Characters used FOR string delimination
-------------------------------------------------------------------------------------------------------------------------------------
-    INNER_TOKEN                     TEXT,
-    FROM_TOKEN                      TEXT,
-    JOIN_TOKEN                      TEXT,
-    LEFT_TOKEN                      TEXT,
-    ON_TOKEN                        TEXT,
-    OUTER_TOKEN                     TEXT,
-    RIGHT_TOKEN                     TEXT,
-    WHERE_TOKEN                     TEXT,
-    NO_INNER_TOKEN                  TEXT,
-    COMMA_INNER_TOKEN               TEXT,
-    COMMA_LEFT_TOKEN                TEXT,
-    COMMA_RIGHT_TOKEN               TEXT,
---
--- Maths Commands
-------------------------------------------------------------------------------------------------------------------------------------
-    BASE_TWO                        SMALLINT,
-    BITAND_COMMAND                  TEXT,
-    BIT_NOT_SET                     TEXT,
-    BITMAP_NOT_SET                  SMALLINT,
-    EQUALS_COMMAND                  TEXT,
-    FIRST_PGMVIEW_BIT               SMALLINT,
-    LESS_THAN_EQUAL                 TEXT,
-    MAX_BITMAP_SIZE                 BIGINT,
-    MAX_PGMVIEWS_PER_TABLE          SMALLINT,
-    MV_MAX_BASE_TABLE_LEN           SMALLINT,
-	MV_MAX_TABLE_ALIAS_LEN          SMALLINT,
-    SUBTRACT_COMMAND                TEXT,
-    TWO_TO_THE_POWER_OF             TEXT,
---
--- Characters used in string constructs
-------------------------------------------------------------------------------------------------------------------------------------
-    EMPTY_STRING                    TEXT,
-    NEW_LINE                        TEXT,
-    CARRIAGE_RETURN                 TEXT,
-    SPACE_CHARACTER                 TEXT,
-    TAB_CHARACTER                 	TEXT,
-    SINGLE_QUOTE_CHARACTER          TEXT,
-    OPEN_BRACKET                    TEXT,
-    CLOSE_BRACKET                   TEXT,
-    COMMA_CHARACTER                 TEXT,
-    DOT_CHARACTER                   TEXT,
-    UNDERSCORE_CHARACTER            TEXT,
-    LEFT_BRACE_CHARACTER            TEXT,
-    RIGHT_BRACE_CHARACTER           TEXT,
-    REGEX_MULTIPLE_SPACES           TEXT,
-    SUBSTITUTION_CHARACTER_ONE      TEXT,
-    SUBSTITUTION_CHARACTER_TWO      TEXT,
-    TYPECAST_AS_BIGINT              TEXT,
-    DOUBLE_SPACE_CHARACTERS         TEXT,
-    QUOTE_COMMA_CHARACTERS          TEXT,
---
--- Date Fuctions
-------------------------------------------------------------------------------------------------------------------------------------
-    DATE_TIME_MASK                  TEXT,
---
--- SQL Statement commands
-------------------------------------------------------------------------------------------------------------------------------------
-    ADD_COLUMN                      TEXT,
-    ALTER_TABLE                     TEXT,
-    AND_COMMAND                     TEXT,
-    AS_COMMAND                      TEXT,
-    CONSTRAINT_COMMAND              TEXT,
-    CREATE_INDEX                    TEXT,
-    CREATE_TABLE                    TEXT,
-    DELETE_COMMAND                  TEXT,
-    DELETE_FROM                     TEXT,
-    DROP_COLUMN                     TEXT,
-    DROP_TABLE                      TEXT,
-    FROM_COMMAND                    TEXT,
-    GRANT_SELECT_ON                 TEXT,
-    IN_ROWID_LIST                   TEXT,
-    IN_SELECT_COMMAND               TEXT,
-    INSERT_COMMAND                  TEXT,
-    INSERT_INTO                     TEXT,
-    NOT_NULL                        TEXT,
-    ON_COMMAND                      TEXT,
-    ORDER_BY_COMMAND                TEXT,
-    SELECT_COMMAND                  TEXT,
-    SELECT_TRUE_FROM                TEXT,
-    SET_COMMAND                     TEXT,
-    TO_COMMAND                      TEXT,
-    TRUNCATE_TABLE                  TEXT,
-    UNIQUE_COMMAND                  TEXT,
-    UPDATE_COMMAND                  TEXT,
-    WHERE_COMMAND                   TEXT,
-    WHERE_NO_DATA                   TEXT,
-	EQUALS_NULL						TEXT,
-	LEFT_OUTER_JOIN					TEXT,
-	RIGHT_OUTER_JOIN				TEXT,
---
--- Table and column name definitions
-------------------------------------------------------------------------------------------------------------------------------------
-    BITMAP_COLUMN                   TEXT,
-    BITMAP_COLUMN_FORMAT            TEXT,
-    DMLTYPE_COLUMN                  TEXT,
-    DMLTYPE_COLUMN_FORMAT           TEXT,
-    MV_LOG_TABLE_PREFIX             TEXT,
-    MV_INDEX_SUFFIX                 TEXT,
-    MV_M_ROW$_COLUMN                TEXT,
-    MV_M_ROW$_DEFAULT_VALUE         TEXT,
-    MV_M_ROW$_COLUMN_FORMAT         TEXT,
-    MV_M_ROW$_NOT_NULL_FORMAT       TEXT,
-    MV_M_ROW$_SOURCE_COLUMN         TEXT,
-    MV_M_ROW$_SOURCE_COLUMN_FORMAT  TEXT,
-    MV_SEQUENCE$_COLUMN             TEXT,
-    MV_TIMESTAMP_COLUMN             TEXT,
-    MV_TIMESTAMP_COLUMN_FORMAT      TEXT,
-    MV_TRIGGER_PREFIX               TEXT,
-    SEQUENCE$_PK_COLUMN_FORMAT      TEXT,
---
--- Materialied View Log Table commands
-------------------------------------------------------------------------------------------------------------------------------------
-    MV_LOG$_INSERT_COLUMNS          TEXT,
-    MV_LOG$_INSERT_VALUES_START     TEXT,
-    MV_LOG$_INSERT_VALUES_END       TEXT,
-    MV_LOG$_SELECT_M_ROW$           TEXT,
-    MV_LOG$_WHERE_BITMAP$           TEXT,
-    MV_LOG$_SELECT_M_ROWS_ORDER_BY  TEXT,
-    MV_LOG$_DECREMENT_BITMAP        TEXT,
-    MV_LOG$_WHERE_BITMAP_ZERO       TEXT,
---
--- SQL String Passing commands
-------------------------------------------------------------------------------------------------------------------------------------
-    DELETE_DML_TYPE                 TEXT,
-    INNER_DML_TYPE                  TEXT,
-    INSERT_DML_TYPE                 TEXT,
-    FROM_DML_TYPE                   TEXT,
-    LEFT_DML_TYPE                   TEXT,
-    JOIN_DML_TYPE                   TEXT,
-    ON_DML_TYPE                     TEXT,
-    OUTER_DML_TYPE                  TEXT,
-    RIGHT_DML_TYPE                  TEXT,
-    SELECT_DML_TYPE                 TEXT,
-    UPDATE_DML_TYPE                 TEXT,
-    WHERE_DML_TYPE                  TEXT,
---
--- Row Identification manipulation
-------------------------------------------------------------------------------------------------------------------------------------
-    AND_M_ROW$_EQUALS               TEXT,
-    WHERE_M_ROW$_EQUALS             TEXT,
-    AND_SEQUENCE_EQUALS             TEXT,
-    SELECT_M_ROW$_SOURCE_COLUMN     TEXT,
---
--- Commands to modify source table
-------------------------------------------------------------------------------------------------------------------------------------
-    ADD_M_ROW$_COLUMN_TO_TABLE      TEXT,
-    DROP_M_ROW$_COLUMN_FROM_TABLE   TEXT,
---
--- Materialied View Trigger commands
-------------------------------------------------------------------------------------------------------------------------------------
-    TRIGGER_AFTER_DML               TEXT,
-    TRIGGER_CREATE                  TEXT,
-    TRIGGER_DROP                    TEXT,
-    TRIGGER_FOR_EACH_ROW            TEXT,
---
--- Structure of the Materialized View Log
-------------------------------------------------------------------------------------------------------------------------------------
-    MV_LOG_COLUMNS                  TEXT,
---
-    HELP_TEXT                       TEXT
-);
 
 ----------------------- Write CREATE-FUNCTION-stage scripts ------------------------------------------------------------------------
 CREATE OR REPLACE
@@ -288,6 +119,7 @@ BEGIN
 
 -- Maths Commands
 ------------------------------------------------------------------------------------------------------------------------------------
+    rMvConstants.ARRAY_LOWER_VALUE              := 1;   -- This is the default starting value for a Postgres Array
     rMvConstants.BITMAP_NOT_SET                 := 0;
 
 -- SQL String Passing commands
@@ -297,12 +129,15 @@ BEGIN
 -- Table and column name definitions
 ------------------------------------------------------------------------------------------------------------------------------------
     rMvConstants.BITMAP_COLUMN                  := 'bitmap$';
+    rMvConstants.ANY_BITMAP_VALUE               := 'ANY( ' || rMvConstants.BITMAP_COLUMN || ' )';
     rMvConstants.DMLTYPE_COLUMN                 := 'dmltype$';
+    rMvConstants.PG_MVIEW_BITMAP                := 'pg_mview_bitmap';
     rMvConstants.MV_M_ROW$_COLUMN               := 'm_row$';
 
 -- SQL Statement commands
 ------------------------------------------------------------------------------------------------------------------------------------
     rMvConstants.INSERT_INTO                    := 'INSERT INTO ';
+    rMvConstants.SELECT_COMMAND                 := 'SELECT ';
 
 -- Materialied View Log Table commands
 ------------------------------------------------------------------------------------------------------------------------------------
@@ -311,9 +146,11 @@ BEGIN
                                                         rMvConstants.BITMAP_COLUMN          || rMvConstants.COMMA_CHARACTER ||
                                                         rMvConstants.DMLTYPE_COLUMN         ||
                                                     rMvConstants.CLOSE_BRACKET;
-    rMvConstants.MV_LOG$_INSERT_VALUES_START    := 'VALUES( ''';
-    rMvConstants.MV_LOG$_INSERT_VALUES_END      := ''')';
-
+                                                    
+    rMvConstants.AND_TABLE_NAME_EQUALS          := ' AND table_name = ''';
+    rMvConstants.FROM_PG$MVIEW_LOGS             := ' FROM pg$mview_logs ';
+    rMvConstants.WHERE_OWNER_EQUALS             := ' WHERE owner = ''';
+    
     RETURN( rMvConstants );
 END;
 $BODY$
@@ -356,7 +193,7 @@ BEGIN
 
 -- Database Role used to access materialized views
 ------------------------------------------------------------------------------------------------------------------------------------
-    rMvConstants.PGMV_SELECT_ROLE               := 'pgmv$_role';
+    rMvConstants.PGMV_SELECT_ROLE               := 'pgmv$_view';
 
 -- Characters used FOR string delimination
 ------------------------------------------------------------------------------------------------------------------------------------
@@ -377,30 +214,30 @@ BEGIN
 ------------------------------------------------------------------------------------------------------------------------------------
     rMvConstants.BASE_TWO                       := 2;
     rMvConstants.BITAND_COMMAND                 := ' & ';
-    rMvConstants.BIT_NOT_SET                    := ' 0';
     rMvConstants.EQUALS_COMMAND                 := ' = ';
     rMvConstants.FIRST_PGMVIEW_BIT              := 0;
     rMvConstants.LESS_THAN_EQUAL                := ' <= ';
-    rMvConstants.MAX_BITMAP_SIZE                := 9223372036854775807; -- (2^63 - 1) the maximum value for a 64-bit signed integer
-    rMvConstants.MAX_PGMVIEWS_PER_TABLE         := 62;
+    rMvConstants.MAX_PGMVIEWS_ROWS              := 5;
+    rMvConstants.MAX_PGMVIEWS_PER_ROW           := 61;
+    rMvConstants.MAX_PGMVIEWS_PER_TABLE         := rMvConstants.MAX_PGMVIEWS_PER_ROW * rMvConstants.MAX_PGMVIEWS_ROWS;
+    rMvConstants.MAX_BITMAP_SIZE                := POWER( 2, rMvConstants.MAX_PGMVIEWS_PER_ROW + 1 ) - 1;
+                                                -- 9223372036854775807; -- (2^63 - 1) the maximum value for a 64-bit signed integer
     rMvConstants.MV_MAX_BASE_TABLE_LEN          := 22;
-	rMvConstants.MV_MAX_TABLE_ALIAS_LEN		    := 22;
     rMvConstants.SUBTRACT_COMMAND               := ' - ';
     rMvConstants.TWO_TO_THE_POWER_OF            := ' POWER( 2, ';
 
 -- Characters used in string constructs
 ------------------------------------------------------------------------------------------------------------------------------------
     rMvConstants.EMPTY_STRING                   := '';
+    rMvConstants.TAB_CHARACTER                  := CHR(9);
     rMvConstants.NEW_LINE                       := CHR(10);
     rMvConstants.CARRIAGE_RETURN                := CHR(13);
     rMvConstants.SPACE_CHARACTER                := CHR(32);
-    rMvConstants.TAB_CHARACTER                	:= CHR(9);
     rMvConstants.UNDERSCORE_CHARACTER           := CHR(95);
     rMvConstants.LEFT_BRACE_CHARACTER           := CHR(123);
     rMvConstants.RIGHT_BRACE_CHARACTER          := CHR(125);
     rMvConstants.REGEX_MULTIPLE_SPACES          := '\s+';
     rMvConstants.SUBSTITUTION_CHARACTER_ONE     := '$1';
-    rMvConstants.SUBSTITUTION_CHARACTER_TWO     := '$2';
     rMvConstants.TYPECAST_AS_BIGINT             := '::BIGINT';
     rMvConstants.DOUBLE_SPACE_CHARACTERS        :=  rMvConstants.SPACE_CHARACTER || rMvConstants.SPACE_CHARACTER;
 
@@ -421,6 +258,7 @@ BEGIN
     rMvConstants.DELETE_FROM                    := 'DELETE FROM ';
     rMvConstants.DROP_COLUMN                    := ' DROP COLUMN ';
     rMvConstants.DROP_TABLE                     := 'DROP TABLE ';
+    rMvConstants.EQUALS_NULL                      := ' = NULL ';
     rMvConstants.FROM_COMMAND                   := ' FROM ';
     rMvConstants.GRANT_SELECT_ON                := 'GRANT SELECT ON ';
     rMvConstants.IN_ROWID_LIST                  := ' IN ( SELECT UNNEST($1))';
@@ -429,8 +267,8 @@ BEGIN
     rMvConstants.INSERT_INTO                    := 'INSERT INTO ';
     rMvConstants.NOT_NULL                       := ' NOT NULL ';
     rMvConstants.ON_COMMAND                     := ' ON ';
+    rMvConstants.OR_COMMAND                     := ' OR ';
     rMvConstants.ORDER_BY_COMMAND               := ' ORDER BY ';
-    rMvConstants.SELECT_COMMAND                 := 'SELECT ';
     rMvConstants.SELECT_TRUE_FROM               := 'SELECT TRUE FROM ';
     rMvConstants.SET_COMMAND                    := ' SET ';
     rMvConstants.TO_COMMAND                     := ' TO ';
@@ -439,13 +277,12 @@ BEGIN
     rMvConstants.UPDATE_COMMAND                 := 'UPDATE ';
     rMvConstants.WHERE_COMMAND                  := ' WHERE ';
     rMvConstants.WHERE_NO_DATA                  := ' WHERE 1 = 2 ';
-    rMvConstants.EQUALS_NULL                  	:= ' = null';
 	rMvConstants.LEFT_OUTER_JOIN				:= 'LOJ';
 	rMvConstants.RIGHT_OUTER_JOIN				:= 'ROJ';	
 
 -- Table and column name definitions
 ------------------------------------------------------------------------------------------------------------------------------------
-    rMvConstants.BITMAP_COLUMN_FORMAT           := ' BIGINT NOT NULL DEFAULT 0 ';
+    rMvConstants.BITMAP_COLUMN_FORMAT           := ' BIGINT[] NOT NULL DEFAULT ARRAY[0] ';
     rMvConstants.DMLTYPE_COLUMN_FORMAT          := ' CHAR(7) NOT NULL ';
     rMvConstants.MV_INDEX_SUFFIX                := '_key';
     rMvConstants.MV_LOG_TABLE_PREFIX            := 'log$_';
@@ -462,8 +299,6 @@ BEGIN
 
 -- Materialied View Log Table commands
 ------------------------------------------------------------------------------------------------------------------------------------
-    rMvConstants.MV_LOG$_INSERT_VALUES_START    := 'VALUES( ''';
-    rMvConstants.MV_LOG$_INSERT_VALUES_END      := '''))';
     rMvConstants.MV_LOG$_SELECT_M_ROW$          :=  rMvConstants.SELECT_COMMAND             ||
                                                         rMvConstants.MV_M_ROW$_COLUMN       || rMvConstants.COMMA_CHARACTER ||
                                                         rMvConstants.MV_SEQUENCE$_COLUMN    || rMvConstants.COMMA_CHARACTER ||
@@ -475,16 +310,13 @@ BEGIN
                                                     rMvConstants.SUBSTITUTION_CHARACTER_ONE || rMvConstants.CLOSE_BRACKET   ||
                                                     rMvConstants.TYPECAST_AS_BIGINT         || rMvConstants.EQUALS_COMMAND  ||
                                                     rMvConstants.TWO_TO_THE_POWER_OF        ||
-                                                    rMvConstants.SUBSTITUTION_CHARACTER_TWO || rMvConstants.CLOSE_BRACKET   ||
+                                                    rMvConstants.SUBSTITUTION_CHARACTER_ONE || rMvConstants.CLOSE_BRACKET   ||
                                                     rMvConstants.TYPECAST_AS_BIGINT;
     rMvConstants.MV_LOG$_SELECT_M_ROWS_ORDER_BY :=  rMvConstants.ORDER_BY_COMMAND           || rMvConstants.MV_SEQUENCE$_COLUMN;
-    rMvConstants.MV_LOG$_DECREMENT_BITMAP       :=  rMvConstants.BITMAP_COLUMN              || rMvConstants.EQUALS_COMMAND  ||
-                                                    rMvConstants.BITMAP_COLUMN              || rMvConstants.SUBTRACT_COMMAND||
-                                                    rMvConstants.TWO_TO_THE_POWER_OF;
     rMvConstants.MV_LOG$_WHERE_BITMAP_ZERO      :=  rMvConstants.WHERE_COMMAND              ||
-                                                    rMvConstants.BITMAP_COLUMN              || rMvConstants.EQUALS_COMMAND  ||
-                                                    rMvConstants.BIT_NOT_SET;
-
+                                                    rMvConstants.BITMAP_NOT_SET             || rMvConstants.EQUALS_COMMAND  ||
+                                                                                               rMvConstants.ANY_BITMAP_VALUE;
+                                                                                               
 -- SQL String Passing commands
 ------------------------------------------------------------------------------------------------------------------------------------
     rMvConstants.INNER_DML_TYPE                 := 'INNER';
@@ -536,100 +368,100 @@ BEGIN
         rMvConstants.CLOSE_BRACKET;
 
     rMvConstants.HELP_TEXT              := '
-+---------------------------------------------------------------------------------------------------------------------------------+
-| The program is devided into two sections                                                                                        |
-| o  Functions that are designed to be used internally to facilitate the running of the program                                   |
-| o  Functions that are designed to be called to manage the Materilaised views and within this category there are three further   |
-|    sections                                                                                                                     |
-|       o   Functions that are used for the management of Materialized View Objects                                               |
-|       o   Functions that refresh the materialized views                                                                         |
-|       o   Functions that provide help                                                                                           |
-|                                                                                                                                 |
-| o  Management Functions, of which there are four commands;                                                                      |
-|       o   mv$createMaterializedView                                                                                             |
-|           Creates a materialized view, as a base table, and then populates the data dictionary table before calling the full    |
-|           refresh routine to populate it.                                                                                       |
-|                                                                                                                                 |
-|           This function performs the following steps                                                                            |
-|           1)  A base table is created based on the select statement provided                                                    |
-|           2)  The MV_M_ROW$_COLUMN column is added to the base table                                                            |
-|           3)  A record of the materialized view is entered into the data dictionary table                                       |
-|           4)  If a materialized view with fast refresh is requested a materialized view log table must have been pre-created    |
-|                                                                                                                                 |
-|           o Arguments:                                                                                                          |
-|               IN      pViewName           The name of the materialized view to be created                                       |
-|               IN      pSelectStatement    The SQL query that will be used to create the view                                    |
-|               IN      pOwner              Optional, where the view is to be created, defaults to current user                   |
-|               IN      pNamedColumns       Optional, allows the view to be created with different column names to the base table |
-|                                           This list is positional so must match the position and number of columns in the       |
-|                                           select statment                                                                       |
-|               IN      pStorageClause      Optional, storage clause for the materialized view                                    |
-|               IN      pFastRefresh        Defaults to FALSE, but if set to yes then materialized view fast refresh is supported |
-|                                                                                                                                 |
-|       o   mv$createMaterializedViewlog                                                                                          |
-|           Creates a materialized view log against the base table, which is mandatory for fast refresh materialized views,       |
-|           sets up the row tracking on the base table, adds a database trigger to the base table and populates the data          |
-|           dictionary tables                                                                                                     |
-|                                                                                                                                 |
-|           This function performs the following steps                                                                            |
-|           1)  The MV_M_ROW$_COLUMN column is added to the base table                                                            |
-|           2)  A log table is created to hold a record of all changes to the base table                                          |
-|           3)  Creates a trigger on the base table to populate the log table                                                     |
-|           4)  A record of the materialized view log is entered into the data dictionary table                                   |
-|                                                                                                                                 |
-|           o Arguments:                                                                                                          |
-|               IN      pTableName          The name of the base table upon which the materialized view is created                |
-|               IN      pOwner              Optional, the owner of the base table, defaults to current user                       |
-|               IN      pStorageClause      Optional, storage clause for the materialized view log                                |
-|                                                                                                                                 |
-|       o   mv$removeMaterializedView                                                                                             |
-|           Removes a materialized view, clears down the entries in the Materialized View Log adn then removes the entry from     |
-|           the data dictionary table                                                                                             |
-|                                                                                                                                 |
-|           This function performs the following steps                                                                            |
-|           1)  Clears the MV Bit from all base tables logs used by thie materialized view                                        |
-|           2)  Drops the materialized view                                                                                       |
-|           4)  Removes the record of the materialized view from the data dictionary table                                        |
-|                                                                                                                                 |
-|           o Arguments:                                                                                                          |
-|               IN      pTableName          The name of the base table upon which the materialized view is created                |
-|               IN      pOwner              Optional, the owner of the base table, defaults to current user                       |
-|                                                                                                                                 |
-|       o   mv$removeMaterializedViewLog                                                                                          |
-|           Removes a materialized view log from the base table.                                                                  |
-|                                                                                                                                 |
-|           This function has the following pre-requisites                                                                        |
-|           1)  All Materialized Views, with an interest in the log, must have been previously removed                            |
-|                                                                                                                                 |
-|           This function performs the following steps                                                                            |
-|           1)  Drops the trigger from the base table                                                                             |
-|           2)  Drops the Materialized View Log table                                                                             |
-|           3)  Removes the MV_M_ROW$_COLUMN column from the base table                                                           |
-|           4)  Removes the record of the materialized view from the data dictionary table                                        |
-|                                                                                                                                 |
-|           o Arguments:                                                                                                          |
-|               IN      pTableName          The name of the base table upon which the materialized view is created                |
-|               IN      pOwner              Optional, the owner of the base table, defaults to current user                       |
-|                                                                                                                                 |
-| o  Refresh Function                                                                                                             |
-|       o   mv$refreshMaterializedView                                                                                            |
-|           Loops through each of the base tables, upon which this materialised view is based, and updates the materialized       |
-|           view for each table in turn                                                                                           |
-|                                                                                                                                 |
-|           o Arguments:                                                                                                          |
-|               IN      pViewName           The name of the base table upon which the materialized view is created                |
-|               IN      pOwner              Optional, the owner of the base table, defaults to current user                       |
-|               IN      pFastRefresh        Defaults to FALSE, but if set to yes then materialized view fast refresh is performed |
-|                                                                                                                                 |
-| o  Help Message                                                                                                                 |
-|       o   mv$help                                                                                                               |
-|           displays this message                                                                                                 |
-|                                                                                                                                 |
-|           o Arguments:                                                                                                          |
-|               IN      none                                                                                                      |
-|                                                                                                                                 |
-|           select mv$help;                                                                                                       |
-+---------------------------------------------------------------------------------------------------------------------------------+
++--------------------------------------------------------------------------------------------------------------------------------+
+| The program is devided into two sections                                                                                       |
+| o  Functions that are designed to be used internally to facilitate the running of the program                                  |
+| o  Functions that are designed to be called to manage the Materilaised views and within this category there are three further  |
+|    sections                                                                                                                    |
+|       o   Functions that are used for the management of Materialized View Objects                                              |
+|       o   Functions that refresh the materialized views                                                                        |
+|       o   Functions that provide help                                                                                          |
+|                                                                                                                                |
+| o  Management Functions, of which there are four commands;                                                                     |
+|       o   mv$createMaterializedView                                                                                            |
+|           Creates a materialized view, as a base table, and then populates the data dictionary table before calling the full   |
+|           refresh routine to populate it.                                                                                      |
+|                                                                                                                                |
+|           This function performs the following steps                                                                           |
+|           1)  A base table is created based on the select statement provided                                                   |
+|           2)  The MV_M_ROW$_COLUMN column is added to the base table                                                           |
+|           3)  A record of the materialized view is entered into the data dictionary table                                      |
+|           4)  If a materialized view with fast refresh is requested a materialized view log table must have been pre-created   |
+|                                                                                                                                |
+|           o Arguments:                                                                                                         |
+|               IN      pViewName           The name of the materialized view to be created                                      |
+|               IN      pSelectStatement    The SQL query that will be used to create the view                                   |
+|               IN      pOwner              Optional, where the view is to be created, defaults to current user                  |
+|               IN      pNamedColumns       Optional, allows the view to be created with different column names to the base table|
+|                                           This list is positional so must match the position and number of columns in the      |
+|                                           select statment                                                                      |
+|               IN      pStorageClause      Optional, storage clause for the materialized view                                   |
+|               IN      pFastRefresh        Defaults to FALSE, but if set to yes then materialized view fast refresh is supported|
+|                                                                                                                                |
+|       o   mv$createMaterializedViewlog                                                                                         |
+|           Creates a materialized view log against the base table, which is mandatory for fast refresh materialized views,      |
+|           sets up the row tracking on the base table, adds a database trigger to the base table and populates the data         |
+|           dictionary tables                                                                                                    |
+|                                                                                                                                |
+|           This function performs the following steps                                                                           |
+|           1)  The MV_M_ROW$_COLUMN column is added to the base table                                                           |
+|           2)  A log table is created to hold a record of all changes to the base table                                         |
+|           3)  Creates a trigger on the base table to populate the log table                                                    |
+|           4)  A record of the materialized view log is entered into the data dictionary table                                  |
+|                                                                                                                                |
+|           o Arguments:                                                                                                         |
+|               IN      pTableName          The name of the base table upon which the materialized view is created               |
+|               IN      pOwner              Optional, the owner of the base table, defaults to current user                      |
+|               IN      pStorageClause      Optional, storage clause for the materialized view log                               |
+|                                                                                                                                |
+|       o   mv$removeMaterializedView                                                                                            |
+|           Removes a materialized view, clears down the entries in the Materialized View Log adn then removes the entry from    |
+|           the data dictionary table                                                                                            |
+|                                                                                                                                |
+|           This function performs the following steps                                                                           |
+|           1)  Clears the MV Bit from all base tables logs used by thie materialized view                                       |
+|           2)  Drops the materialized view                                                                                      |
+|           4)  Removes the record of the materialized view from the data dictionary table                                       |
+|                                                                                                                                |
+|           o Arguments:                                                                                                         |
+|               IN      pTableName          The name of the base table upon which the materialized view is created               |
+|               IN      pOwner              Optional, the owner of the base table, defaults to current user                      |
+|                                                                                                                                |
+|       o   mv$removeMaterializedViewLog                                                                                         |
+|           Removes a materialized view log from the base table.                                                                 |
+|                                                                                                                                |
+|           This function has the following pre-requisites                                                                       |
+|           1)  All Materialized Views, with an interest in the log, must have been previously removed                           |
+|                                                                                                                                |
+|           This function performs the following steps                                                                           |
+|           1)  Drops the trigger from the base table                                                                            |
+|           2)  Drops the Materialized View Log table                                                                            |
+|           3)  Removes the MV_M_ROW$_COLUMN column from the base table                                                          |
+|           4)  Removes the record of the materialized view from the data dictionary table                                       |
+|                                                                                                                                |
+|           o Arguments:                                                                                                         |
+|               IN      pTableName          The name of the base table upon which the materialized view is created               |
+|               IN      pOwner              Optional, the owner of the base table, defaults to current user                      |
+|                                                                                                                                |
+| o  Refresh Function                                                                                                            |
+|       o   mv$refreshMaterializedView                                                                                           |
+|           Loops through each of the base tables, upon which this materialised view is based, and updates the materialized      |
+|           view for each table in turn                                                                                          |
+|                                                                                                                                |
+|           o Arguments:                                                                                                         |
+|               IN      pViewName           The name of the base table upon which the materialized view is created               |
+|               IN      pOwner              Optional, the owner of the base table, defaults to current user                      |
+|               IN      pFastRefresh        Defaults to FALSE, but if set to yes then materialized view fast refresh is performed|
+|                                                                                                                                |
+| o  Help Message                                                                                                                |
+|       o   mv$help                                                                                                              |
+|           displays this message                                                                                                |
+|                                                                                                                                |
+|           o Arguments:                                                                                                         |
+|               IN      none                                                                                                     |
+|                                                                                                                                |
+|           select mv$help;                                                                                                      |
++--------------------------------------------------------------------------------------------------------------------------------+
 ';
     RETURN( rMvConstants );
 END;

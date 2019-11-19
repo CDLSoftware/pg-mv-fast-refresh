@@ -8,6 +8,7 @@ Revision History    Push Down List
 Date        | Name          | Description
 ------------+---------------+-------------------------------------------------------------------------------------------------------
             |               |
+05/11/2019  | M Revitt      | mv$clearPgMvLogTableBits is now a complex function so move it into the conplex script
 11/03/2018  | M Revitt      | Initial version
 ------------+---------------+-------------------------------------------------------------------------------------------------------
 Background:     PostGre does not support Materialized View Fast Refreshes, this suite of scripts is a PL/SQL coded mechanism to
@@ -56,7 +57,7 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 SET     CLIENT_MIN_MESSAGES = ERROR;
 
 DROP FUNCTION IF EXISTS mv$clearAllPgMvLogTableBits;
-DROP FUNCTION IF EXISTS mv$clearAllPgMviewLogBit;
+DROP FUNCTION IF EXISTS mv$clearPgMvLogTableBits;
 DROP FUNCTION IF EXISTS mv$clearPgMviewLogBit;
 DROP FUNCTION IF EXISTS mv$createPgMv$Table;
 DROP FUNCTION IF EXISTS mv$insertMaterializedViewRows;
@@ -122,8 +123,8 @@ Copyright 2018 Amazon.com, Inc. or its affiliates. All Rights Reserved. SPDX-Lic
 DECLARE
 
     cResult         		CHAR(1);
-    aViewLog        		pgmview_logs;
-    aPgMview        		pgmviews;
+    aViewLog        		pg$mview_logs;
+    aPgMview        		pg$mviews;
 	
 	tTableName				TEXT;
 	tDistinctTableArray		TEXT[];
@@ -175,6 +176,89 @@ LANGUAGE    plpgsql
 SECURITY    DEFINER;
 ------------------------------------------------------------------------------------------------------------------------------------
 CREATE OR REPLACE
+FUNCTION    mv$clearPgMvLogTableBits
+            (
+                pConst          IN      mv$allConstants,
+                pOwner          IN      TEXT,
+                pPgLog$Name     IN      TEXT,
+                pBit            IN      SMALLINT,
+                pMaxSequence    IN      BIGINT
+            )
+    RETURNS VOID
+AS
+$BODY$
+/* ---------------------------------------------------------------------------------------------------------------------------------
+Routine Name: mv$clearPgMvLogTableBits
+Author:       Mike Revitt
+Date:         12/11/2018
+------------------------------------------------------------------------------------------------------------------------------------
+Revision History    Push Down List
+------------------------------------------------------------------------------------------------------------------------------------
+Date        | Name          | Description
+------------+---------------+-------------------------------------------------------------------------------------------------------
+            |               |
+11/03/2018  | M Revitt      | Initial version
+------------+---------------+-------------------------------------------------------------------------------------------------------
+Description:    Bitmaps are how we manage multiple registrations against the same base table, every time the recorded row has been
+                applied to the materialized view we remove the bit that signifies the interest from the materialized view log
+
+Notes:          Array Processing command
+
+                UPDATE  cdl_data.log$_t1
+                SET     bitmap$[0] = bitmap$[0] - 1
+                WHERE   sequence$
+                IN(     SELECT  sequence$
+                        FROM    cdl_data.log$_t1
+                        WHERE   bitmap$[0] & 1   = 1
+                        AND     sequence$       <= 9223372036854775807
+                   );
+
+Arguments:      IN      pConst              The memory structure containing all constants
+                IN      pOwner              The owner of the object
+                IN      pPgLog$Name         The name of the materialized view log table
+                IN      pBit                The bit to be cleared from the row
+                IN      pMaxSequence        The maximum value bitmap being used
+Returns:                VOID
+************************************************************************************************************************************
+Copyright 2019 Amazon.com, Inc. or its affiliates. All Rights Reserved. SPDX-License-Identifier: MIT-0
+***********************************************************************************************************************************/
+DECLARE
+
+    tSqlStatement   TEXT;
+    tBitValue       mv$bitValue;
+    
+BEGIN
+
+    tBitValue       := mv$getBitValue( pConst, pBit );
+    tSqlStatement   := pConst.UPDATE_COMMAND        || pOwner || pConst.DOT_CHARACTER   || pPgLog$Name  ||
+                       pConst.SET_COMMAND           || pConst.BITMAP_COLUMN             || '[' || tBitValue.BIT_ROW || ']' ||
+                       pConst.EQUALS_COMMAND        || pConst.BITMAP_COLUMN             || '[' || tBitValue.BIT_ROW || ']' ||
+                                                       pConst.SUBTRACT_COMMAND          ||        tBitValue.BIT_MAP ||
+                       pConst.WHERE_COMMAND         || pConst.MV_SEQUENCE$_COLUMN       ||
+                       pConst.IN_SELECT_COMMAND     || pConst.MV_SEQUENCE$_COLUMN       ||
+                       pConst.FROM_COMMAND          || pOwner || pConst.DOT_CHARACTER   || pPgLog$Name  ||
+                       pConst.WHERE_COMMAND         || pConst.BITMAP_COLUMN             || '[' || tBitValue.BIT_ROW || ']' ||
+                       pConst.BITAND_COMMAND        || tBitValue.BIT_MAP                ||
+                                                       pConst.EQUALS_COMMAND            || tBitValue.BIT_MAP            ||
+                       pConst.AND_COMMAND           || pConst.MV_SEQUENCE$_COLUMN       || pConst.LESS_THAN_EQUAL       ||
+                       pMaxSequence                 || pConst.CLOSE_BRACKET;
+
+    EXECUTE tSqlStatement;
+    RETURN;
+
+    EXCEPTION
+    WHEN OTHERS
+    THEN
+        RAISE INFO      'Exception in function mv$clearPgMvLogTableBits';
+        RAISE INFO      'Error %:- %:',     SQLSTATE, SQLERRM;
+        RAISE INFO      'Error Context:% %',CHR(10),  tSqlStatement;
+        RAISE EXCEPTION '%',                SQLSTATE;
+END;
+$BODY$
+LANGUAGE    plpgsql
+SECURITY    DEFINER;
+------------------------------------------------------------------------------------------------------------------------------------
+CREATE OR REPLACE
 FUNCTION    mv$clearPgMviewLogBit
             (
                 pConst      IN      mv$allConstants,
@@ -193,7 +277,8 @@ Revision History    Push Down List
 ------------------------------------------------------------------------------------------------------------------------------------
 Date        | Name          | Description
 ------------+---------------+-------------------------------------------------------------------------------------------------------
-17/09/2019  | D Day         | Bug fix - Added logic to ignore table name if it already exists to stop pgmview_logs table
+30/11/2019  | M Revitt      | Use mv$bitValue to accomodate > 62 MV's per base Table
+17/09/2019  | D Day         | Bug fix - Added logic to ignore table name if it already exists to stop pg$mview_logs table
 			|				| pg_mview_bitmap column not being updated multiple times.
 11/03/2018  | M Revitt      | Initial version
 ------------+---------------+-------------------------------------------------------------------------------------------------------
@@ -212,9 +297,9 @@ Copyright 2018 Amazon.com, Inc. or its affiliates. All Rights Reserved. SPDX-Lic
 DECLARE
 
     cResult     			CHAR(1);
-    iBitValue   			INTEGER     := NULL;
-    aViewLog    			pgmview_logs;
-    aPgMview    			pgmviews;
+    tBitValue   			mv$bitValue;
+    aViewLog    			pg$mview_logs;
+    aPgMview    			pg$mviews;
 	
 	tTableName				TEXT;
 	tDistinctTableArray		TEXT[];
@@ -231,32 +316,31 @@ BEGIN
 		tTableName := aPgMview.log_array[i];		
 		tDistinctTableArray[i] := tTableName;
 		
-		SELECT count(1) INTO STRICT iTableAlreadyExistsCnt 
-		FROM (SELECT unnest(tDistinctTableArray) as table_name) inline
-		WHERE inline.table_name = tTableName;
+		SELECT  count(1)
+        INTO    STRICT iTableAlreadyExistsCnt
+		FROM (  SELECT unnest(tDistinctTableArray) as table_name ) inline
+		WHERE   inline.table_name = tTableName;
 		
 		IF iTableAlreadyExistsCnt = 1
 		THEN
 		
-			iBitValue := mv$getBitValue( pConst, aPgMview.bit_array[i] );
+			tBitValue := mv$getBitValue( pConst, aPgMview.bit_array[i] );
 
-			UPDATE  pgmview_logs
-			SET     pg_mview_bitmap = pg_mview_bitmap - iBitValue
-			WHERE   owner           = aViewLog.owner
-			AND     table_name      = aViewLog.table_name;
+			UPDATE  pg$mview_logs
+			SET     pg_mview_bitmap[tBitValue.BIT_ROW]  = pg_mview_bitmap[tBitValue.BIT_ROW] - tBitValue.BIT_MAP
+			WHERE   owner                               = aViewLog.owner
+			AND     table_name                          = aViewLog.table_name;
 		
 		END IF;
-
     END LOOP;
     RETURN;
 
     EXCEPTION
     WHEN OTHERS
     THEN
-        RAISE INFO      'Exception in function mv$clearAllPgMviewLogBit';
+        RAISE INFO      'Exception in function mv$clearPgMviewLogBit';
         RAISE INFO      'Error %:- %:',     SQLSTATE, SQLERRM;
         RAISE EXCEPTION '%',                SQLSTATE;
-
 END;
 $BODY$
 LANGUAGE    plpgsql
@@ -401,7 +485,7 @@ Copyright 2018 Amazon.com, Inc. or its affiliates. All Rights Reserved. SPDX-Lic
 DECLARE
 
     tSqlStatement   TEXT;
-    aPgMview        pgmviews;
+    aPgMview        pg$mviews;
 
 BEGIN
 
@@ -477,11 +561,11 @@ Revision History    Push Down List
 Date        | Name          | Description
 ------------+---------------+-------------------------------------------------------------------------------------------------------
 17/09/2019  | D Day         | Bug fix - Added logic to ignore log table name if it already exists as this was causing the bit value being set incorrectly
-			|				| in the data dictionary table bit_array column in pgmviews table. 
+			|				| in the data dictionary table bit_array column in pg$mviews table.
 11/03/2018  | M Revitt      | Initial version
 ------------+---------------+-------------------------------------------------------------------------------------------------------
 Description:    Every time a new materialized view is created, a record of that view is also created in the data dictionary table
-                pgmviews.
+                pg$mviews.
 
                 This table holds all of the pertinent information about the materialized view which is later used in the management
                 of that view.
@@ -504,9 +588,9 @@ Copyright 2018 Amazon.com, Inc. or its affiliates. All Rights Reserved. SPDX-Lic
 ***********************************************************************************************************************************/
 DECLARE
 
-    aPgMviewLogData pgmview_logs;
+    aPgMviewLogData pg$mview_logs;
 	
-	aPgMviewLogOriginalData pgmview_logs;
+	aPgMviewLogOriginalData pg$mview_logs;
 
     iBit            		SMALLINT    := NULL;
     tLogArray       		TEXT[];
@@ -573,7 +657,7 @@ BEGIN
     END IF;
 
     INSERT
-    INTO    pgmviews
+    INTO    pg$mviews
     (
             owner,
             view_name,
@@ -763,7 +847,7 @@ Description:    Selects all of the data from the materialized view log, in the o
                 removed from the PgMview log row.
 				
 				This is used as part of the initial materialized view creation were all details are loaded into table
-				pgmviews_oj_details which is later used by the refresh procesa.
+				pg$mviews_oj_details which is later used by the refresh procesa.
 
 Arguments:      IN      pOwner              The owner of the object
                 IN      pViewName           The name of the materialized view
@@ -776,26 +860,31 @@ DECLARE
     tLastType       TEXT        := NULL;
     tSqlStatement   TEXT        := NULL;
     cResult         CHAR(1)     := NULL;
-    iArraySeq       INTEGER     := 0;
+    iArraySeq       INTEGER     := pConst.ARRAY_LOWER_VALUE;
     biSequence      BIGINT      := 0;
     biMaxSequence   BIGINT      := 0;
     uRowID          UUID;
     uRowIDArray     UUID[];
 
-    aViewLog        pgmview_logs;
+    aViewLog        pg$mview_logs;
+    tBitValue       mv$bitValue;
 
 BEGIN
 
-    aViewLog := mv$getPgMviewLogTableData( pConst, pTableName );
+    aViewLog    := mv$getPgMviewLogTableData( pConst, pTableName );
+    tBitValue   := mv$getBitValue( pConst, pPgMviewBit );
 
-    tSqlStatement    := pConst.MV_LOG$_SELECT_M_ROW$  || aViewLog.owner || pConst.DOT_CHARACTER || aViewLog.pglog$_name ||
-                        pConst.MV_LOG$_WHERE_BITMAP$  ||
+    tSqlStatement    := pConst.MV_LOG$_SELECT_M_ROW$    || aViewLog.owner || pConst.DOT_CHARACTER   || aViewLog.pglog$_name     ||
+                        pConst.WHERE_COMMAND            || pConst.BITMAP_COLUMN              || '[' || tBitValue.BIT_ROW || ']' ||
+                        pConst.BITAND_COMMAND           || tBitValue.BIT_MAP                 ||
+                        pConst.EQUALS_COMMAND           || tBitValue.BIT_MAP                 ||
                         pConst.MV_LOG$_SELECT_M_ROWS_ORDER_BY;
-
+ 
+ -- SELECT m_row$,sequence$,dmltype$ FROM cdl_data.log$_t1 WHERE bitmap$ &  POWER( 2, $1)::BIGINT =  POWER( 2, $2)::BIGINT ORDER BY sequence$
+ 
     FOR     uRowID, biSequence, tDmlType
     IN
     EXECUTE tSqlStatement
-    USING   pPgMviewBit, pPgMviewBit
     LOOP
         biMaxSequence := biSequence;
 
@@ -909,7 +998,7 @@ Copyright 2018 Amazon.com, Inc. or its affiliates. All Rights Reserved. SPDX-Lic
 DECLARE
 
     cResult     CHAR(1);
-    aPgMview    pgmviews;
+    aPgMview    pg$mviews;
 
 BEGIN
 
@@ -970,7 +1059,7 @@ Copyright 2018 Amazon.com, Inc. or its affiliates. All Rights Reserved. SPDX-Lic
 DECLARE
 
     cResult         CHAR(1);
-    aPgMview        pgmviews;
+    aPgMview        pg$mviews;
     bOuterJoined    BOOLEAN;
 
 BEGIN
@@ -1041,7 +1130,7 @@ Description:    When inserting data into a complex materialized view, it is poss
 
                 So to remove the possibility of duplicate rows we have to look to see if this situation has occured
 
-Arguments:      IN      pMikePgMviews      The record of data for the materialized view
+Arguments:      IN      pMikepg$mviews      The record of data for the materialized view
                 IN      pSourceTableAlias   The alias for the source table in the view create command
                 IN      pRowID              The rowid we are looking for
 Returns:                NULL
@@ -1052,7 +1141,7 @@ DECLARE
 
     tFromClause     TEXT;
     tSqlStatement   TEXT;
-    aPgMview        pgmviews;
+    aPgMview        pg$mviews;
 
 BEGIN
 
@@ -1186,10 +1275,10 @@ DECLARE
 	
 	iWhileCounter					INTEGER DEFAULT 0;
 	iAliasJoinLinksCounter			INTEGER DEFAULT 0;	
-	iMainLoopCounter				INTEGER DEFAULT 0;	
+	iMainLoopCounter				INTEGER DEFAULT 0;
 	iWhileLoopCounter			    INTEGER DEFAULT 0;
 	iLoopCounter					INTEGER DEFAULT 0;
-	iRightLoopCounter				INTEGER DEFAULT 0;	
+	iRightLoopCounter				INTEGER DEFAULT 0;
 	iLeftAliasLoopCounter			INTEGER DEFAULT 0;
 	iRightAliasLoopCounter			INTEGER DEFAULT 0;
 	iLeftLoopCounter				INTEGER DEFAULT 0;
@@ -1265,7 +1354,7 @@ BEGIN
 						IF iLeftAliasLoopCounter > 0 THEN 
 								
 							SELECT 	pChildAliasArray 
-							FROM 	pgrs_mview.mv$checkParentToChildOuterJoinAlias(
+							FROM 	mv$checkParentToChildOuterJoinAlias(
 																pConst
 														,		tOuterJoinAlias
 														,		rMvOuterJoinDetails.left_outer_join
@@ -1362,7 +1451,7 @@ BEGIN
 						IF iRightAliasLoopCounter > 0 THEN 
 								
 							SELECT 	pChildAliasArray 
-							FROM 	pgrs_mview.mv$checkParentToChildOuterJoinAlias(
+							FROM 	mv$checkParentToChildOuterJoinAlias(
 																pConst
 														,		tOuterJoinAlias
 														,		rMvOuterJoinDetails.right_outer_join
@@ -1533,9 +1622,9 @@ BEGIN
 						 tUpdateSetSql || pConst.NEW_LINE ||
 						 tWhereClause;
 		
-		INSERT INTO pgmviews_oj_details
+		INSERT INTO pg$mviews_oj_details
 		(	owner
-		,	pgmv_name
+		,	view_name
 		,	table_alias
 		,   rowid_column_name
 		,   source_table_name
@@ -1617,8 +1706,8 @@ Copyright 2018 Amazon.com, Inc. or its affiliates. All Rights Reserved. SPDX-Lic
 DECLARE
 	
 	
-	rMvOuterJoinDetails				RECORD;	
-	iLoopCounter					INTEGER DEFAULT 0;
+	rMvOuterJoinDetails     RECORD;
+	iLoopCounter            INTEGER DEFAULT 0;
 	
 BEGIN
 
@@ -1720,9 +1809,9 @@ DECLARE
 BEGIN	
 
 	SELECT update_sql INTO tSqlStatement
-	FROM pgmviews_oj_details
+	FROM pg$mviews_oj_details
 	WHERE owner = pOwner
-	AND pgmv_name = pViewName
+	AND view_name = pViewName
 	AND table_alias = ptablealias
 	AND rowid_column_name = pRowidColumn;
 	
@@ -1749,7 +1838,7 @@ FUNCTION    mv$setPgMviewLogBit
                 pConst          IN      mv$allConstants,
                 pOwner          IN      TEXT,
                 pPgLog$Name     IN      TEXT,
-                pPbMviewBitmap  IN      BIGINT
+                pBitmap         IN      BIGINT[]
             )
     RETURNS SMALLINT
 AS
@@ -1780,19 +1869,18 @@ Copyright 2018 Amazon.com, Inc. or its affiliates. All Rights Reserved. SPDX-Lic
 ***********************************************************************************************************************************/
 DECLARE
 
-    iBit        SMALLINT    := NULL;
-    iBitValue   BIGINT      := NULL;
+    tBitValue   mv$bitValue;
 
 BEGIN
-    iBit                := mv$findFirstFreeBit( pConst, pPbMviewBitmap );
-    iBitValue           := mv$getBitValue( pConst, iBit );
 
-    UPDATE  pgmview_logs
-    SET     pg_mview_bitmap = pg_mview_bitmap + iBitValue
+    tBitValue   := mv$findFirstFreeBit( pConst, pBitmap );
+
+    UPDATE  pg$mview_logs
+    SET     pg_mview_bitmap[tBitValue.BIT_ROW] = COALESCE( pg_mview_bitmap[tBitValue.BIT_ROW], pConst.BITMAP_NOT_SET ) + tBitValue.BIT_MAP
     WHERE   owner           = pOwner
     AND     pglog$_name     = pPgLog$Name;
 
-    RETURN( iBit );
+    RETURN( tBitValue.BIT_VALUE );
 
     EXCEPTION
     WHEN OTHERS
@@ -1844,7 +1932,7 @@ DECLARE
 
     cResult         CHAR(1)     := NULL;
     tSqlStatement   TEXT;
-    aPgMview        pgmviews;
+    aPgMview        pg$mviews;
     bBaseRowExists  BOOLEAN := FALSE;
 
 BEGIN

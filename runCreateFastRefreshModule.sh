@@ -31,6 +31,7 @@ echo "INFO: Connect to postgres database $DBNAME via PSQL session" >> $LOG_FILE
   
 	SET search_path = :MODULEOWNER,catalog,public;
 
+   \i :MODULE_HOME/BuildScripts/mvTypes.sql;
    \i :MODULE_HOME/BuildScripts/mvConstants.sql;
    \i :MODULE_HOME/BuildScripts/mvSimpleFunctions.sql;
    \i :MODULE_HOME/BuildScripts/mvComplexFunctions.sql;
@@ -41,6 +42,8 @@ echo "INFO: Connect to postgres database $DBNAME via PSQL session" >> $LOG_FILE
 EOF2
 
 $MODULE_HOME/module_error_chks.sh
+
+echo "Check log file - $LOG_FILE"
 
 exitcode=$?
 if [ $exitcode != 0 ]; then
