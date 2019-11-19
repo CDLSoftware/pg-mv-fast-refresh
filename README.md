@@ -1,58 +1,145 @@
-# pg-mv-fast-refresh
+# Postgres materialized View Fast Refresh module
 
-# Permissions required to build a materialized view based on this structure
+This project enables Postgres fast refresh capability using materialised view logs to track changes and offer an alternative to the complete refresh.
 
-# kingfisher_core - schema used to create materialized view tables inside
-# soe - schema used to hold the tables used as part of the query to create the materialized views
-# pgrs_mview - schema used to hold the fast refresh module objects
-# dbadmin - user used to build the fast refresh module
-# biadmin - user used to build the materialized view logs and materialized view via the fast refresh module
-# strata - database name
+The fast refresh process was designed to be installed into its own schema that contains the functions needed to run the MV process, with three data dictionary tables and 3 roles.  
 
-#Create schema to hold materialized view tables
-
-CREATE USER kingfisher_core WITH
-					LOGIN
-					NOSUPERUSER
-					NOCREATEDB
-					NOCREATEROLE
-					INHERIT
-					NOREPLICATION
-					CONNECTION LIMIT -1
-					PASSWORD '<ENTER_PASSWORD>';
-					
-CREATE SCHEMA IF NOT EXISTS kingfisher_core AUTHORIZATION kingfisher_core;
-
-GRANT ALL ON SCHEMA kingfisher_core TO kingfisher_core;
-
-GRANT kingfisher_core to biadmin;
-
-GRANT SELECT ON ALL TABLES IN SCHEMA soe TO kingfisher_core;
-
-GRANT pgmv$_role TO kingfisher_core;
-
-# Setting search path at database level
-ALTER DATABASE strata SET SEARCH_PATH=public,pgrs_mview,kingfisher_core,soe,biadmin
-
-# Setting search_path at database level should be enough - however if it needs to be set at user level as well here are the commands below:-
-# ALTER   USER        soe						SET     SEARCH_PATH=soe,pgrs_mview,kingfisher_core,public;
-# ALTER   USER        kingfisher_core			SET     SEARCH_PATH=kingfisher_core,soe,pgrs_mview,public;
-# ALTER   USER        pgrs_mview    			SET     SEARCH_PATH=pgrs_mview,soe,kingfisher_core,public;
-# ALTER   USER        dbadmin    				SET     SEARCH_PATH=soe,pgrs_mview,kingfisher_core,public;
-# ALTER   USER        biadmin    				SET     SEARCH_PATH=soe,pgrs_mview,kingfisher_core,public;
-
-# Additional permissions
-
-GRANT pgmv$_role TO biadmin;
-GRANT ALL ON SCHEMA soe TO pgrs_mview;
-GRANT soe TO pgrs_mview;
-GRANT USAGE ON SCHEMA soe TO pgrs_mview;
-GRANT ALL PRIVILEGES ON DATABASE strata TO pgrs_mview;
-GRANT ALL ON SCHEMA kingfisher_core TO pgrs_mview;
-GRANT USAGE ON SCHEMA kingfisher_core TO pgrs_mview;
-GRANT kingfisher_core TO pgrs_mview;
-GRANT pgrs_mview TO kingfisher_core;
-GRANT USAGE ON SCHEMA pgrs_mview TO kingfisher_core;
+The workflow for the MV log creation is shown in the diagram below:
 
 
+The workflow for the MV creation is shown in the diagram below:
 
+
+## Installing the module
+
+The install of the fast refresh functions is designed to live in its own schema in the database that is specified via the MODULEOWNER parameter.  
+
+To install the MV code, you need to navigate to the folder where the repo has been downloaded and edit the module_set_variables.sh file. This is where all the variables are stored for where we want to install the fast refresh functions.  
+
+The SOURCEUSERNAME/SOURCEPASSWORD & MVUSERNAME/MVPASSWORD parameters are not needed to install the fast refresh functions they are used for the test harness set-up.
+
+
+``` bash
+cd pg-mv-fast-refresh
+vi module_set_variables.sh
+
+MODULEOWNER=<MODULEOWNER> - The module owner username
+MODULE_HOME=<MODULE_HOME> - The Module home path 
+MODULEOWNERPASS=<MODULEOWNERPASS> - Password for module owner PGRS_MVIEW
+HOSTNAME=<HOSTNAME> - Hostname for database
+PORT=<PORT>	 - port for database
+DBNAME=<DBNAME>	 - Database Name
+PGUSERNAME=<PGUSERNAME> - DB username for the module installation run
+PGPASSWORD=<PGPASSWORD> - DB username password for the module installation run
+SOURCEUSERNAME=<SOURCEUSERNAME> - DB username for the source tables for the MV
+SOURCEPASSWORD=<SOURCEPASSWORD> - DB password for the source tables user
+MVUSERNAME=<MVUSERNAME> - DB username for the MV owner
+MVPASSWORD=<MVPASSWORD> - DB password for the MV owner
+LOG_FILE=<LOG_PATH> - Path to logfile output location
+
+```
+
+Here is an example of the parameter settings used the test case: we have an RDS instance pg-tonytest.test.com with a database testpoc and a master username dbamin 
+
+The fast refresh functions will be installed under the schema testpoc by the install package. 
+
+We then have a source schema testpocsource. This is where the source data tables will go for the test harness and a testpocmv, which is the schema where the MV will be built.
+
+
+``` bash
+export MODULEOWNER=testpoc
+export MODULE_HOME=/var/lib/pgsql/pg-mv-fast-refresh
+export MODULEOWNERPASS=xxxxxxx
+export HOSTNAME=pg-tonytest.test.com
+export PORT=5432
+export DBNAME=postgres
+export PGUSERNAME=dbadmin
+export PGPASSWORD=xxxxxxx
+export SOURCEUSERNAME=testpocsource
+export SOURCEPASSWORD=xxxxxxx
+export MVUSERNAME=testpocmv
+export MVPASSWORD=xxxxxxx
+export LOG_FILE=/tmp/fast_refresh_module_install_`date +%Y%m%d-%H%M`.log
+
+```
+
+Now change the permissions on the script runCreateFastRefreshModule.sh to execute and then run. 
+
+``` bash
+chmod 700 runCreateFastRefreshModule.sh
+-bash-4.1$ ./runCreateFastRefreshModule.sh
+Check log file - /tmp/fast_refresh_module_install_20191119-1423.log
+-bash-4.1$
+
+```
+
+This should just take seconds to run. When it’s complete, check the log file in the location you set. In my example, it’s in /tmp. The status is shown at the bottom; below is the example of the run I performed.
+
+``` bash
+cat /tmp/fast_refresh_module_install_20191119-1423.log
+INFO: Set variables
+INFO: LOG_FILE parameter set to /tmp/fast_refresh_module_install_20191119-1423.log
+INFO: MODULEOWNER parameter set to testpoc
+INFO: PGUSERNAME parameter set to dbadmin
+INFO: HOSTNAME parameter set to pg-tonytest.test.com
+INFO: PORT parameter set to 5432
+INFO: DBNAME parameter set to postgres
+INFO: MODULE_HOME parameter set to /var/lib/pgsql/pg-mv-fast-refresh
+INFO: Run testpoc schema build script
+INFO: Connect to postgres database postgres via PSQL session
+…….. cut lines………..
+GRANT
+INFO: Running Module Deployment Error Checks
+INFO: All Objects compiled successfully
+INFO: No Errors Found
+INFO: Completed Module Deployment Error Checks
+
+
+```
+
+After this install the functions will be installed under the MODULEOWNER schema.
+
+## Removing the module
+
+To uninstall the module just execute the dropFastRefreshModule.sh script and it will prompt you to ask if you want to remove the module schema.
+
+ ``` bash
+-bash-4.1$ ./dropFastRefreshModule.sh
+Are you sure you want to remove the module schema - testpoc (y/n)?y
+yes selected the schemas - testpoc will be dropped
+INFO: Drop Module Schema complete check logfile for status - /tmp/dropFastRefreshModule_20191119-1430.log
+
+``` 
+
+## Test Harness Install 
+
+There is a test harness script create_test_harness.sh that will create six tables and insert some data into the tables and then create a complex MV.  The script is exceuted as below
+
+The SOURCEUSERNAME/SOURCEPASSWORD & MVUSERNAME/MVPASSWORD parameters are needed in the module_set_variables.sh.  The SOURCEUSERNAME is the schema where the base tables will be created and the MVUSERNAME is the schema where the materialized view will be created.
+
+ ``` bash
+-bash-4.1$ pwd
+/var/lib/pgsql/pg-mv-fast-refresh/test_harness
+-bash-4.1$ ./create_test_harness.sh
+INFO: Build Complete check logfile for status - /tmp/test_harness_install_20191119-1425.log
+```
+
+If you check the output of the log file you will see the objects being created and the MV being created.
+
+## Test Harness Removal
+
+To remove the test harness just execute the drop_test_harness.sh script and this will remove the test objects.
+
+ ``` bash
+-bash-4.1$ ./drop_test_harness.sh
+INFO: Drop Complete check logfile for status - /tmp/test_harness_drop_20191119-1428.log 
+```
+
+## Pipeline Checks
+
+There is a pipeline checks scripts that will install the module, create some test data and build 90 materialized view's then drop all the objects, schemas and users.   This is mandatory to run if you want to contribute to the code it confirms that the modules will deploy ok and the MV's create with no errors.
+
+ ``` bash
+-bash-4.1$ ./run_pipeline_checks.sh
+Tue Nov 19 14:35:15 GMT 2019: Pipeline run with no errors
+```
