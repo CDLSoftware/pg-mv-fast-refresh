@@ -24,7 +24,6 @@ echo "INFO: Connect to postgres database $DBNAME via PSQL session" >> $LOG_FILE
 EOF1
 
 PGPASSWORD=$MODULEOWNERPASS
-echo "this is the pass $MODULEOWNERPASS  this is the pgpassword $PGPASSWORD"
 
 echo "INFO: Run $MODULEOWNER schema object build scripts" >> $LOG_FILE
 echo "INFO: Connect to postgres database $DBNAME via PSQL session" >> $LOG_FILE
