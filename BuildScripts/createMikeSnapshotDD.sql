@@ -122,7 +122,8 @@ CREATE  SCHEMA      :v2 AUTHORIZATION   :v2
             PRIMARY KEY
             (
                 owner,
-                view_name
+                view_name,
+                table_alias
             )
     );
     
