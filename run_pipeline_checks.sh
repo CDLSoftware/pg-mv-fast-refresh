@@ -18,7 +18,7 @@ if [ $# -lt 1 ]; then
    exit 1
 fi
 
-export LOG_FILE=/tmp/pipelinerun_$INSTALLTYPE_`date +%Y%m%d-%H%M`.log
+export LOG_FILE=/tmp/pipelinerun_${INSTALLTYPE}_`date +%Y%m%d-%H%M%S`.log
 echo "INFO: Set variables" >> $LOG_FILE
 echo "INFO: MODULEOWNER parameter set to $MODULEOWNER" >> $LOG_FILE
 echo "INFO: PGUSERNAME parameter set to $PGUSERNAME" >> $LOG_FILE
@@ -28,8 +28,8 @@ echo "INFO: DBNAME parameter set to $DBNAME" >> $LOG_FILE
 echo "INFO: MODULE_HOME parameter set to $MODULE_HOME" >> $LOG_FILE
 PGPASS=$PGPASSWORD
 
-echo "Starting pipeline script with option $INSTALLTYPE" | tee -a $LOG 
-echo "Starting time - $(date)" | tee -a $LOG 
+echo "Starting pipeline script with option $INSTALLTYPE" | tee -a $LOG_FILE
+echo "Starting time - $(date)" | tee -a $LOG_FILE 
 chmod 771 -R $MODULE_HOME/
 
 function buildmodule
@@ -665,7 +665,9 @@ EOF6
 
 echo "INFO: Check the MV's Data" >> $LOG_FILE
 
-export checktestoutput=`psql --host=$HOSTNAME --port=$PORT --username=$MVUSERNAME --dbname=$DBNAME -c "DO
+psql --host=$HOSTNAME --port=$PORT --username=$MVUSERNAME --dbname=$DBNAME << EOF6 >> $LOG_FILE 2>&1
+
+DO
 \$\$
 DECLARE
     each_row   record;
@@ -681,11 +683,14 @@ BEGIN
 	 raise info '%', testout;
    END LOOP;
 END
-\$\$;"`
+\$\$;
+
+EOF6
+
 
 echo "test output $checktestoutput" >> $LOG_FILE
 
-checkuser_checktestoutput=`echo $checkuser |grep "INFO:  1" | wc -l`
+checkuser_checktestoutput=`cat $LOG_FILE |grep "INFO:  1" | wc -l`
 
 if [ $checkuser_checktestoutput -gt 0 ]; then
      echo "ERROR Problems with the test data" >> $LOG_FILE
@@ -753,6 +758,7 @@ echo "Stage 6: Check for problems" | tee -a $LOG_FILE
 problemcheck
 elif [ "$INSTALLTYPE" = test ]; then
 echo "Stage 1: Test phase " | tee -a $LOG_FILE
+testing
 echo "Stage 2: Check for problems" | tee -a $LOG_FILE
 problemcheck
 elif [ "$INSTALLTYPE" = destroy ]; then
