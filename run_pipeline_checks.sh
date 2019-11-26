@@ -6,6 +6,7 @@
 # Date:      Who:       Desc:
 # 19/11/19   T.Mullen   Initial;
 # 25/11/19   T.Mullen   amended to breakdown the run types;
+# 26/11/19   T.Mullen   updating the testing stages;
 #
 
 . ./module_set_variables.sh
@@ -579,6 +580,123 @@ psql --host=$HOSTNAME --port=$PORT --username=$PGUSERNAME --dbname=$DBNAME << EO
  DROP ROLE pgmv\$_usage;
 
 EOF1
+}
+
+function testing
+{
+echo "INFO: Updating test1 table $SCHEMAUSERNAME " >> $LOG_FILE
+
+PGPASSWORD=$SOURCEPASSWORD
+
+
+psql --host=$HOSTNAME --port=$PORT --username=$SOURCEUSERNAME --dbname=$DBNAME << EOF3 >> $LOG_FILE 2>&1
+
+UPDATE $SOURCEUSERNAME.test1 set code='yo' where code='hello';
+
+EOF3
+
+
+echo "INFO: Refreshing the MV's" >> $LOG_FILE
+
+psql --host=$HOSTNAME --port=$PORT --username=$MVUSERNAME --dbname=$DBNAME << EOF6 >> $LOG_FILE 2>&1
+
+DO
+\$do\$
+DECLARE
+    tStartTime  TIMESTAMP   := clock_timestamp();
+    cResult     CHAR(1)     := NULL;
+    iTableCounter   SMALLINT    := 10;
+BEGIN
+    FOR iTableCounter IN 10 .. 20
+    LOOP
+    cResult := mv\$refreshMaterializedView
+    (
+        pViewName       => 'mvtesting' || iTableCounter,
+        pOwner          => '$MVUSERNAME',
+        pFastRefresh    =>  TRUE
+    );
+    END LOOP;
+    RAISE NOTICE 'Fast Snapshot Refresh took % % %', clock_timestamp() - tStartTime, chr(10), chr(10);
+END
+\$do\$;
+
+DO
+\$do\$
+DECLARE
+    tStartTime  TIMESTAMP   := clock_timestamp();
+    cResult     CHAR(1)     := NULL;
+    iTableCounter   SMALLINT    := 10;
+BEGIN
+    FOR iTableCounter IN 70 .. 100
+    LOOP
+    cResult := mv\$refreshMaterializedView
+    (
+        pViewName       => 'mvtesting' || iTableCounter,
+        pOwner          => '$MVUSERNAME',
+        pFastRefresh    =>  TRUE
+    );
+    END LOOP;
+    RAISE NOTICE 'Fast Snapshot Refresh took % % %', clock_timestamp() - tStartTime, chr(10), chr(10);
+END
+\$do\$;
+
+
+DO
+\$do\$
+DECLARE
+    tStartTime  TIMESTAMP   := clock_timestamp();
+    cResult     CHAR(1)     := NULL;
+    iTableCounter   SMALLINT    := 10;
+BEGIN
+    FOR iTableCounter IN 21 .. 69
+    LOOP
+    cResult := mv\$refreshMaterializedView
+    (
+        pViewName       => 'mvtesting' || iTableCounter,
+        pOwner          => '$MVUSERNAME',
+        pFastRefresh    =>  TRUE
+    );
+    END LOOP;
+    RAISE NOTICE 'Fast Snapshot Refresh took % % %', clock_timestamp() - tStartTime, chr(10), chr(10);
+END
+\$do\$;
+
+EOF6
+
+echo "INFO: Check the MV's Data" >> $LOG_FILE
+
+export checktestoutput=`psql --host=$HOSTNAME --port=$PORT --username=$MVUSERNAME --dbname=$DBNAME -c "DO
+\$\$
+DECLARE
+    each_row   record;
+    testout bigint;
+BEGIN
+   FOR each_row IN
+    SELECT 'select count(*) from ' || table_name || ' where test1_code=''hello'';' AS alter_sql
+		FROM information_schema.tables
+		WHERE table_schema = 'testpocview'
+   LOOP
+     EXECUTE each_row.alter_sql into testout;
+	 raise info '%', each_row.alter_sql;
+	 raise info '%', testout;
+   END LOOP;
+END
+\$\$;"`
+
+echo "test output $checktestoutput" >> $LOG_FILE
+
+checkuser_checktestoutput=`echo $checkuser |grep "INFO:  1" | wc -l`
+
+if [ $checkuser_checktestoutput -gt 0 ]; then
+     echo "ERROR Problems with the test data" >> $LOG_FILE
+     echo "Output from checks" >> $LOG_FILE
+     echo "$checktestoutput" >> $LOG_FILE
+     else
+     echo "Test data checks all ok" | tee -a $LOG
+
+fi
+
+
 }
 
 
