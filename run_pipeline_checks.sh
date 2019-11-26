@@ -582,7 +582,7 @@ psql --host=$HOSTNAME --port=$PORT --username=$PGUSERNAME --dbname=$DBNAME << EO
 EOF1
 }
 
-function testing
+function testing1
 {
 echo "INFO: Updating test1 table $SCHEMAUSERNAME " >> $LOG_FILE
 
@@ -736,11 +736,13 @@ createmvlogs
 echo "Stage 5: Creating 90 test MV's in schema $MVUSERNAME" | tee -a $LOG_FILE
 createtestmv
 echo "Stage 6: Test phase " | tee -a $LOG_FILE
-echo "Stage : Dropping the test harness objects" | tee -a $LOG_FILE
+echo "Stage 6.1: Update 1 row and refresh all MV's " | tee -a $LOG_FILE
+testing1
+echo "Stage 7: Dropping the test harness objects" | tee -a $LOG_FILE
 dropmvschema
 dropsourceschema
 dropmodule
-echo "Stage : Check for problems" | tee -a $LOG_FILE
+echo "Stage 8: Check for problems" | tee -a $LOG_FILE
 problemcheck
 elif [ "$INSTALLTYPE" = build ]; then
 echo "Stage 1: Creating the fast refresh module objects in schemas $MODULEOWNER" | tee -a $LOG_FILE
@@ -758,7 +760,8 @@ echo "Stage 6: Check for problems" | tee -a $LOG_FILE
 problemcheck
 elif [ "$INSTALLTYPE" = test ]; then
 echo "Stage 1: Test phase " | tee -a $LOG_FILE
-testing
+echo "Stage 1.1: Update 1 row and refresh all MV's " | tee -a $LOG_FILE
+testing1
 echo "Stage 2: Check for problems" | tee -a $LOG_FILE
 problemcheck
 elif [ "$INSTALLTYPE" = destroy ]; then
