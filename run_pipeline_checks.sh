@@ -5,11 +5,20 @@
 # Amendment History:
 # Date:      Who:       Desc:
 # 19/11/19   T.Mullen   Initial;
+# 25/11/19   T.Mullen   amended to breakdown the run types;
+# 26/11/19   T.Mullen   updating the testing stages;
 #
 
 . ./module_set_variables.sh
 
-export LOG_FILE=/tmp/pipelinerun_`date +%Y%m%d-%H%M`.log
+export INSTALLTYPE=$1
+
+if [ $# -lt 1 ]; then
+   echo "Usage: $0 type [all|build|test|destroy;"
+   exit 1
+fi
+
+export LOG_FILE=/tmp/pipelinerun_${INSTALLTYPE}_`date +%Y%m%d-%H%M%S`.log
 echo "INFO: Set variables" >> $LOG_FILE
 echo "INFO: MODULEOWNER parameter set to $MODULEOWNER" >> $LOG_FILE
 echo "INFO: PGUSERNAME parameter set to $PGUSERNAME" >> $LOG_FILE
@@ -18,9 +27,13 @@ echo "INFO: PORT parameter set to $PORT" >> $LOG_FILE
 echo "INFO: DBNAME parameter set to $DBNAME" >> $LOG_FILE
 echo "INFO: MODULE_HOME parameter set to $MODULE_HOME" >> $LOG_FILE
 PGPASS=$PGPASSWORD
-echo "Starting pipeline run" >> $LOG_FILE
 
+echo "Starting pipeline script with option $INSTALLTYPE" | tee -a $LOG_FILE
+echo "Starting time - $(date)" | tee -a $LOG_FILE 
 chmod 771 -R $MODULE_HOME/
+
+function buildmodule
+{
 
 echo "INFO: Run $MODULEOWNER schema build script" >> $LOG_FILE
 echo "INFO: Connect to postgres database $DBNAME via PSQL session" >> $LOG_FILE
@@ -52,10 +65,14 @@ EOF2
 
 $MODULE_HOME/module_error_chks.sh
 
-echo "Starting building schemas " >> $LOG_FILE
+}
+
+
 
 function createsourceschema
 {
+
+echo "Starting building schemas " >> $LOG_FILE
 
 echo "INFO: Creating Source Schema $SOURCEUSERNAME " >> $LOG_FILE
 
@@ -142,7 +159,7 @@ GRANT USAGE ON SCHEMA $MVUSERNAME  TO $MODULEOWNER;
 GRANT $MODULEOWNER TO $MVUSERNAME;
 GRANT USAGE ON SCHEMA $MODULEOWNER TO $MVUSERNAME;
 GRANT ALL ON SCHEMA $SOURCEUSERNAME TO $MODULEOWNER;
-GRANT   $SOURCEUSERNAME,$MVUSERNAME     TO dbadmin;
+GRANT   $SOURCEUSERNAME,$MVUSERNAME     TO $PGUSERNAME;
 GRANT   $SOURCEUSERNAME TO   $MODULEOWNER;
 GRANT   pgmv\$_view, pgmv\$_usage                     TO      $MVUSERNAME;
 GRANT   pgmv\$_view, pgmv\$_usage,    pgmv\$_execute   TO      $SOURCEUSERNAME;
@@ -452,17 +469,51 @@ END
 EOF5
 }
 
-createsourceschema
-createmvschema
-createtestdata
-createmvlogs
-createtestmv
-
-echo "INFO: Dropping the test harness objects" >> $LOG_FILE
-
 
 function dropmvschema
 {
+
+echo "INFO: Dropping MV's" >> $LOG_FILE
+
+PGPASSWORD=$MVPASSWORD
+psql --host=$HOSTNAME --port=$PORT --username=$MVUSERNAME --dbname=$DBNAME << EOF5 >> $LOG_FILE 2>&1
+
+DO
+\$do\$
+DECLARE
+	cResult         CHAR(1)     := NULL;
+	iTableCounter   SMALLINT    := 10;
+BEGIN
+	FOR iTableCounter IN 10 .. 100 
+    	LOOP
+    	cResult := mv\$removeMaterializedView( 'mvtesting' || iTableCounter, '$MVUSERNAME' );
+    	END LOOP;
+END
+\$do\$;
+
+EOF5
+
+echo "INFO: Dropping MV logs" >> $LOG_FILE
+
+PGPASSWORD=$SOURCEPASSWORD
+psql --host=$HOSTNAME --port=$PORT --username=$SOURCEUSERNAME --dbname=$DBNAME << EOF4 >> $LOG_FILE 2>&1
+
+DO
+\$do\$
+DECLARE
+    cResult         CHAR(1)     := NULL;
+BEGIN
+    cResult := mv\$removeMaterializedViewLog( 'test1', '$SOURCEUSERNAME' );
+    cResult := mv\$removeMaterializedViewLog( 'test2', '$SOURCEUSERNAME' );
+    cResult := mv\$removeMaterializedViewLog( 'test3', '$SOURCEUSERNAME' );
+    cResult := mv\$removeMaterializedViewLog( 'test4', '$SOURCEUSERNAME' );
+    cResult := mv\$removeMaterializedViewLog( 'test5', '$SOURCEUSERNAME' );
+    cResult := mv\$removeMaterializedViewLog( 'test6', '$SOURCEUSERNAME' );
+END
+\$do\$;
+
+EOF4
+
 
 echo "INFO: Dropping MV user $MVUSERNAME " >> $LOG_FILE
 
@@ -508,9 +559,6 @@ psql --host=$HOSTNAME --port=$PORT --username=$PGUSERNAME --dbname=$DBNAME << EO
 EOF4
 }
 
-dropmvschema
-dropsourceschema
-
 
 function dropmodule
 {
@@ -534,15 +582,197 @@ psql --host=$HOSTNAME --port=$PORT --username=$PGUSERNAME --dbname=$DBNAME << EO
 EOF1
 }
 
-dropmodule
+function testing1
+{
+echo "INFO: Updating test1 table $SCHEMAUSERNAME " >> $LOG_FILE
 
-#Check for errors
-chk_errors=`cat $LOG_FILE |grep -E "ERROR|error|refused|failed" |wc -l`
-if [ $chk_errors -lt 1 ]; then
- echo "$(date): Pipeline run with no errors" | tee -a $LOG
-else
- echo "$(date): ****ERROR - Problems with pipeline run check - $LOG" | tee -a $LOG
-exit 1
+PGPASSWORD=$SOURCEPASSWORD
+
+
+psql --host=$HOSTNAME --port=$PORT --username=$SOURCEUSERNAME --dbname=$DBNAME << EOF3 >> $LOG_FILE 2>&1
+
+UPDATE $SOURCEUSERNAME.test1 set code='yo' where code='hello';
+
+EOF3
+
+
+echo "INFO: Refreshing the MV's" >> $LOG_FILE
+
+psql --host=$HOSTNAME --port=$PORT --username=$MVUSERNAME --dbname=$DBNAME << EOF6 >> $LOG_FILE 2>&1
+
+DO
+\$do\$
+DECLARE
+    tStartTime  TIMESTAMP   := clock_timestamp();
+    cResult     CHAR(1)     := NULL;
+    iTableCounter   SMALLINT    := 10;
+BEGIN
+    FOR iTableCounter IN 10 .. 20
+    LOOP
+    cResult := mv\$refreshMaterializedView
+    (
+        pViewName       => 'mvtesting' || iTableCounter,
+        pOwner          => '$MVUSERNAME',
+        pFastRefresh    =>  TRUE
+    );
+    END LOOP;
+    RAISE NOTICE 'Fast Snapshot Refresh took % % %', clock_timestamp() - tStartTime, chr(10), chr(10);
+END
+\$do\$;
+
+DO
+\$do\$
+DECLARE
+    tStartTime  TIMESTAMP   := clock_timestamp();
+    cResult     CHAR(1)     := NULL;
+    iTableCounter   SMALLINT    := 10;
+BEGIN
+    FOR iTableCounter IN 70 .. 100
+    LOOP
+    cResult := mv\$refreshMaterializedView
+    (
+        pViewName       => 'mvtesting' || iTableCounter,
+        pOwner          => '$MVUSERNAME',
+        pFastRefresh    =>  TRUE
+    );
+    END LOOP;
+    RAISE NOTICE 'Fast Snapshot Refresh took % % %', clock_timestamp() - tStartTime, chr(10), chr(10);
+END
+\$do\$;
+
+
+DO
+\$do\$
+DECLARE
+    tStartTime  TIMESTAMP   := clock_timestamp();
+    cResult     CHAR(1)     := NULL;
+    iTableCounter   SMALLINT    := 10;
+BEGIN
+    FOR iTableCounter IN 21 .. 69
+    LOOP
+    cResult := mv\$refreshMaterializedView
+    (
+        pViewName       => 'mvtesting' || iTableCounter,
+        pOwner          => '$MVUSERNAME',
+        pFastRefresh    =>  TRUE
+    );
+    END LOOP;
+    RAISE NOTICE 'Fast Snapshot Refresh took % % %', clock_timestamp() - tStartTime, chr(10), chr(10);
+END
+\$do\$;
+
+EOF6
+
+echo "INFO: Check the MV's Data" >> $LOG_FILE
+
+psql --host=$HOSTNAME --port=$PORT --username=$MVUSERNAME --dbname=$DBNAME << EOF6 >> $LOG_FILE 2>&1
+
+DO
+\$\$
+DECLARE
+    each_row   record;
+    testout bigint;
+BEGIN
+   FOR each_row IN
+    SELECT 'select count(*) from ' || table_name || ' where test1_code=''hello'';' AS alter_sql
+		FROM information_schema.tables
+		WHERE table_schema = 'testpocview'
+   LOOP
+     EXECUTE each_row.alter_sql into testout;
+	 raise info '%', each_row.alter_sql;
+	 raise info '%', testout;
+   END LOOP;
+END
+\$\$;
+
+EOF6
+
+
+echo "test output $checktestoutput" >> $LOG_FILE
+
+checkuser_checktestoutput=`cat $LOG_FILE |grep "INFO:  1" | wc -l`
+
+if [ $checkuser_checktestoutput -gt 0 ]; then
+     echo "ERROR Problems with the test data" >> $LOG_FILE
+     echo "Output from checks" >> $LOG_FILE
+     echo "$checktestoutput" >> $LOG_FILE
+     else
+     echo "Test data checks all ok" | tee -a $LOG
+
 fi
 
 
+}
+
+
+function problemcheck
+{
+#Check for Problem 
+chk_errors=`cat $LOG_FILE |grep -E "ERROR|error|Error|refused|failed" |wc -l`
+if [ $chk_errors -lt 1 ]; then
+ echo "Pipeline run type $INSTALLTYPE ran with no issues" | tee -a $LOG_FILE
+ echo "Run completion time - $(date)" | tee -a $LOG_FILE
+else
+ echo "Problems with run type $INSTALLTYPE check logfile for detailed view - $LOG_FILE" | tee -a $LOG_FILE
+ runerrors=`cat $LOG_FILE |grep -E "ERROR|error|Error|refused|failed"`
+ echo "Problems with the run below" | tee -a $LOG_FILE 
+ echo "$runerrors" | tee -a $LOG_FILE 
+ echo "Run completion time - $(date)" | tee -a $LOG_FILE
+exit 1
+fi
+}
+
+#Install Type
+if [ "$INSTALLTYPE" = all ]; then
+echo "Stage 1: Creating the fast refresh module objects in schemas $MODULEOWNER" | tee -a $LOG_FILE
+buildmodule
+echo "Stage 2: Creating the schemas $SOURCEUSERNAME and $MVUSERNAME" | tee -a $LOG_FILE
+createsourceschema
+createmvschema
+echo "Stage 3: Creating the test objects and data in schema $SOURCEUSERNAME" | tee -a $LOG_FILE
+createtestdata
+echo "Stage 4: Creating the MV logs in $SOURCEUSERNAME" | tee -a $LOG_FILE
+createmvlogs
+echo "Stage 5: Creating 90 test MV's in schema $MVUSERNAME" | tee -a $LOG_FILE
+createtestmv
+echo "Stage 6: Test phase " | tee -a $LOG_FILE
+echo "Stage 6.1: Update 1 row and refresh all MV's " | tee -a $LOG_FILE
+testing1
+echo "Stage 7: Dropping the test harness objects" | tee -a $LOG_FILE
+dropmvschema
+dropsourceschema
+dropmodule
+echo "Stage 8: Check for problems" | tee -a $LOG_FILE
+problemcheck
+elif [ "$INSTALLTYPE" = build ]; then
+echo "Stage 1: Creating the fast refresh module objects in schemas $MODULEOWNER" | tee -a $LOG_FILE
+buildmodule
+echo "Stage 2: Creating the schemas $SOURCEUSERNAME and $MVUSERNAME" | tee -a $LOG_FILE
+createsourceschema
+createmvschema
+echo "Stage 3: Creating the test objects and data in schema $SOURCEUSERNAME" | tee -a $LOG_FILE
+createtestdata
+echo "Stage 4: Creating the MV logs in $SOURCEUSERNAME" | tee -a $LOG_FILE
+createmvlogs
+echo "Stage 5: Creating 90 test MV's in schema $MVUSERNAME" | tee -a $LOG_FILE
+createtestmv
+echo "Stage 6: Check for problems" | tee -a $LOG_FILE
+problemcheck
+elif [ "$INSTALLTYPE" = test ]; then
+echo "Stage 1: Test phase " | tee -a $LOG_FILE
+echo "Stage 1.1: Update 1 row and refresh all MV's " | tee -a $LOG_FILE
+testing1
+echo "Stage 2: Check for problems" | tee -a $LOG_FILE
+problemcheck
+elif [ "$INSTALLTYPE" = destroy ]; then
+echo "Stage 1: Dropping the test harness objects" | tee -a $LOG_FILE
+dropmvschema
+dropsourceschema
+dropmodule
+echo "Stage 2: Check for problems" | tee -a $LOG_FILE
+problemcheck
+else
+echo "$(date): Incorrect option must be all, build, test or destroy"
+exit 1
+
+fi
