@@ -102,8 +102,8 @@ After this install the functions will be installed under the MODULEOWNER schema.
 ## Removing the module
 
 To uninstall the module just execute the dropFastRefreshModule.sh script and it will prompt you to ask if you want to remove the module schema.
-
- ``` bash
+ 
+``` bash
 $ ./dropFastRefreshModule.sh
 Are you sure you want to remove the module schema - testpoc (y/n)?y
 yes selected the schemas - testpoc will be dropped
@@ -117,7 +117,7 @@ There is a test harness script create_test_harness.sh that will create six table
 
 The SOURCEUSERNAME/SOURCEPASSWORD & MVUSERNAME/MVPASSWORD parameters are needed in the module_set_variables.sh.  The SOURCEUSERNAME is the schema where the base tables will be created and the MVUSERNAME is the schema where the materialized view will be created.
 
- ``` bash
+``` bash
 $ pwd
 /var/lib/pgsql/pg-mv-fast-refresh/test_harness
 $ ./create_test_harness.sh
@@ -130,7 +130,7 @@ If you check the output of the log file you will see the objects being created a
 
 To remove the test harness just execute the drop_test_harness.sh script and this will remove the test objects.
 
- ``` bash
+``` bash
 $ ./drop_test_harness.sh
 INFO: Drop Complete check logfile for status - /tmp/test_harness_drop_20191119-1428.log 
 
@@ -140,7 +140,7 @@ INFO: Drop Complete check logfile for status - /tmp/test_harness_drop_20191119-1
 
 There is a pipeline checks scripts that will install the module, create some test data and build 90 materialized view's then drop all the objects, schemas and users.   This is mandatory to run if you want to contribute to the code it confirms that the modules will deploy ok and the MV's create with no errors.
 
- ``` bash
+``` bash
 $ ./run_pipeline_checks.sh all
 Starting pipeline script with option all
 Starting time - Mon Dec 16 12:54:08 UTC 2019
