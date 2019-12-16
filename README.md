@@ -67,9 +67,9 @@ Now change the permissions on the script runCreateFastRefreshModule.sh to execut
 
 ``` bash
 chmod 700 runCreateFastRefreshModule.sh
--bash-4.1$ ./runCreateFastRefreshModule.sh
+$ ./runCreateFastRefreshModule.sh
 Check log file - /tmp/fast_refresh_module_install_20191119-1423.log
--bash-4.1$
+$
 
 ```
 
@@ -104,7 +104,7 @@ After this install the functions will be installed under the MODULEOWNER schema.
 To uninstall the module just execute the dropFastRefreshModule.sh script and it will prompt you to ask if you want to remove the module schema.
 
  ``` bash
--bash-4.1$ ./dropFastRefreshModule.sh
+$ ./dropFastRefreshModule.sh
 Are you sure you want to remove the module schema - testpoc (y/n)?y
 yes selected the schemas - testpoc will be dropped
 INFO: Drop Module Schema complete check logfile for status - /tmp/dropFastRefreshModule_20191119-1430.log
@@ -131,7 +131,7 @@ If you check the output of the log file you will see the objects being created a
 To remove the test harness just execute the drop_test_harness.sh script and this will remove the test objects.
 
  ``` bash
--bash-4.1$ ./drop_test_harness.sh
+$ ./drop_test_harness.sh
 INFO: Drop Complete check logfile for status - /tmp/test_harness_drop_20191119-1428.log 
 
 ```
@@ -141,7 +141,7 @@ INFO: Drop Complete check logfile for status - /tmp/test_harness_drop_20191119-1
 There is a pipeline checks scripts that will install the module, create some test data and build 90 materialized view's then drop all the objects, schemas and users.   This is mandatory to run if you want to contribute to the code it confirms that the modules will deploy ok and the MV's create with no errors.
 
  ``` bash
--bash-4.2$ ./run_pipeline_checks.sh all
+$ ./run_pipeline_checks.sh all
 Starting pipeline script with option all
 Starting time - Mon Dec 16 12:54:08 UTC 2019
 Stage 1: Creating the fast refresh module objects in schemas testpoc
