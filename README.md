@@ -140,6 +140,18 @@ INFO: Drop Complete check logfile for status - /tmp/test_harness_drop_20191119-1
 There is a pipeline checks scripts that will install the module, create some test data and build 90 materialized view's then drop all the objects, schemas and users.   This is mandatory to run if you want to contribute to the code it confirms that the modules will deploy ok and the MV's create with no errors.
 
  ``` bash
--bash-4.1$ ./run_pipeline_checks.sh
-Tue Nov 19 14:35:15 GMT 2019: Pipeline run with no errors
+-bash-4.2$ ./run_pipeline_checks.sh all
+Starting pipeline script with option all
+Starting time - Mon Dec 16 12:54:08 UTC 2019
+Stage 1: Creating the fast refresh module objects in schemas testpoc
+Stage 2: Creating the schemas testpocdata and testpocview
+Stage 3: Creating the test objects and data in schema testpocdata
+Stage 4: Creating the MV logs in testpocdata
+Stage 5: Creating 90 test MV's in schema testpocview
+Stage 6: Test phase
+Stage 6.1: Update 1 row and refresh all MV's
+Stage 7: Dropping the test harness objects
+Stage 8: Check for problems
+Pipeline run type all ran with no issues
+Run completion time - Mon Dec 16 12:55:02 UTC 2019
 ```
