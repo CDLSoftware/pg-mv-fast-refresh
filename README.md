@@ -118,9 +118,9 @@ There is a test harness script create_test_harness.sh that will create six table
 The SOURCEUSERNAME/SOURCEPASSWORD & MVUSERNAME/MVPASSWORD parameters are needed in the module_set_variables.sh.  The SOURCEUSERNAME is the schema where the base tables will be created and the MVUSERNAME is the schema where the materialized view will be created.
 
  ``` bash
--bash-4.1$ pwd
+$ pwd
 /var/lib/pgsql/pg-mv-fast-refresh/test_harness
--bash-4.1$ ./create_test_harness.sh
+$ ./create_test_harness.sh
 INFO: Build Complete check logfile for status - /tmp/test_harness_install_20191119-1425.log
 ```
 
