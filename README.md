@@ -133,6 +133,7 @@ To remove the test harness just execute the drop_test_harness.sh script and this
  ``` bash
 -bash-4.1$ ./drop_test_harness.sh
 INFO: Drop Complete check logfile for status - /tmp/test_harness_drop_20191119-1428.log 
+
 ```
 
 ## Pipeline Checks
@@ -154,4 +155,5 @@ Stage 7: Dropping the test harness objects
 Stage 8: Check for problems
 Pipeline run type all ran with no issues
 Run completion time - Mon Dec 16 12:55:02 UTC 2019
+
 ```
