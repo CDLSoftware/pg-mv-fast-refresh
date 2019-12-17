@@ -9,8 +9,8 @@ Build:
        - /usr/local/bin/docker-entrypoint.sh postgres &
        - sleep 10
        - echo Starting pipeline build
-       - cd /builds/cheshire-datasystems/dba-team/dba-postgres-fast-refresh
-       - /builds/cheshire-datasystems/dba-team/dba-postgres-fast-refresh/run_pipeline_checks.sh build
+       - cd /builds/cheshire-datasystems/dba-team/dba-postgres-fast-refresh-githubrunner
+       - /builds/cheshire-datasystems/dba-team/dba-postgres-fast-refresh-githubrunner/run_pipeline_checks.sh build
 
 MV-Refresh:
      stage: test
@@ -21,11 +21,11 @@ MV-Refresh:
        - /usr/local/bin/docker-entrypoint.sh postgres &
        - sleep 10
        - echo Starting pipeline build
-       - cd /builds/cheshire-datasystems/dba-team/dba-postgres-fast-refresh
-       - /builds/cheshire-datasystems/dba-team/dba-postgres-fast-refresh/run_pipeline_checks.sh build
+       - cd /builds/cheshire-datasystems/dba-team/dba-postgres-fast-refresh-githubrunner
+       - /builds/cheshire-datasystems/dba-team/dba-postgres-fast-refresh-githubrunner/run_pipeline_checks.sh build
        - echo Starting pipeline MV refresh
-       - cd /builds/cheshire-datasystems/dba-team/dba-postgres-fast-refresh
-       - /builds/cheshire-datasystems/dba-team/dba-postgres-fast-refresh/run_pipeline_checks.sh test
+       - cd /builds/cheshire-datasystems/dba-team/dba-postgres-fast-refresh-githubrunner
+       - /builds/cheshire-datasystems/dba-team/dba-postgres-fast-refresh-githubrunner/run_pipeline_checks.sh test
  
 Module-Destroy:
      stage: test
@@ -36,8 +36,8 @@ Module-Destroy:
        - /usr/local/bin/docker-entrypoint.sh postgres &
        - sleep 10
        - echo Starting pipeline build
-       - cd /builds/cheshire-datasystems/dba-team/dba-postgres-fast-refresh
-       - /builds/cheshire-datasystems/dba-team/dba-postgres-fast-refresh/run_pipeline_checks.sh build
+       - cd /builds/cheshire-datasystems/dba-team/dba-postgres-fast-refresh-githubrunner
+       - /builds/cheshire-datasystems/dba-team/dba-postgres-fast-refresh-githubrunner/run_pipeline_checks.sh build
        - echo Starting destroy of module
-       - cd /builds/cheshire-datasystems/dba-team/dba-postgres-fast-refresh
-       - /builds/cheshire-datasystems/dba-team/dba-postgres-fast-refresh/run_pipeline_checks.sh destroy
+       - cd /builds/cheshire-datasystems/dba-team/dba-postgres-fast-refresh-githubrunner
+       - /builds/cheshire-datasystems/dba-team/dba-postgres-fast-refresh-githubrunner/run_pipeline_checks.sh destroy
