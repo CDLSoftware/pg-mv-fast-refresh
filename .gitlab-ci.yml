@@ -43,7 +43,5 @@ Module-Destroy:
        - /builds/cheshire-datasystems/dba-team/dba-postgres-fast-refresh-githubrunner/run_pipeline_checks.sh build
        - echo Starting destroy of module
        - cd /builds/cheshire-datasystems/dba-team/dba-postgres-fast-refresh-githubrunner
-       - /builds/cheshire-datasystems/dba-team/dba-postgres-fast-refresh-githubrunner/run_pipeline_checks.sh destroy
-       
-
+       - /builds/cheshire-datasystems/dba-team/dba-postgres-fast-refresh-githubrunner/run_pipeline_checks.sh destroy     
 
