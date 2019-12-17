@@ -1,0 +1,43 @@
+image: postgres:11
+
+Build:
+     stage: build
+     tags:
+       - dev
+     script:
+       - echo Starting postgres
+       - /usr/local/bin/docker-entrypoint.sh postgres &
+       - sleep 10
+       - echo Starting pipeline build
+       - cd /builds/cheshire-datasystems/dba-team/dba-postgres-fast-refresh
+       - /builds/cheshire-datasystems/dba-team/dba-postgres-fast-refresh/run_pipeline_checks.sh build
+
+MV-Refresh:
+     stage: test
+     tags:
+       - dev
+     script:
+       - echo Starting postgres
+       - /usr/local/bin/docker-entrypoint.sh postgres &
+       - sleep 10
+       - echo Starting pipeline build
+       - cd /builds/cheshire-datasystems/dba-team/dba-postgres-fast-refresh
+       - /builds/cheshire-datasystems/dba-team/dba-postgres-fast-refresh/run_pipeline_checks.sh build
+       - echo Starting pipeline MV refresh
+       - cd /builds/cheshire-datasystems/dba-team/dba-postgres-fast-refresh
+       - /builds/cheshire-datasystems/dba-team/dba-postgres-fast-refresh/run_pipeline_checks.sh test
+ 
+Module-Destroy:
+     stage: test
+     tags:
+       - dev
+     script:
+       - echo Starting postgres
+       - /usr/local/bin/docker-entrypoint.sh postgres &
+       - sleep 10
+       - echo Starting pipeline build
+       - cd /builds/cheshire-datasystems/dba-team/dba-postgres-fast-refresh
+       - /builds/cheshire-datasystems/dba-team/dba-postgres-fast-refresh/run_pipeline_checks.sh build
+       - echo Starting destroy of module
+       - cd /builds/cheshire-datasystems/dba-team/dba-postgres-fast-refresh
+       - /builds/cheshire-datasystems/dba-team/dba-postgres-fast-refresh/run_pipeline_checks.sh destroy
