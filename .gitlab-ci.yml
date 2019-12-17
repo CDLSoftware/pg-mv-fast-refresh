@@ -10,7 +10,9 @@ Build:
        - sleep 10
        - echo Starting pipeline build
        - cd /builds/cheshire-datasystems/dba-team/dba-postgres-fast-refresh-githubrunner
+       - cp .pipeline_module_set_variables.sh module_set_variables.sh 
        - ls -lrt
+       - cat module_set_variables.sh 
        
 
 
