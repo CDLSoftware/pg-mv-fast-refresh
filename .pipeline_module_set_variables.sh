@@ -29,7 +29,7 @@
 # Set module deployment variables
 
 export MODULEOWNER=testpoc
-export MODULE_HOME=/builds/cheshire-datasystems/dba-team/dba-postgres-fast-refresh-githubrunner
+export MODULE_HOME=/builds/cheshire-datasystems/dba-team/pg-mv-fast-refresh-githubrunner
 export MODULEOWNERPASS=password1234
 export HOSTNAME=localhost
 export PORT=5432
