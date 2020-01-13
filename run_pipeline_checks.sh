@@ -7,6 +7,7 @@
 # 19/11/19   T.Mullen   Initial;
 # 25/11/19   T.Mullen   amended to breakdown the run types;
 # 26/11/19   T.Mullen   updating the testing stages;
+# 13/03/20   T.Mullen   updating the permissions for module home;
 #
 
 . ./module_set_variables.sh
@@ -30,7 +31,7 @@ PGPASS=$PGPASSWORD
 
 echo "Starting pipeline script with option $INSTALLTYPE" | tee -a $LOG_FILE
 echo "Starting time - $(date)" | tee -a $LOG_FILE 
-chmod 771 -R $MODULE_HOME/
+chmod 771 $MODULE_HOME/*.sh
 
 function buildmodule
 {
