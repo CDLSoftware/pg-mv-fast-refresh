@@ -129,7 +129,7 @@ BEGIN
 -- Table and column name definitions
 ------------------------------------------------------------------------------------------------------------------------------------
     rMvConstants.BITMAP_COLUMN                  := 'bitmap$';
-    rMvConstants.ANY_BITMAP_VALUE               := 'ANY( ' || rMvConstants.BITMAP_COLUMN || ' )';
+    rMvConstants.ALL_BITMAP_VALUE               := 'ALL( ' || rMvConstants.BITMAP_COLUMN || ' )';
     rMvConstants.DMLTYPE_COLUMN                 := 'dmltype$';
     rMvConstants.PG_MVIEW_BITMAP                := 'pg_mview_bitmap';
     rMvConstants.MV_M_ROW$_COLUMN               := 'm_row$';
@@ -315,7 +315,7 @@ BEGIN
     rMvConstants.MV_LOG$_SELECT_M_ROWS_ORDER_BY :=  rMvConstants.ORDER_BY_COMMAND           || rMvConstants.MV_SEQUENCE$_COLUMN;
     rMvConstants.MV_LOG$_WHERE_BITMAP_ZERO      :=  rMvConstants.WHERE_COMMAND              ||
                                                     rMvConstants.BITMAP_NOT_SET             || rMvConstants.EQUALS_COMMAND  ||
-                                                                                               rMvConstants.ANY_BITMAP_VALUE;
+                                                                                               rMvConstants.ALL_BITMAP_VALUE;
                                                                                                
 -- SQL String Passing commands
 ------------------------------------------------------------------------------------------------------------------------------------

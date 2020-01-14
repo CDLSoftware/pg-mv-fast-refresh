@@ -175,7 +175,7 @@ AS
     BITMAP_COLUMN_FORMAT            TEXT,
     DMLTYPE_COLUMN                  TEXT,
     DMLTYPE_COLUMN_FORMAT           TEXT,
-    ANY_BITMAP_VALUE                TEXT,
+    ALL_BITMAP_VALUE                TEXT,
     MV_LOG_TABLE_PREFIX             TEXT,
     MV_INDEX_SUFFIX                 TEXT,
     MV_M_ROW$_COLUMN                TEXT,

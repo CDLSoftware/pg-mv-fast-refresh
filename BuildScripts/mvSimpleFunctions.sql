@@ -1295,15 +1295,15 @@ Copyright 2019 Amazon.com, Inc. or its affiliates. All Rights Reserved. SPDX-Lic
 ***********************************************************************************************************************************/
 DECLARE
 
-    iBit        SMALLINT    := pConst.FIRST_PGMVIEW_BIT;
-    iRowBit     SMALLINT    := pConst.FIRST_PGMVIEW_BIT;
-    iBitRow     SMALLINT    := pConst.ARRAY_LOWER_VALUE;
-    iBitValue   mv$bitValue;
+    iBit                SMALLINT    := pConst.FIRST_PGMVIEW_BIT;
+    iRowBit             SMALLINT    := pConst.FIRST_PGMVIEW_BIT;
+    iBitRow             SMALLINT    := pConst.ARRAY_LOWER_VALUE;
+    iBitValue           mv$bitValue;
 
 BEGIN
 
     WHILE ( pBitMap[iBitRow] & POWER( pConst.BASE_TWO, iRowBit )::BIGINT ) <> pConst.BITMAP_NOT_SET
-    AND     pConst.MAX_PGMVIEWS_PER_TABLE >= iBit
+    AND     pConst.MAX_PGMVIEWS_PER_TABLE   >= iBit
     LOOP
         IF pConst.FIRST_PGMVIEW_BIT < iRowBit -- Only increment the row if this is not the first loop
         THEN
@@ -1318,6 +1318,17 @@ BEGIN
             iRowBit := iRowBit + 1;
             iBit    := iBit    + 1;
         END LOOP;
+        
+        IF pConst.MAX_PGMVIEWS_PER_ROW < iRowBit
+        THEN
+            iBitRow := iBitRow + 1;
+            iRowBit := pConst.FIRST_PGMVIEW_BIT;
+            
+            IF pBitMap[iBitRow] IS NULL
+            THEN
+                pBitMap[iBitRow] := pConst.BITMAP_NOT_SET;
+            END IF;
+        END IF;
     END LOOP;
     
     IF pConst.MAX_PGMVIEWS_PER_TABLE < iBit
@@ -1379,8 +1390,8 @@ DECLARE
 BEGIN
 
     iBitValue.BIT_VALUE := pBit;
-    iBitValue.BIT_ROW   := FLOOR ( iBitValue.BIT_VALUE / pConst.MAX_PGMVIEWS_PER_ROW ) + pConst.ARRAY_LOWER_VALUE;
-    iBitValue.ROW_BIT   := MOD(    iBitValue.BIT_VALUE,  pConst.MAX_PGMVIEWS_PER_ROW );
+    iBitValue.BIT_ROW   := FLOOR ( iBitValue.BIT_VALUE / ( pConst.MAX_PGMVIEWS_PER_ROW + 1 )) + pConst.ARRAY_LOWER_VALUE;
+    iBitValue.ROW_BIT   := MOD(    iBitValue.BIT_VALUE,  ( pConst.MAX_PGMVIEWS_PER_ROW + 1 ));
     iBitValue.BIT_MAP   := POWER(  pConst.BASE_TWO, iBitValue.ROW_BIT );
     
     RETURN( iBitValue );
