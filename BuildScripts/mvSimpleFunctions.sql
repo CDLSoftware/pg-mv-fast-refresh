@@ -8,6 +8,8 @@ Revision History    Push Down List
 Date        | Name          | Description
 ------------+---------------+-------------------------------------------------------------------------------------------------------
             |               |
+14/01/2020  | M Revitt      | Changes to fix the array boundaries when doing > 62 materialised views per table
+            |               | Fixed bug in getBitValue
 30/10/2019  | M Revitt      | Added an exception handler to the bottom of every function to aid bug and error tracking
 11/03/2018  | M Revitt      | Initial version
 ------------+---------------+-------------------------------------------------------------------------------------------------------
@@ -1373,6 +1375,7 @@ Revision History    Push Down List
 Date        | Name          | Description
 ------------+---------------+-------------------------------------------------------------------------------------------------------
             |               |
+15/01/2020  | M Revitt      | Need to decrement the Bit Value to allow for the bitmap offset, tables start at 1 bits at 0
 30/10/2019  | M Revitt      | Modified to populate the BitValue record type to accomodate > 63 MV's per Table
 11/03/2018  | M Revitt      | Initial version
 ------------+---------------+-------------------------------------------------------------------------------------------------------
@@ -1390,9 +1393,9 @@ DECLARE
 BEGIN
 
     iBitValue.BIT_VALUE := pBit;
-    iBitValue.BIT_ROW   := FLOOR ( iBitValue.BIT_VALUE / ( pConst.MAX_PGMVIEWS_PER_ROW + 1 )) + pConst.ARRAY_LOWER_VALUE;
-    iBitValue.ROW_BIT   := MOD(    iBitValue.BIT_VALUE,  ( pConst.MAX_PGMVIEWS_PER_ROW + 1 ));
-    iBitValue.BIT_MAP   := POWER(  pConst.BASE_TWO, iBitValue.ROW_BIT );
+    iBitValue.BIT_ROW   := FLOOR( iBitValue.BIT_VALUE / ( pConst.BITMAP_OFFSET + pConst.MAX_PGMVIEWS_PER_ROW )) + pConst.ARRAY_LOWER_VALUE;
+    iBitValue.ROW_BIT   := MOD(   iBitValue.BIT_VALUE,  ( pConst.BITMAP_OFFSET + pConst.MAX_PGMVIEWS_PER_ROW ));
+    iBitValue.BIT_MAP   := POWER( pConst.BASE_TWO, iBitValue.ROW_BIT );
     
     RETURN( iBitValue );
     

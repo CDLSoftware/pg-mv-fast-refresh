@@ -8,6 +8,7 @@ Revision History    Push Down List
 Date        | Name          | Description
 ------------+---------------+-------------------------------------------------------------------------------------------------------
             |               |
+15/01/2020  | M Revitt      | Fixed the bug in mv$removeMaterializedViewLog
 11/03/2018  | M Revitt      | Initial version
 ------------+---------------+-------------------------------------------------------------------------------------------------------
 Background:     PostGre does not support Materialized View Fast Refreshes, this suite of scripts is a PL/SQL coded mechanism to
@@ -588,6 +589,7 @@ Revision History    Push Down List
 Date        | Name          | Description
 ------------+---------------+-------------------------------------------------------------------------------------------------------
             |               |
+15/01/2020  | M Revitt      | Changed bitmap check to look at all values in the bitmap array
 11/03/2018  | M Revitt      | Initial version
 ------------+---------------+-------------------------------------------------------------------------------------------------------
 Description:    Removes a materialized view log from the base table.
@@ -622,12 +624,12 @@ BEGIN
     rConst   := mv$buildAllConstants();
     aViewLog := mv$getPgMviewLogTableData( rConst, pTableName );
 
-    IF aViewLog.pg_mview_bitmap = rConst.BITMAP_NOT_SET
+    IF rConst.BITMAP_NOT_SET = ALL( aViewLog.pg_mview_bitmap )
     THEN
         cResult  := mv$dropTrigger(                 rConst, pOwner, aViewLog.trigger_name, pTableName   );
         cResult  := mv$dropTable(                   rConst, pOwner, aViewLog.pglog$_name                );
         cResult  := mv$removeRow$FromSourceTable(   rConst, pOwner, pTableName                          );
-        cResult  := mv$deletePgMviewLog(               pOwner, pTableName                          );
+        cResult  := mv$deletePgMviewLog(                    pOwner, pTableName                          );
     ELSE
         RAISE EXCEPTION 'The Materialized View Log on Table % is still in use', pTableName;
     END IF;

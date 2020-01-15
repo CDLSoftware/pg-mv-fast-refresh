@@ -8,6 +8,9 @@ Revision History    Push Down List
 Date        | Name          | Description
 ------------+---------------+-------------------------------------------------------------------------------------------------------
             |               |
+14/01/2020  | M Revitt      | Changes to fix the array boundaries when doing > 61 materialised views per table
+            |               | Changed ANY_BITMAP_VALUE to ALL_BITMAP_VALUE, used when clearing the log table
+            |               | Added BITMAP_OFFSET
 05/11/2019  | M Revitt      | Changes to allow bitmap column to be manipulated as an array
             |               | Removed MV_LOG$_DECREMENT_BITMAP
 29/10/2019  | M Revitt      | Move the type definitions into their own file and add MAX_PGMVIEWS_ROWS to allow for upto 310
@@ -214,6 +217,7 @@ BEGIN
 ------------------------------------------------------------------------------------------------------------------------------------
     rMvConstants.BASE_TWO                       := 2;
     rMvConstants.BITAND_COMMAND                 := ' & ';
+    rMvConstants.BITMAP_OFFSET                  := 1;   -- The tables start at 1, but the bits start at 0.
     rMvConstants.EQUALS_COMMAND                 := ' = ';
     rMvConstants.FIRST_PGMVIEW_BIT              := 0;
     rMvConstants.LESS_THAN_EQUAL                := ' <= ';
