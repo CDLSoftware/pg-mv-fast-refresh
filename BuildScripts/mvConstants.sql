@@ -8,6 +8,9 @@ Revision History    Push Down List
 Date        | Name          | Description
 ------------+---------------+-------------------------------------------------------------------------------------------------------
             |               |
+14/01/2020  | M Revitt      | Changes to fix the array boundaries when doing > 61 materialised views per table
+            |               | Changed ANY_BITMAP_VALUE to ALL_BITMAP_VALUE, used when clearing the log table
+            |               | Added BITMAP_OFFSET
 05/11/2019  | M Revitt      | Changes to allow bitmap column to be manipulated as an array
             |               | Removed MV_LOG$_DECREMENT_BITMAP
 29/10/2019  | M Revitt      | Move the type definitions into their own file and add MAX_PGMVIEWS_ROWS to allow for upto 310
@@ -129,7 +132,7 @@ BEGIN
 -- Table and column name definitions
 ------------------------------------------------------------------------------------------------------------------------------------
     rMvConstants.BITMAP_COLUMN                  := 'bitmap$';
-    rMvConstants.ANY_BITMAP_VALUE               := 'ANY( ' || rMvConstants.BITMAP_COLUMN || ' )';
+    rMvConstants.ALL_BITMAP_VALUE               := 'ALL( ' || rMvConstants.BITMAP_COLUMN || ' )';
     rMvConstants.DMLTYPE_COLUMN                 := 'dmltype$';
     rMvConstants.PG_MVIEW_BITMAP                := 'pg_mview_bitmap';
     rMvConstants.MV_M_ROW$_COLUMN               := 'm_row$';
@@ -214,6 +217,7 @@ BEGIN
 ------------------------------------------------------------------------------------------------------------------------------------
     rMvConstants.BASE_TWO                       := 2;
     rMvConstants.BITAND_COMMAND                 := ' & ';
+    rMvConstants.BITMAP_OFFSET                  := 1;   -- The tables start at 1, but the bits start at 0.
     rMvConstants.EQUALS_COMMAND                 := ' = ';
     rMvConstants.FIRST_PGMVIEW_BIT              := 0;
     rMvConstants.LESS_THAN_EQUAL                := ' <= ';
@@ -315,7 +319,7 @@ BEGIN
     rMvConstants.MV_LOG$_SELECT_M_ROWS_ORDER_BY :=  rMvConstants.ORDER_BY_COMMAND           || rMvConstants.MV_SEQUENCE$_COLUMN;
     rMvConstants.MV_LOG$_WHERE_BITMAP_ZERO      :=  rMvConstants.WHERE_COMMAND              ||
                                                     rMvConstants.BITMAP_NOT_SET             || rMvConstants.EQUALS_COMMAND  ||
-                                                                                               rMvConstants.ANY_BITMAP_VALUE;
+                                                                                               rMvConstants.ALL_BITMAP_VALUE;
                                                                                                
 -- SQL String Passing commands
 ------------------------------------------------------------------------------------------------------------------------------------

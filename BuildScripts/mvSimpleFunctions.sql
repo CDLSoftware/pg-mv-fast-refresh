@@ -8,6 +8,8 @@ Revision History    Push Down List
 Date        | Name          | Description
 ------------+---------------+-------------------------------------------------------------------------------------------------------
             |               |
+14/01/2020  | M Revitt      | Changes to fix the array boundaries when doing > 62 materialised views per table
+            |               | Fixed bug in getBitValue
 30/10/2019  | M Revitt      | Added an exception handler to the bottom of every function to aid bug and error tracking
 11/03/2018  | M Revitt      | Initial version
 ------------+---------------+-------------------------------------------------------------------------------------------------------
@@ -1295,15 +1297,15 @@ Copyright 2019 Amazon.com, Inc. or its affiliates. All Rights Reserved. SPDX-Lic
 ***********************************************************************************************************************************/
 DECLARE
 
-    iBit        SMALLINT    := pConst.FIRST_PGMVIEW_BIT;
-    iRowBit     SMALLINT    := pConst.FIRST_PGMVIEW_BIT;
-    iBitRow     SMALLINT    := pConst.ARRAY_LOWER_VALUE;
-    iBitValue   mv$bitValue;
+    iBit                SMALLINT    := pConst.FIRST_PGMVIEW_BIT;
+    iRowBit             SMALLINT    := pConst.FIRST_PGMVIEW_BIT;
+    iBitRow             SMALLINT    := pConst.ARRAY_LOWER_VALUE;
+    iBitValue           mv$bitValue;
 
 BEGIN
 
     WHILE ( pBitMap[iBitRow] & POWER( pConst.BASE_TWO, iRowBit )::BIGINT ) <> pConst.BITMAP_NOT_SET
-    AND     pConst.MAX_PGMVIEWS_PER_TABLE >= iBit
+    AND     pConst.MAX_PGMVIEWS_PER_TABLE   >= iBit
     LOOP
         IF pConst.FIRST_PGMVIEW_BIT < iRowBit -- Only increment the row if this is not the first loop
         THEN
@@ -1318,6 +1320,17 @@ BEGIN
             iRowBit := iRowBit + 1;
             iBit    := iBit    + 1;
         END LOOP;
+        
+        IF pConst.MAX_PGMVIEWS_PER_ROW < iRowBit
+        THEN
+            iBitRow := iBitRow + 1;
+            iRowBit := pConst.FIRST_PGMVIEW_BIT;
+            
+            IF pBitMap[iBitRow] IS NULL
+            THEN
+                pBitMap[iBitRow] := pConst.BITMAP_NOT_SET;
+            END IF;
+        END IF;
     END LOOP;
     
     IF pConst.MAX_PGMVIEWS_PER_TABLE < iBit
@@ -1362,6 +1375,7 @@ Revision History    Push Down List
 Date        | Name          | Description
 ------------+---------------+-------------------------------------------------------------------------------------------------------
             |               |
+15/01/2020  | M Revitt      | Need to decrement the Bit Value to allow for the bitmap offset, tables start at 1 bits at 0
 30/10/2019  | M Revitt      | Modified to populate the BitValue record type to accomodate > 63 MV's per Table
 11/03/2018  | M Revitt      | Initial version
 ------------+---------------+-------------------------------------------------------------------------------------------------------
@@ -1379,9 +1393,9 @@ DECLARE
 BEGIN
 
     iBitValue.BIT_VALUE := pBit;
-    iBitValue.BIT_ROW   := FLOOR ( iBitValue.BIT_VALUE / pConst.MAX_PGMVIEWS_PER_ROW ) + pConst.ARRAY_LOWER_VALUE;
-    iBitValue.ROW_BIT   := MOD(    iBitValue.BIT_VALUE,  pConst.MAX_PGMVIEWS_PER_ROW );
-    iBitValue.BIT_MAP   := POWER(  pConst.BASE_TWO, iBitValue.ROW_BIT );
+    iBitValue.BIT_ROW   := FLOOR( iBitValue.BIT_VALUE / ( pConst.BITMAP_OFFSET + pConst.MAX_PGMVIEWS_PER_ROW )) + pConst.ARRAY_LOWER_VALUE;
+    iBitValue.ROW_BIT   := MOD(   iBitValue.BIT_VALUE,  ( pConst.BITMAP_OFFSET + pConst.MAX_PGMVIEWS_PER_ROW ));
+    iBitValue.BIT_MAP   := POWER( pConst.BASE_TWO, iBitValue.ROW_BIT );
     
     RETURN( iBitValue );
     

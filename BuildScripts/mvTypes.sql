@@ -8,6 +8,8 @@ Revision History    Push Down List
 Date        | Name          | Description
 ------------+---------------+-------------------------------------------------------------------------------------------------------
             |               |
+14/01/2020  | M Revitt      | Changes to fix the array boundaries when doing > 61 materialised views per table
+            |               | Added BITMAP_OFFSET
 05/11/2019  | M Revitt      | Changes to allow bitmap column to be manipulated as an array
 29/10/2019  | M Revitt      | Create data types used by this solution
 ------------+---------------+-------------------------------------------------------------------------------------------------------
@@ -97,6 +99,7 @@ AS
     BASE_TWO                        SMALLINT,
     BITAND_COMMAND                  TEXT,
     BITMAP_NOT_SET                  SMALLINT,
+    BITMAP_OFFSET                   SMALLINT,
     EQUALS_COMMAND                  TEXT,
     FIRST_PGMVIEW_BIT               SMALLINT,
     LESS_THAN_EQUAL                 TEXT,
@@ -175,7 +178,7 @@ AS
     BITMAP_COLUMN_FORMAT            TEXT,
     DMLTYPE_COLUMN                  TEXT,
     DMLTYPE_COLUMN_FORMAT           TEXT,
-    ANY_BITMAP_VALUE                TEXT,
+    ALL_BITMAP_VALUE                TEXT,
     MV_LOG_TABLE_PREFIX             TEXT,
     MV_INDEX_SUFFIX                 TEXT,
     MV_M_ROW$_COLUMN                TEXT,
