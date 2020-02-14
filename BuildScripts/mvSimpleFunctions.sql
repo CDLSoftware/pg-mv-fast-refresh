@@ -1057,6 +1057,13 @@ Revision History    Push Down List
 ------------------------------------------------------------------------------------------------------------------------------------
 Date        | Name          | Description
 ------------+---------------+-------------------------------------------------------------------------------------------------------
+12/02/2020	| D Day 		| Defect fix - changed logic to populate OUT parameters pInnerAliasArray and pInnerRowidArray correctly 
+			|				| with the parent alias and rowid for the corresponding LEFT and RIGHT outer table joining conditions. This
+			|				| is then populated in the data dictionary table pg$mviews columns inner_alias_array and inner_rowid_array
+			|				| and used during the INSERT DML changes registered in the outer join mlog table(s). If there is a matching
+			|               | rowid populated for the parent on the same row(s) based on the rowid array for the child table the record
+			|				| will be DELETED and INSERTED back into the mview table. If there is no parent rowid then this will be treated
+			|				| as a new INSERTED row(s).
 23/07/2019	| D Day			| Defect fix - added logic to get the LEFT and RIGHT outer join columns joining condition aliases to
 			|				| build dynamic UPDATE statement for outer join DELETE changes.
 11/07/2019  | D Day         | Defect fix - changed mv$createRow$Column input parameter to use alias array instead of table array
@@ -1189,25 +1196,25 @@ BEGIN
 		tLeftOuterJoin := NULL;
 		tRightOuterJoin := NULL;
         tOuterTable := NULL;
-        tInnerAlias := pConst.NO_INNER_TOKEN;       -- Tag to ignore the alias in this row
-        tInnerRowid := pConst.NO_INNER_TOKEN;       -- Tag to ignore the alias in this row
+        tInnerAlias := NULL;
+        tInnerRowid := NULL;
 
         tTableName := LTRIM( SPLIT_PART( tTableNames, pConst.COMMA_CHARACTER, 1 ));
 
         IF POSITION( pConst.RIGHT_TOKEN IN tTableName ) > 0
         THEN
             tOuterTable := pAliasArray[iTableArryPos - 1];  -- There has to be a table preceeding a right outer join
-            tInnerRowid := NULL;                            -- The inner table is in this row, this allows us to collect it
-            tInnerAlias := NULL;                            -- once we have processed the row further down.
 			
 			tOuterLeftAlias := TRIM(SUBSTRING(tTableName,POSITION( pConst.ON_TOKEN IN tTableName)+2,(mv$regExpInstr(tTableName,'\.',1,1))-(POSITION( pConst.ON_TOKEN IN tTableName)+2)));
 			tOuterRightAlias := TRIM(SUBSTRING(tTableName,POSITION( TRIM(pConst.EQUALS_COMMAND) IN tTableName)+1,(mv$regExpInstr(tTableName,'\.',1,2))-(POSITION( TRIM(pConst.EQUALS_COMMAND) IN tTableName)+1)));
 			tRightOuterJoin := pConst.RIGHT_OUTER_JOIN;
+			
+			tInnerAlias := tOuterRightAlias;
+			tInnerRowid := TRIM(REPLACE(REPLACE(tOuterRightAlias,'.','')||pConst.UNDERSCORE_CHARACTER||pConst.MV_M_ROW$_SOURCE_COLUMN,'"',''));
+			
 
         ELSIF POSITION( pConst.LEFT_TOKEN IN tTableName ) > 0   -- There has to be a table preceeding a left outer join
         THEN
-            tInnerAlias := pAliasArray[iTableArryPos - 1];
-            tInnerRowid := mv$createRow$Column( pConst, pAliasArray[iTableArryPos - 1] );
             tOuterTable := TRIM( SUBSTRING( tTableName,
                                             POSITION( pConst.JOIN_TOKEN   IN tTableName ) + LENGTH( pConst.JOIN_TOKEN),
                                             POSITION( pConst.ON_TOKEN     IN tTableName ) - LENGTH( pConst.ON_TOKEN)
@@ -1216,6 +1223,9 @@ BEGIN
 			tOuterLeftAlias := TRIM(SUBSTRING(tTableName,POSITION( pConst.ON_TOKEN IN tTableName)+2,(mv$regExpInstr(tTableName,'\.',1,1))-(POSITION( pConst.ON_TOKEN IN tTableName)+2)));	
 			tOuterRightAlias := TRIM(SUBSTRING(tTableName,POSITION( TRIM(pConst.EQUALS_COMMAND) IN tTableName)+1,(mv$regExpInstr(tTableName,'\.',1,2))-(POSITION( TRIM(pConst.EQUALS_COMMAND) IN tTableName)+1)));
 			tLeftOuterJoin := pConst.LEFT_OUTER_JOIN;
+			
+            tInnerAlias := tOuterLeftAlias;
+			tInnerRowid := TRIM(REPLACE(REPLACE(tOuterLeftAlias,'.','')||pConst.UNDERSCORE_CHARACTER||pConst.MV_M_ROW$_SOURCE_COLUMN,'"',''));
 			
         END IF;
 
@@ -1233,11 +1243,12 @@ BEGIN
 		pRowidArray[iTableArryPos]  :=  mv$createRow$Column( pConst, pAliasArray[iTableArryPos] );
 
         pOuterTableArray[iTableArryPos]  :=(REGEXP_SPLIT_TO_ARRAY( tOuterTable, pConst.REGEX_MULTIPLE_SPACES ))[1];
-        pInnerAliasArray[iTableArryPos]  := NULLIF( COALESCE( tInnerAlias, pAliasArray[iTableArryPos] ), pConst.NO_INNER_TOKEN );
-        pInnerRowidArray[iTableArryPos]  := NULLIF( COALESCE( tInnerRowid, pRowidArray[iTableArryPos] ), pConst.NO_INNER_TOKEN );
 
         tTableNames     := TRIM( SUBSTRING( tTableNames,
                                  POSITION( pConst.COMMA_CHARACTER IN tTableNames ) + LENGTH( pConst.COMMA_CHARACTER )));
+								 
+		pInnerAliasArray[iTableArryPos] 		:= tInnerAlias;
+		pInnerRowidArray[iTableArryPos]			:= tInnerRowid;
 		
 		pOuterLeftAliasArray[iTableArryPos] 	:= tOuterLeftAlias;
 		pOuterRightAliasArray[iTableArryPos] 	:= tOuterRightAlias;
