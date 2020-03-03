@@ -1119,6 +1119,8 @@ Revision History    Push Down List
 Date        | Name          | Description
 ------------+---------------+-------------------------------------------------------------------------------------------------------
             |               |
+14/02/2020	| D Day			| Added dot character inbetween pInnerAlias and pConst.MV_M_ROW$_SOURCE_COLUMN as the inner alias array
+			|				| values no longer include the dot.
 19/06/2019  | M Revitt      | Fixed issue with Delete statment that added superious WHERE Clause when there was not WHERE statment
 11/03/2018  | M Revitt      | Initial version
 ------------+---------------+-------------------------------------------------------------------------------------------------------
@@ -1156,11 +1158,11 @@ BEGIN
 
     tFromClause := tFromClause  || pTableAlias   || pConst.MV_M_ROW$_SOURCE_COLUMN   || pConst.IN_ROWID_LIST;
 
-    tSqlStatement   :=  pConst.DELETE_FROM       ||
-                        aPgMview.owner           || pConst.DOT_CHARACTER    || aPgMview.view_name               ||
-                        pConst.WHERE_COMMAND     || pInnerRowid             ||
-                        pConst.IN_SELECT_COMMAND || pInnerAlias             || pConst.MV_M_ROW$_SOURCE_COLUMN   ||
-                        tFromClause              || pConst.CLOSE_BRACKET;
+    tSqlStatement   :=  pConst.DELETE_FROM       		||
+                        aPgMview.owner           		|| pConst.DOT_CHARACTER    || aPgMview.view_name			||
+                        pConst.WHERE_COMMAND     		|| pInnerRowid             ||
+                        pConst.IN_SELECT_COMMAND 		|| pInnerAlias             || pConst.DOT_CHARACTER    		|| 
+						pConst.MV_M_ROW$_SOURCE_COLUMN	|| tFromClause     		   || pConst.CLOSE_BRACKET;
 
 
     EXECUTE tSqlStatement
