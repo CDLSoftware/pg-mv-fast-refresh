@@ -1039,7 +1039,9 @@ Revision History    Push Down List
 ------------------------------------------------------------------------------------------------------------------------------------
 Date        | Name          | Description
 ------------+---------------+-------------------------------------------------------------------------------------------------------
-            |               |
+03/03/2020  | D Day         | Defect fix to resolve outer join check function mv$checkIfOuterJoinedTable to handle if the table_array
+			|				| value had both an inner join and outer join condition inside the main sql query. Amended to only pass in
+			|				| in the outer_table_array loop value not the full array.
 11/03/2018  | M Revitt      | Initial version
 ------------+---------------+-------------------------------------------------------------------------------------------------------
 Description:    Determins what type of refresh is required and then calls the appropriate refresh function
@@ -1067,7 +1069,7 @@ BEGIN
 
     FOR i IN ARRAY_LOWER( aPgMview.table_array, 1 ) .. ARRAY_UPPER( aPgMview.table_array, 1 )
     LOOP
-        bOuterJoined := mv$checkIfOuterJoinedTable( pConst, aPgMview.table_array[i], aPgMview.outer_table_array );
+        bOuterJoined := mv$checkIfOuterJoinedTable( pConst, aPgMview.table_array[i], aPgMview.outer_table_array[i] );
         cResult :=  mv$refreshMaterializedViewFast
                     (
                         pConst,
