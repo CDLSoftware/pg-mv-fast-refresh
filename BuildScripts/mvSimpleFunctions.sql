@@ -289,7 +289,7 @@ FUNCTION    mv$checkIfOuterJoinedTable
             (
                 pConst              IN      mv$allConstants,
                 pTableName          IN      TEXT,
-                pOuterTableArray    IN      TEXT[]
+                pOuterTable		    IN      TEXT
             )
     RETURNS BOOLEAN
 AS
@@ -304,6 +304,10 @@ Revision History    Push Down List
 Date        | Name          | Description
 ------------+---------------+-------------------------------------------------------------------------------------------------------
             |               |
+03/03/2020	| D Day			| Defect fix Replaced IN pOuterTableArray parameter with pOuterTable and TEXT[] array variable as TEXT. 
+			|				| This was not considering if the table name check has a corresponding inner and outer join condition
+			|				| related to the same table name. By passing only the outer table value this will confirm if it's and
+			|				| outer join table or not.
 18/06/2019  | M Revitt      | Added an Exception Handler
 05/06/2019  | M Revitt      | Change ARRAY_UPPER and ARRYA_LOWER to FOREACH ... IN ARRAY
 04/04/2019  | M Revitt      | Initial version
@@ -313,7 +317,7 @@ Description:    Some actions against outer joined tables need to be performed di
 
 Arguments:      IN      pConst              The memory structure containing all constants
                 IN      pTableName          The name of the table to check
-                IN      pOuterTableArray    The array that holds the list of all outer joined tables in this view
+                IN      pOuterTable		    The outer join table value for the same pTableName value position
 Returns:                BOOLEAN             TRUE if we can find the record, otherwise FALSE
 ************************************************************************************************************************************
 Copyright 2019 Amazon.com, Inc. or its affiliates. All Rights Reserved. SPDX-License-Identifier: MIT-0
@@ -325,13 +329,10 @@ DECLARE
 
 BEGIN
 
-    FOREACH tTableName IN ARRAY pOuterTableArray
-    LOOP
-        IF tTableName = pTableName
-        THEN
+    IF pTableName = pOuterTable
+    THEN
             bResult := TRUE;
-        END IF;
-    END LOOP;
+    END IF;
 
     RETURN( bResult );
 
