@@ -34,6 +34,7 @@ PGPASSWORD=$PGPASS
 psql --host=$HOSTNAME --port=$PORT --username=$PGUSERNAME --dbname=$DBNAME << EOF1 >> $LOG_FILE 2>&1
 
  REVOKE ALL PRIVILEGES ON DATABASE "$DBNAME" from $MODULEOWNER;
+ DROP USER MAPPING IF EXISTS FOR :MODULEOWNER SERVER kingfisher_instance;
  DROP SCHEMA $MODULEOWNER CASCADE;
  DROP ROLE pgmv\$_role;
  REVOKE $MODULEOWNER from $PGUSERNAME;
@@ -42,6 +43,9 @@ psql --host=$HOSTNAME --port=$PORT --username=$PGUSERNAME --dbname=$DBNAME << EO
  DROP ROLE pgmv\$_execute;
  DROP ROLE pgmv\$_view;
  DROP ROLE pgmv\$_usage;
+ DROP SERVER IF EXISTS pgmv\$_instance CASCADE;
+ DROP EXTENSION postgres_fdw;
+ DROP EXTENSION dblink;
 
 EOF1
 }
