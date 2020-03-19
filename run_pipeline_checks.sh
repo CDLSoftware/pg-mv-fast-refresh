@@ -38,7 +38,7 @@ function buildmodule
 
 echo "INFO: Run $MODULEOWNER schema build script" >> $LOG_FILE
 echo "INFO: Connect to postgres database $DBNAME via PSQL session" >> $LOG_FILE
-  psql --host=$HOSTNAME --port=$PORT --username=$PGUSERNAME --dbname=$DBNAME -v MODULE_HOME=$MODULE_HOME -v MODULEOWNERPASS=$MODULEOWNERPASS -v MODULEOWNER=$MODULEOWNER -v PGUSERNAME=$PGUSERNAME -v DBNAME=$DBNAME << EOF1 >> $LOG_FILE 2>&1
+  psql --host=$HOSTNAME --port=$PORT --username=$PGUSERNAME --dbname=$DBNAME -v MODULE_HOME=$MODULE_HOME -v MODULEOWNERPASS=$MODULEOWNERPASS -v MODULEOWNER=$MODULEOWNER -v PGUSERNAME=$PGUSERNAME -v DBNAME=$DBNAME -v HOSTNAME=$HOSTNAME -v PORT=$PORT << EOF1 >> $LOG_FILE 2>&1
 
     \i :MODULE_HOME/BuildScripts/createModuleOwnerSchema.sql;
 
