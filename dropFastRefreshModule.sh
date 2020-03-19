@@ -35,6 +35,9 @@ psql --host=$HOSTNAME --port=$PORT --username=$PGUSERNAME --dbname=$DBNAME << EO
 
  REVOKE ALL PRIVILEGES ON DATABASE "$DBNAME" from $MODULEOWNER;
  DROP USER MAPPING IF EXISTS FOR $MODULEOWNER SERVER pgmv\$_instance;
+ DROP SERVER IF EXISTS pgmv\$_instance CASCADE;
+ DROP EXTENSION IF EXISTS postgres_fdw;
+ DROP EXTENSION IF EXISTS dblink;
  DROP SCHEMA $MODULEOWNER CASCADE;
  DROP ROLE pgmv\$_role;
  REVOKE $MODULEOWNER from $PGUSERNAME;
@@ -43,9 +46,6 @@ psql --host=$HOSTNAME --port=$PORT --username=$PGUSERNAME --dbname=$DBNAME << EO
  DROP ROLE pgmv\$_execute;
  DROP ROLE pgmv\$_view;
  DROP ROLE pgmv\$_usage;
- DROP SERVER IF EXISTS pgmv\$_instance CASCADE;
- DROP EXTENSION IF EXISTS postgres_fdw;
- DROP EXTENSION IF EXISTS dblink;
 
 EOF1
 }
