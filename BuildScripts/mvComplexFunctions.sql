@@ -56,8 +56,8 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 SET     CLIENT_MIN_MESSAGES = ERROR;
 
-DROP FUNCTION IF EXISTS mv$clearPgMvLogTableBitsAction
-DROP FUNCTION IF EXISTS mv$clearPgMvLogTableBitsUpdate
+DROP FUNCTION IF EXISTS mv$clearPgMvLogTableBitsAction;
+DROP FUNCTION IF EXISTS mv$clearPgMvLogTableBitsUpdate;
 DROP FUNCTION IF EXISTS mv$clearAllPgMvLogTableBits;
 DROP FUNCTION IF EXISTS mv$clearPgMvLogTableBits;
 DROP FUNCTION IF EXISTS mv$clearPgMviewLogBit;
@@ -234,12 +234,9 @@ SECURITY    DEFINER;
 ------------------------------------------------------------------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION mv$clearPgMvLogTableBitsUpdate(
 	psqlstatement text)
-    RETURNS void
-    LANGUAGE 'plpgsql'
-
-    COST 100
-    VOLATILE 
-AS $BODY$
+    RETURNS VOID
+AS
+$BODY$
 /* ---------------------------------------------------------------------------------------------------------------------------------
 Routine Name: mv$clearPgMvLogTableBitsUpdate
 Author:       David Day
@@ -265,12 +262,7 @@ Returns:                VOID
 Copyright 2018 Amazon.com, Inc. or its affiliates. All Rights Reserved. SPDX-License-Identifier: MIT-0
 ***********************************************************************************************************************************/
 DECLARE
-    v_state   TEXT; 
-    v_msg     TEXT; 
-    v_detail  TEXT; 
-    v_hint    TEXT; 
-    v_context TEXT;
-
+   
 BEGIN
 
 	EXECUTE pSqlStatement;

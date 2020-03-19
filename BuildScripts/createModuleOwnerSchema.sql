@@ -199,9 +199,11 @@ ALTER EXTENSION "postgres_fdw" SET SCHEMA public;
 
 CREATE SERVER IF NOT EXISTS pgmv$_instance FOREIGN DATA WRAPPER postgres_fdw options ( dbname :'DBNAME', port :'PORT', host :'HOSTNAME', connect_timeout '2', keepalives_count '5' );
 
-CREATE USER MAPPING IF NOT EXISTS for :MODULEOWNER SERVER kingfisher_instance OPTIONS (user :'MODULEOWNER', password :'MODULEOWNERPASS');
+CREATE USER MAPPING IF NOT EXISTS for :MODULEOWNER SERVER pgmv$_instance OPTIONS (user :'MODULEOWNER', password :'MODULEOWNERPASS');
 
 GRANT USAGE ON FOREIGN SERVER pgmv$_instance TO :MODULEOWNER;
+
+ALTER USER :MODULEOWNER with superuser;
 
 
 
