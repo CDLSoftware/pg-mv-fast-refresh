@@ -389,6 +389,9 @@ Revision History    Push Down List
 Date        | Name          | Description
 ------------+---------------+-------------------------------------------------------------------------------------------------------
             |               |
+23/03/2020	| D Day			| Removed exception block from trigger as they can be particularly troublesome because they burn extra 7
+			|				| transaction IDs. If there is a trigger on a table with an exception block, the sub transaction 
+			|				| consumes a transaction ID for each row being inserted causing the situation much sooner. 
 12/11/2018  | M Revitt      | Initial version
 ------------+---------------+-------------------------------------------------------------------------------------------------------
 Description:    This is the function that is called by the trigger on the base table.
@@ -437,14 +440,7 @@ BEGIN
         EXECUTE tSqlStatement;
     END IF;
     RETURN  NULL;
-
-    EXCEPTION
-    WHEN OTHERS
-    THEN
-        RAISE INFO      'Exception in function mv$insertMaterializedViewLogRow';
-        RAISE INFO      'Error %:- %:',     SQLSTATE, SQLERRM;
-        RAISE INFO      'Error Context:% %',CHR(10),  tSqlStatement;
-        RAISE EXCEPTION '%',                SQLSTATE;
+	
 END;
 $BODY$
 LANGUAGE    plpgsql
