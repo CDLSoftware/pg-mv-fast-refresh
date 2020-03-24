@@ -1,4 +1,4 @@
-image: postgres:11
+image: postgres:11:5
 
 Build:
      stage: build
