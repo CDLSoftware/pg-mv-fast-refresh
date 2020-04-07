@@ -108,8 +108,8 @@ BEGIN
    
    IF NOT EXISTS (
       SELECT
-      FROM   pg_user
-      WHERE  usename = 'rds_superuser') THEN
+      FROM   pg_roles
+      WHERE  rolname = 'rds_superuser') THEN
 	  
 	  ls_sql := 'ALTER USER '||pis_moduleowner||' with superuser;';
 				
