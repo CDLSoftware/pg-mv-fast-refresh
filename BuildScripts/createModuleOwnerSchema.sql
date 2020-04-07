@@ -105,6 +105,23 @@ BEGIN
 	  EXECUTE ls_sql;
 	  
    END IF;
+   
+   IF NOT EXISTS (
+      SELECT
+      FROM   pg_user
+      WHERE  usename = 'rds_superuser') THEN
+	  
+	  ls_sql := 'ALTER USER '||pis_moduleowner||' with superuser;';
+				
+	  EXECUTE ls_sql;
+	  
+   ELSE
+	
+	  ls_sql := 'GRANT rds_superuser TO '||pis_moduleowner||';';
+	  
+	  EXECUTE ls_sql;
+	  
+   END IF;
 
 END;
 $BODY$
@@ -202,8 +219,6 @@ CREATE SERVER IF NOT EXISTS pgmv$_instance FOREIGN DATA WRAPPER postgres_fdw opt
 CREATE USER MAPPING IF NOT EXISTS for :MODULEOWNER SERVER pgmv$_instance OPTIONS (user :'MODULEOWNER', password :'MODULEOWNERPASS');
 
 GRANT USAGE ON FOREIGN SERVER pgmv$_instance TO :MODULEOWNER;
-
-ALTER USER :MODULEOWNER with superuser;
 
 
 
