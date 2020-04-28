@@ -1643,7 +1643,7 @@ Copyright 2019 Amazon.com, Inc. or its affiliates. All Rights Reserved. SPDX-Lic
 DECLARE
     aPgMviewOjDetails           pg$mviews_oj_details;
 
-    cgetPgMviewOjTableData   CURSOR
+    cgetPgMviewOjDetailTableData   CURSOR
     FOR
     SELECT
             *

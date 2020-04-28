@@ -2522,7 +2522,8 @@ Returns:                TEXT
 ************************************************************************************************************************************
 Copyright 2018 Amazon.com, Inc. or its affiliates. All Rights Reserved. SPDX-License-Identifier: MIT-0
 ***********************************************************************************************************************************/
-	  
+DECLARE	
+	
 	iLeftJoinCnt 			INTEGER := 0;
 	iLeftOuterJoinCnt		INTEGER := 0;
 	iLeftJoinOverallCnt		INTEGER := 0;
@@ -2657,7 +2658,7 @@ ELSIF iRightJoinOverallCnt > 0 THEN
 
 		iLoopRightJoinCnt = iLoopRightJoinCnt + 1;
 		
-		tRegExpRightOuterJoinSyntax := 'RIGHT+[[:space:]]+JOIN+';
+		tRegExpLeftOuterJoinSyntax := 'RIGHT+[[:space:]]+JOIN+';
 		iLoopJoinRightCnt := iLoopRightJoinCnt;
 		tRightJoinSyntax := 'RIGHT JOIN';
 
@@ -2674,7 +2675,7 @@ ELSIF iRightJoinOverallCnt > 0 THEN
 
 		iLoopRightOuterJoinCnt = iLoopRightOuterJoinCnt + 1; 
 
-		tRegExpRightOuterJoinSyntax := 'RIGHT+[[:space:]]+OUTER+[[:space:]]+JOIN+';
+		tRegExpLeftOuterJoinSyntax := 'RIGHT+[[:space:]]+OUTER+[[:space:]]+JOIN+';
 		iLoopJoinRightCnt := iLoopRightOuterJoinCnt;
 		tRightJoinSyntax := 'RIGHT OUTER JOIN';
 
