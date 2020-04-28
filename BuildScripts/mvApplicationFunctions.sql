@@ -93,6 +93,7 @@ Date        | Name          | Description
 12/11/2018  | M Revitt      | Initial version
 23/07/2019  | D Day			| Added function mv$insertPgMviewOuterJoinDetails to handle Outer Join table DELETE
 			|				| changes.
+28/04/2020	| D Day			| Added tTableNames input value parameter to mv$insertPgMviewOuterJoinDetails function call
 ------------+---------------+-------------------------------------------------------------------------------------------------------
 Description:    Creates a materialized view, as a base table, and then populates the data dictionary table before calling the full
                 refresh routine to populate it.
@@ -229,6 +230,7 @@ BEGIN
                 pOwner,
                 pViewName,
                 tSelectColumns,
+				tTableNames,
                 tAliasArray,
                 tRowidArray,
                 tOuterTableArray,

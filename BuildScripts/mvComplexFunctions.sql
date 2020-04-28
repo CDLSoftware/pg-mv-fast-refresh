@@ -77,7 +77,7 @@ DROP FUNCTION IF EXISTS mv$regExpCount;
 DROP FUNCTION IF EXISTS mv$regExpInstr;
 DROP FUNCTION IF EXISTS mv$regExpReplace;
 DROP FUNCTION IF EXISTS mv$regExpSubstr;
-
+DROP FUNCTION IF EXISTS mv$outerJoinToInnerJoinReplacement;
 
 SET CLIENT_MIN_MESSAGES = NOTICE;
 
@@ -1230,6 +1230,8 @@ Revision History    Push Down List
 Date        | Name          | Description
 ------------+---------------+-------------------------------------------------------------------------------------------------------
             |               |
+28/04/2020	| D DAY			| Added join_replacement_from_sql value from pg$mview_oj_details data dictionary table to use in DELETE 
+			|				| and INSERT statements to help performance.
 14/02/2020	| D Day			| Added dot character inbetween pInnerAlias and pConst.MV_M_ROW$_SOURCE_COLUMN as the inner alias array
 			|				| values no longer include the dot.
 19/06/2019  | M Revitt      | Fixed issue with Delete statment that added superious WHERE Clause when there was not WHERE statment
@@ -1252,15 +1254,17 @@ Copyright 2018 Amazon.com, Inc. or its affiliates. All Rights Reserved. SPDX-Lic
 ***********************************************************************************************************************************/
 DECLARE
 
-    tFromClause     TEXT;
-    tSqlStatement   TEXT;
-    aPgMview        pg$mviews;
+    tFromClause     	TEXT;
+    tSqlStatement   	TEXT;
+    aPgMview        	pg$mviews;
+	aPgMviewOjDetails	pg$mviews_oj_details;
 
 BEGIN
 
-    aPgMview    := mv$getPgMviewTableData( pConst, pOwner, pViewName );
-
-    tFromClause := pConst.FROM_COMMAND  || aPgMview.table_names     || pConst.WHERE_COMMAND;
+    aPgMview    		 := mv$getPgMviewTableData( pConst, pOwner, pViewName );
+    aPgMviewOjDetails    := mv$getPgMviewTableData( pConst, pOwner, pViewName, pTableAlias);
+	
+	tFromClause := pConst.FROM_COMMAND  || aPgMviewOjDetails.join_replacement_from_sql     || pConst.WHERE_COMMAND;
 
     IF LENGTH( aPgMview.where_clause ) > 0
     THEN
@@ -1309,6 +1313,7 @@ FUNCTION    mv$insertPgMviewOuterJoinDetails
                 pOwner                IN      TEXT,
                 pViewName             IN      TEXT,
                 pSelectColumns        IN      TEXT,
+				pTableNames			  IN	  TEXT,
                 pAliasArray           IN      TEXT[],
                 pRowidArray           IN      TEXT[],
                 pOuterTableArray      IN      TEXT[],
@@ -1331,6 +1336,8 @@ Date        | Name          | Description
 ------------+---------------+-------------------------------------------------------------------------------------------------------
             |               |
 01/07/2019  | D Day      	| Initial version
+28/04/2020	| D Day			| Added mv$OuterJoinToInnerJoinReplacement function call to replace alias matching outer join conditions
+			|				| with inner join conditions and new IN parameter pTableNames.
 ------------+---------------+-------------------------------------------------------------------------------------------------------
 Description:    Dynamically builds UPDATE statement(s) for any outer join table to nullify all the alias outer join column(s)
 				including rowid held in the materialized view table when an DELETE is done against the 
@@ -1344,6 +1351,7 @@ Arguments:      IN      pConst
 Arguments:      IN      pOwner                  The owner of the object
                 IN      pViewName               The name of the materialized view
 				IN		pSelectColumns		    The column list from the SQL query that will be used to build the UPDATE statement
+				IN      pTableNames				The table name join conditions from the SQL query will be used to replace alias table outer joins with inner joins
                 IN      pAliasArray             An array that holds the list of table aliases
                 IN      pRowidArray    		    An array that holds the list of rowid columns
                 IN      pOuterTableArray        An array that holds the list of outer joined tables in a multi table materialized view
@@ -1411,6 +1419,8 @@ DECLARE
 	tLeftJoinAliasExists			TEXT DEFAULT 'N';
 	
 	tIsTrueOrFalse					TEXT;
+	
+	tClauseJoinReplacement			TEXT;		
 	
 BEGIN
 
@@ -1734,6 +1744,9 @@ BEGIN
 						 pOwner		|| pConst.DOT_CHARACTER		|| pViewName	|| pConst.NEW_LINE		||
 						 tUpdateSetSql || pConst.NEW_LINE ||
 						 tWhereClause;
+						 
+		tClauseJoinReplacement := mv$OuterJoinToInnerJoinReplacement(pTableNames, tColumnNameAlias);
+		
 		
 		INSERT INTO pg$mviews_oj_details
 		(	owner
@@ -1742,7 +1755,8 @@ BEGIN
 		,   rowid_column_name
 		,   source_table_name
 		,   column_name_array
-		,   update_sql)
+		,   update_sql
+		,   join_replacement_from_sql)
 		VALUES
 		(	pOwner
 		,	pViewName
@@ -1750,7 +1764,8 @@ BEGIN
 		,   tMvRowidColumnName
 		,   tTableName
 		,   tColumnNameArray
-		,	tSqlStatement);
+		,	tSqlStatement
+		,   tClauseJoinReplacement);
 		
 		iMainLoopCounter := 0;
 		tParentToChildAliasArray := '{}';
@@ -2480,3 +2495,234 @@ $BODY$
 LANGUAGE    plpgsql
 SECURITY    DEFINER;
 ------------------------------------------------------------------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION pgrs_mview.mv$outerJoinToInnerJoinReplacement(
+	pTableNames TEXT,
+	pTableAlias TEXT)
+    RETURNS text
+AS $BODY$
+/* ---------------------------------------------------------------------------------------------------------------------------------
+Routine Name: mv$outerJoinToInnerJoinReplacement
+Author:       David Day
+Date:         28/04/2020
+------------------------------------------------------------------------------------------------------------------------------------
+Revision History    Push Down List
+------------------------------------------------------------------------------------------------------------------------------------
+Date        | Name          | Description
+------------+---------------+-------------------------------------------------------------------------------------------------------
+            |               |
+28/04/2020  | D Day      	| Initial version
+------------+---------------+-------------------------------------------------------------------------------------------------------
+Description:    Function to replace the alias driven outer join conditions to inner join in the from tables join sql
+				regular expression pattern.
+
+Arguments:      IN      pTableNames             
+                IN      pTableAlias              
+Returns:                TEXT
+
+************************************************************************************************************************************
+Copyright 2018 Amazon.com, Inc. or its affiliates. All Rights Reserved. SPDX-License-Identifier: MIT-0
+***********************************************************************************************************************************/
+	  
+	iLeftJoinCnt 			INTEGER := 0;
+	iLeftOuterJoinCnt		INTEGER := 0;
+	iLeftJoinOverallCnt		INTEGER := 0;
+	
+	iRightJoinCnt 			INTEGER := 0;
+	iRightOuterJoinCnt		INTEGER := 0;
+	iRightJoinOverallCnt	INTEGER := 0;	
+	
+	iLoopLeftJoinCnt		INTEGER := 0;
+	iLoopLeftOuterJoinCnt	INTEGER := 0;
+	iLoopJoinLeftCnt		INTEGER := 0;
+	
+	iLoopRightJoinCnt		INTEGER := 0;
+	iLoopRightOuterJoinCnt	INTEGER := 0;
+	iLoopJoinRightCnt		INTEGER := 0;
+	
+	iLeftJoinLoopAliasCnt 	INTEGER := 0;
+	iRightJoinLoopAliasCnt 	INTEGER := 0;
+	
+	tTablesSQL 				TEXT := pTableNames;
+	  
+	tSQL					TEXT;
+	tLeftJoinLine			TEXT;
+	tOrigLeftJoinLine 		TEXT;
+	
+	tRightJoinLine			TEXT;
+	tOrigRightJoinLine 		TEXT;
+	
+	tLeftJoinSyntax			TEXT;
+	tRightJoinSyntax		TEXT;
+	
+	tTableAlias 			TEXT := REPLACE(pTableAlias,'.','\.');
+	
+	iStartPosition			INTEGER := 0;
+	iEndPosition			INTEGER := 0;
+	
+	tRegExpLeftOuterJoinSyntax	TEXT;
+	
+BEGIN
+
+tTablesSQL := regexp_replace(tTablesSQL,'left join','LEFT JOIN','gi');
+tTablesSQL := regexp_replace(tTablesSQL,'left outer join join','LEFT JOIN','gi');
+tTablesSQL := regexp_replace(tTablesSQL,'right join','RIGHT JOIN','gi');
+tTablesSQL := regexp_replace(tTablesSQL,'right outer join','RIGHT OUTER JOIN','gi');
+	  
+SELECT count(1) INTO iLeftJoinCnt FROM regexp_matches(tTablesSQL,'LEFT JOIN','g');
+SELECT count(1) INTO iLeftOuterJoinCnt FROM regexp_matches(tTablesSQL,'LEFT JOIN','g');
+SELECT count(1) INTO iLeftJoinOverallCnt FROM regexp_matches(tTablesSQL,'LEFT JOIN|LEFT OUTER JOIN','g');
+
+SELECT count(1) INTO iRightJoinCnt FROM regexp_matches(tTablesSQL,'RIGHT JOIN','g');
+SELECT count(1) INTO iRightOuterJoinCnt FROM regexp_matches(tTablesSQL,'RIGHT JOIN','g');
+SELECT count(1) INTO iRightJoinOverallCnt FROM regexp_matches(tTablesSQL,'RIGHT JOIN|RIGHT OUTER JOIN','g');
+
+tSQL := tTablesSQL;
+
+IF iLeftJoinOverallCnt > 0 THEN
+	  
+	FOR i IN 1..iLeftJoinOverallCnt
+	LOOP
+
+	IF iLeftJoinCnt > 0 AND iLoopLeftJoinCnt < iLeftJoinCnt THEN
+
+		iLoopLeftJoinCnt = iLoopLeftJoinCnt + 1;
+		
+		tRegExpLeftOuterJoinSyntax := 'LEFT+[[:space:]]+JOIN+';
+		iLoopJoinLeftCnt := iLoopLeftJoinCnt;
+		tLeftJoinSyntax := 'LEFT JOIN';
+
+		iStartPosition := pgrs_mview.mv$regexpinstr(tTablesSQL,
+		tRegExpLeftOuterJoinSyntax,
+		1,
+		iLoopLeftJoinCnt,
+		1,
+		'i')-9;	
+		
+	END IF;
+
+	IF iLeftOuterJoinCnt > 0 AND iLoopLeftOuterJoinCnt < iLeftOuterJoinCnt THEN
+
+		iLoopLeftOuterJoinCnt = iLoopLeftOuterJoinCnt + 1; 
+
+		tRegExpLeftOuterJoinSyntax := 'LEFT+[[:space:]]+OUTER+[[:space:]]+JOIN+';
+		iLoopJoinLeftCnt := iLoopLeftOuterJoinCnt;
+		tLeftJoinSyntax := 'LEFT OUTER JOIN';
+
+		iStartPosition := pgrs_mview.mv$regexpinstr(tTablesSQL,
+		tRegExpLeftOuterJoinSyntax,
+		1,
+		iLoopLeftOuterJoinCnt,
+		1,
+		'i')-15;
+		
+	END IF;
+
+	iEndPosition := pgrs_mview.mv$regexpinstr(tTablesSQL,
+	tRegExpLeftOuterJoinSyntax||'[[:space:]]+[a-zA-Z0-9_]+[[:space:]]+[a-zA-Z0-9_]+[[:space:]]+[a-zA-Z0-9_]+[[:space:]]+[a-zA-Z0-9_]+[.]+[a-zA-Z0-9_]+[[:space:]]+[=]+[[:space:]]+[a-zA-Z0-9_]+[.]+[a-zA-Z0-9_]+',
+	1,
+	iLoopJoinLeftCnt,
+	1,
+	'i');
+
+	tLeftJoinLine := substr(tTablesSQL,iStartPosition, iEndPosition - iStartPosition);
+
+	SELECT count(1) INTO iLeftJoinLoopAliasCnt FROM regexp_matches(tLINE,'[[:space:]]+'||tTableAlias,'g');
+
+	IF iLeftJoinOverallCnt > 0 THEN
+
+		tOrigLeftJoinLine := tLeftJoinLine;
+
+		tLeftJoinLine := replace(tLeftJoinLine,tLeftJoinSyntax,'INNER JOIN');
+
+		IF i = 1 THEN
+
+			tSQL := replace(tTablesSQL,tOrigLeftJoinLine,tLeftJoinLine);
+					  
+		ELSE 
+					  
+			tSQL := replace(tSQL,tOrigLeftJoinLine,tLeftJoinLine);
+			
+		END IF;
+
+	END IF;
+
+	END LOOP;
+
+ELSIF iRightJoinOverallCnt > 0 THEN
+
+	FOR i IN 1..iRightJoinOverallCnt
+	LOOP
+
+	IF iRightJoinCnt > 0 AND iLoopRightJoinCnt < iRightJoinCnt THEN
+
+		iLoopRightJoinCnt = iLoopRightJoinCnt + 1;
+		
+		tRegExpRightOuterJoinSyntax := 'RIGHT+[[:space:]]+JOIN+';
+		iLoopJoinRightCnt := iLoopRightJoinCnt;
+		tRightJoinSyntax := 'RIGHT JOIN';
+
+		iStartPosition := pgrs_mview.mv$regexpinstr(tTablesSQL,
+		tRegExpRightOuterJoinSyntax,
+		1,
+		iLoopRightJoinCnt,
+		1,
+		'i')-10;	
+		
+	END IF;
+
+	IF iRightOuterJoinCnt > 0 AND iLoopRightOuterJoinCnt < iRightOuterJoinCnt THEN
+
+		iLoopRightOuterJoinCnt = iLoopRightOuterJoinCnt + 1; 
+
+		tRegExpRightOuterJoinSyntax := 'RIGHT+[[:space:]]+OUTER+[[:space:]]+JOIN+';
+		iLoopJoinRightCnt := iLoopRightOuterJoinCnt;
+		tRightJoinSyntax := 'RIGHT OUTER JOIN';
+
+		iStartPosition := pgrs_mview.mv$regexpinstr(tTablesSQL,
+		tRegExpRightOuterJoinSyntax,
+		1,
+		iLoopRightOuterJoinCnt,
+		1,
+		'i')-16;
+		
+	END IF;
+
+	iEndPosition := pgrs_mview.mv$regexpinstr(tTablesSQL,
+	tRegExpRightOuterJoinSyntax||'[[:space:]]+[a-zA-Z0-9_]+[[:space:]]+[a-zA-Z0-9_]+[[:space:]]+[a-zA-Z0-9_]+[[:space:]]+[a-zA-Z0-9_]+[.]+[a-zA-Z0-9_]+[[:space:]]+[=]+[[:space:]]+[a-zA-Z0-9_]+[.]+[a-zA-Z0-9_]+',
+	1,
+	iLoopJoinRightCnt,
+	1,
+	'i');
+
+	tRightJoinLine := substr(tTablesSQL,iStartPosition, iEndPosition - iStartPosition);
+
+	SELECT count(1) INTO iRightJoinLoopAliasCnt FROM regexp_matches(tRightJoinLine,'[[:space:]]+'||tTableAlias,'g');
+
+	IF iRightJoinLoopAliasCnt > 0 THEN
+
+		tOrigRightJoinLine := tRightJoinLine;
+
+		tRightJoinLine := replace(tRightJoinLine,tRightJoinSyntax,'INNER JOIN');
+
+		IF i = 1 THEN
+
+			tSQL := replace(tTablesSQL,tOrigRightJoinLine,tRightJoinLine);
+					  
+		ELSE 
+					  
+			tSQL := replace(tSQL,tOrigRightJoinLine,tRightJoinLine);
+			
+		END IF;
+
+	END IF;
+
+	END LOOP;
+
+END IF;
+
+RETURN tSQL;
+
+END;
+$BODY$
+LANGUAGE    plpgsql
+SECURITY    DEFINER;

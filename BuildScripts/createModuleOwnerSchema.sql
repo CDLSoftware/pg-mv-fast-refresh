@@ -184,13 +184,14 @@ CREATE TABLE IF NOT EXISTS :MODULEOWNER.pg$mviews
 
 CREATE TABLE IF NOT EXISTS :MODULEOWNER.pg$mviews_oj_details
 (
-        owner               TEXT        NOT NULL,
-        view_name           TEXT        NOT NULL,
-        table_alias         TEXT        NOT NULL,
-        rowid_column_name   TEXT        NOT NULL,
-        source_table_name   TEXT        NOT NULL,
-        column_name_array   TEXT[],
-        update_sql          TEXT,
+        owner               	TEXT        NOT NULL,
+        view_name           		TEXT        NOT NULL,
+        table_alias         		TEXT        NOT NULL,
+        rowid_column_name   		TEXT        NOT NULL,
+        source_table_name   		TEXT        NOT NULL,
+        column_name_array   		TEXT[],
+        update_sql          		TEXT,
+		join_replacement_from_sql	TEXT,
         CONSTRAINT
             pk_pg$mviews_oj_details
             PRIMARY KEY

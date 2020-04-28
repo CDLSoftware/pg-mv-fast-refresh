@@ -73,6 +73,7 @@ DROP FUNCTION IF EXISTS mv$findFirstFreeBit;
 DROP FUNCTION IF EXISTS mv$getBitValue;
 DROP FUNCTION IF EXISTS mv$getPgMviewLogTableData;
 DROP FUNCTION IF EXISTS mv$getPgMviewTableData;
+DROP FUNCTION IF EXISTS mv$getPgMviewOjDetailsTableData;
 DROP FUNCTION IF EXISTS mv$getPgMviewViewColumns;
 DROP FUNCTION IF EXISTS mv$getSourceTableSchema;
 DROP FUNCTION IF EXISTS mv$grantSelectPrivileges;
@@ -1600,6 +1601,73 @@ BEGIN
     WHEN OTHERS
     THEN
         RAISE INFO      'Exception in function mv$getPgMviewTableData';
+        RAISE INFO      'Error %:- %:',     SQLSTATE, SQLERRM;
+        RAISE EXCEPTION '%',                SQLSTATE;
+END;
+$BODY$
+LANGUAGE    plpgsql
+SECURITY    DEFINER;
+------------------------------------------------------------------------------------------------------------------------------------
+CREATE OR REPLACE
+FUNCTION    mv$getPgMviewOjDetailsTableData
+            (
+                pConst      IN      mv$allConstants,
+                pOwner      IN      TEXT,
+                pViewName   IN      TEXT,
+				pTableAlias IN      TEXT
+            )
+    RETURNS pg$mviews
+AS
+$BODY$
+/* ---------------------------------------------------------------------------------------------------------------------------------
+Routine Name: mv$getPgMviewOjDetailsTableData
+Author:       Mike Revitt
+Date:         12/11/2018
+------------------------------------------------------------------------------------------------------------------------------------
+Revision History    Push Down List
+------------------------------------------------------------------------------------------------------------------------------------
+Date        | Name          | Description
+------------+---------------+-------------------------------------------------------------------------------------------------------
+28/04/2020  | M Revitt      | Initial version
+------------+---------------+-------------------------------------------------------------------------------------------------------
+Description:    Returns all of the data stored in the data dictionary about this materialized view outer join table alias details.
+
+Arguments:      IN      pOwner              The owner of the object
+                IN      pViewName           The name of the materialized view
+				IN		pTableAlias			The outer join table alias of the materialized view
+Returns:                RECORD              The row of data from the data dictionary relating to this materialized view
+
+************************************************************************************************************************************
+Copyright 2019 Amazon.com, Inc. or its affiliates. All Rights Reserved. SPDX-License-Identifier: MIT-0
+***********************************************************************************************************************************/
+DECLARE
+    aPgMviewOjDetails           pg$mviews_oj_details;
+
+    cgetPgMviewOjTableData   CURSOR
+    FOR
+    SELECT
+            *
+    FROM    pg$mviews_oj_details
+    WHERE   owner       = pOwner
+    AND     view_name   = pViewName
+	AND 	table_alias = pTableAlias;
+BEGIN
+    OPEN    cgetPgMviewOjDetailTableData;
+    FETCH   cgetPgMviewOjDetailTableData
+    INTO    aPgMviewOjDetails;
+    CLOSE   cgetPgMviewOjDetailTableData;
+
+    IF 0 = COALESCE( CARDINALITY( aPgMviewOjDetails.table_alias ), 0 )
+    THEN
+        RAISE EXCEPTION 'Materialised View ''%'' does not have a alias % table', pOwner || pConst.DOT_CHARACTER || pViewName, pTableAlias;
+    ELSE
+        RETURN( aPgMviewOjDetails );
+    END IF;
+
+    EXCEPTION
+    WHEN OTHERS
+    THEN
+        RAISE INFO      'Exception in function mv$getPgMviewOjDetailsTableData';
         RAISE INFO      'Error %:- %:',     SQLSTATE, SQLERRM;
         RAISE EXCEPTION '%',                SQLSTATE;
 END;
