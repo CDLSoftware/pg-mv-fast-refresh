@@ -1230,7 +1230,7 @@ Revision History    Push Down List
 Date        | Name          | Description
 ------------+---------------+-------------------------------------------------------------------------------------------------------
             |               |
-28/04/2020	| D DAY			| Added join_replacement_from_sql value from pg$mview_oj_details data dictionary table to use in DELETE 
+28/04/2020	| D Day			| Added join_replacement_from_sql value from pg$mview_oj_details data dictionary table to use in DELETE 
 			|				| and INSERT statements to help performance.
 14/02/2020	| D Day			| Added dot character inbetween pInnerAlias and pConst.MV_M_ROW$_SOURCE_COLUMN as the inner alias array
 			|				| values no longer include the dot.
@@ -1262,7 +1262,7 @@ DECLARE
 BEGIN
 
     aPgMview    		 := mv$getPgMviewTableData( pConst, pOwner, pViewName );
-    aPgMviewOjDetails    := mv$getPgMviewTableData( pConst, pOwner, pViewName, pTableAlias);
+    aPgMviewOjDetails    := mv$getPgMviewOjDetailsTableData( pConst, pOwner, pViewName, pTableAlias);
 	
 	tFromClause := pConst.FROM_COMMAND  || aPgMviewOjDetails.join_replacement_from_sql     || pConst.WHERE_COMMAND;
 
@@ -2495,7 +2495,7 @@ $BODY$
 LANGUAGE    plpgsql
 SECURITY    DEFINER;
 ------------------------------------------------------------------------------------------------------------------------------------
-CREATE OR REPLACE FUNCTION pgrs_mview.mv$outerJoinToInnerJoinReplacement(
+CREATE OR REPLACE FUNCTION mv$outerJoinToInnerJoinReplacement(
 	pTableNames TEXT,
 	pTableAlias TEXT)
     RETURNS text
@@ -2592,7 +2592,7 @@ IF iLeftJoinOverallCnt > 0 THEN
 		iLoopJoinLeftCnt := iLoopLeftJoinCnt;
 		tLeftJoinSyntax := 'LEFT JOIN';
 
-		iStartPosition := pgrs_mview.mv$regexpinstr(tTablesSQL,
+		iStartPosition := mv$regexpinstr(tTablesSQL,
 		tRegExpLeftOuterJoinSyntax,
 		1,
 		iLoopLeftJoinCnt,
@@ -2609,7 +2609,7 @@ IF iLeftJoinOverallCnt > 0 THEN
 		iLoopJoinLeftCnt := iLoopLeftOuterJoinCnt;
 		tLeftJoinSyntax := 'LEFT OUTER JOIN';
 
-		iStartPosition := pgrs_mview.mv$regexpinstr(tTablesSQL,
+		iStartPosition := mv$regexpinstr(tTablesSQL,
 		tRegExpLeftOuterJoinSyntax,
 		1,
 		iLoopLeftOuterJoinCnt,
@@ -2618,7 +2618,7 @@ IF iLeftJoinOverallCnt > 0 THEN
 		
 	END IF;
 
-	iEndPosition := pgrs_mview.mv$regexpinstr(tTablesSQL,
+	iEndPosition := mv$regexpinstr(tTablesSQL,
 	tRegExpLeftOuterJoinSyntax||'[[:space:]]+[a-zA-Z0-9_]+[[:space:]]+[a-zA-Z0-9_]+[[:space:]]+[a-zA-Z0-9_]+[[:space:]]+[a-zA-Z0-9_]+[.]+[a-zA-Z0-9_]+[[:space:]]+[=]+[[:space:]]+[a-zA-Z0-9_]+[.]+[a-zA-Z0-9_]+',
 	1,
 	iLoopJoinLeftCnt,
@@ -2662,7 +2662,7 @@ ELSIF iRightJoinOverallCnt > 0 THEN
 		iLoopJoinRightCnt := iLoopRightJoinCnt;
 		tRightJoinSyntax := 'RIGHT JOIN';
 
-		iStartPosition := pgrs_mview.mv$regexpinstr(tTablesSQL,
+		iStartPosition := mv$regexpinstr(tTablesSQL,
 		tRegExpRightOuterJoinSyntax,
 		1,
 		iLoopRightJoinCnt,
@@ -2679,7 +2679,7 @@ ELSIF iRightJoinOverallCnt > 0 THEN
 		iLoopJoinRightCnt := iLoopRightOuterJoinCnt;
 		tRightJoinSyntax := 'RIGHT OUTER JOIN';
 
-		iStartPosition := pgrs_mview.mv$regexpinstr(tTablesSQL,
+		iStartPosition := mv$regexpinstr(tTablesSQL,
 		tRegExpRightOuterJoinSyntax,
 		1,
 		iLoopRightOuterJoinCnt,
@@ -2688,7 +2688,7 @@ ELSIF iRightJoinOverallCnt > 0 THEN
 		
 	END IF;
 
-	iEndPosition := pgrs_mview.mv$regexpinstr(tTablesSQL,
+	iEndPosition := mv$regexpinstr(tTablesSQL,
 	tRegExpRightOuterJoinSyntax||'[[:space:]]+[a-zA-Z0-9_]+[[:space:]]+[a-zA-Z0-9_]+[[:space:]]+[a-zA-Z0-9_]+[[:space:]]+[a-zA-Z0-9_]+[.]+[a-zA-Z0-9_]+[[:space:]]+[=]+[[:space:]]+[a-zA-Z0-9_]+[.]+[a-zA-Z0-9_]+',
 	1,
 	iLoopJoinRightCnt,
