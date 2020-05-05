@@ -29,21 +29,11 @@ Copyright 2018 Amazon.com, Inc. or its affiliates. All Rights Reserved. SPDX-Lic
 ***********************************************************************************************************************************/
 DECLARE	
 	
-	iLeftJoinCnt 			INTEGER := 0;
-	iLeftOuterJoinCnt		INTEGER := 0;
-	iLeftJoinOverallCnt		INTEGER := 0;
-	
-	iRightJoinCnt 			INTEGER := 0;
-	iRightOuterJoinCnt		INTEGER := 0;
-	iRightJoinOverallCnt	INTEGER := 0;	
+	iLeftJoinCnt 			INTEGER := 0;	
+	iRightJoinCnt 			INTEGER := 0;	
 	
 	iLoopLeftJoinCnt		INTEGER := 0;
-	iLoopLeftOuterJoinCnt	INTEGER := 0;
-	iLoopJoinLeftCnt		INTEGER := 0;
-	
 	iLoopRightJoinCnt		INTEGER := 0;
-	iLoopRightOuterJoinCnt	INTEGER := 0;
-	iLoopJoinRightCnt		INTEGER := 0;
 	
 	iLeftJoinLoopAliasCnt 	INTEGER := 0;
 	iRightJoinLoopAliasCnt 	INTEGER := 0;
@@ -52,175 +42,286 @@ DECLARE
 	  
 	tSQL					TEXT;
 	tLeftJoinLine			TEXT;
-	tOrigLeftJoinLine 		TEXT;
-	
 	tRightJoinLine			TEXT;
+	tOrigLeftJoinLine 		TEXT;
 	tOrigRightJoinLine 		TEXT;
 	
-	tLeftJoinSyntax			TEXT;
-	tRightJoinSyntax		TEXT;
+	tLeftMatched			CHAR := 'N';
 	
 	tTableAlias 			TEXT := REPLACE(pTableAlias,'.','\.');
+	
+	ls_table_name			TEXT;
+	ls_column_name			TEXT;
 	
 	iStartPosition			INTEGER := 0;
 	iEndPosition			INTEGER := 0;
 	
-	tRegExpLeftOuterJoinSyntax	TEXT;
+	iLoopColNullableNoCnt	INTEGER := 0;
+	
+	iTabColExist			INTEGER := 0;
+	iColNullableNo			INTEGER := 0;
+	
+	iLoopColNullableNo		INTEGER := 0;
+	
+	tLeftAliasColumnName	TEXT;
+	tLeftAliasTableName		TEXT;
+	tRightAliasColumnName	TEXT;
+	tRightAliasTableName	TEXT;
 	
 BEGIN
 
 tTablesSQL := regexp_replace(tTablesSQL,'left join','LEFT JOIN','gi');
-tTablesSQL := regexp_replace(tTablesSQL,'left outer join join','LEFT JOIN','gi');
+tTablesSQL := regexp_replace(tTablesSQL,'left outer join','LEFT JOIN','gi');
 tTablesSQL := regexp_replace(tTablesSQL,'right join','RIGHT JOIN','gi');
-tTablesSQL := regexp_replace(tTablesSQL,'right outer join','RIGHT OUTER JOIN','gi');
+tTablesSQL := regexp_replace(tTablesSQL,'right outer join','RIGHT JOIN','gi');
 	  
 SELECT count(1) INTO iLeftJoinCnt FROM regexp_matches(tTablesSQL,'LEFT JOIN','g');
-SELECT count(1) INTO iLeftOuterJoinCnt FROM regexp_matches(tTablesSQL,'LEFT JOIN','g');
-SELECT count(1) INTO iLeftJoinOverallCnt FROM regexp_matches(tTablesSQL,'LEFT JOIN|LEFT OUTER JOIN','g');
-
 SELECT count(1) INTO iRightJoinCnt FROM regexp_matches(tTablesSQL,'RIGHT JOIN','g');
-SELECT count(1) INTO iRightOuterJoinCnt FROM regexp_matches(tTablesSQL,'RIGHT JOIN','g');
-SELECT count(1) INTO iRightJoinOverallCnt FROM regexp_matches(tTablesSQL,'RIGHT JOIN|RIGHT OUTER JOIN','g');
 
+tTablesSQL :=
+		TRIM (
+		   mv$regexpreplace(
+			  tTablesSQL,
+			  '([' || CHR (11) || CHR (13) || CHR (9) || ']+)',
+			  ' '));
+			  
 tSQL := tTablesSQL;
 
-IF iLeftJoinOverallCnt > 0 THEN
+IF iLeftJoinCnt > 0 THEN
 	  
-	FOR i IN 1..iLeftJoinOverallCnt
+	FOR i IN 1..iLeftJoinCnt
 	LOOP
 
-	IF iLeftJoinCnt > 0 AND iLoopLeftJoinCnt < iLeftJoinCnt THEN
-
-		iLoopLeftJoinCnt = iLoopLeftJoinCnt + 1;
-		
-		tRegExpLeftOuterJoinSyntax := 'LEFT+[[:space:]]+JOIN+';
-		iLoopJoinLeftCnt := iLoopLeftJoinCnt;
-		tLeftJoinSyntax := 'LEFT JOIN';
-
 		iStartPosition := mv$regexpinstr(tTablesSQL,
-		tRegExpLeftOuterJoinSyntax,
+		'LEFT+[[:space:]]+JOIN+',
 		1,
-		iLoopLeftJoinCnt,
+		i,
 		1,
-		'i')-9;	
+		'i')-9;
+
+		iEndPosition := mv$regexpinstr(tTablesSQL,
+		'LEFT+[[:space:]]+JOIN+[[:space:]]+[a-zA-Z0-9_]+[[:space:]]+[a-zA-Z0-9_]+[[:space:]]+[a-zA-Z0-9_]+[[:space:]]+[a-zA-Z0-9_]+[.]+[a-zA-Z0-9_]+[[:space:]]+[=]+[[:space:]]+[a-zA-Z0-9_]+[.]+[a-zA-Z0-9_]+',
+		1,
+		i,
+		1,
+		'i');
 		
-	END IF;
-
-	IF iLeftOuterJoinCnt > 0 AND iLoopLeftOuterJoinCnt < iLeftOuterJoinCnt THEN
-
-		iLoopLeftOuterJoinCnt = iLoopLeftOuterJoinCnt + 1; 
-
-		tRegExpLeftOuterJoinSyntax := 'LEFT+[[:space:]]+OUTER+[[:space:]]+JOIN+';
-		iLoopJoinLeftCnt := iLoopLeftOuterJoinCnt;
-		tLeftJoinSyntax := 'LEFT OUTER JOIN';
-
-		iStartPosition := mv$regexpinstr(tTablesSQL,
-		tRegExpLeftOuterJoinSyntax,
-		1,
-		iLoopLeftOuterJoinCnt,
-		1,
-		'i')-15;
+		tLeftJoinLine := substr(tTablesSQL,iStartPosition, iEndPosition - iStartPosition);
 		
-	END IF;
-
-	iEndPosition := mv$regexpinstr(tTablesSQL,
-	tRegExpLeftOuterJoinSyntax||'[[:space:]]+[a-zA-Z0-9_]+[[:space:]]+[a-zA-Z0-9_]+[[:space:]]+[a-zA-Z0-9_]+[[:space:]]+[a-zA-Z0-9_]+[.]+[a-zA-Z0-9_]+[[:space:]]+[=]+[[:space:]]+[a-zA-Z0-9_]+[.]+[a-zA-Z0-9_]+',
-	1,
-	iLoopJoinLeftCnt,
-	1,
-	'i');
-
-	tLeftJoinLine := substr(tTablesSQL,iStartPosition, iEndPosition - iStartPosition);
-
-	SELECT count(1) INTO iLeftJoinLoopAliasCnt FROM regexp_matches(tLINE,'[[:space:]]+'||tTableAlias,'g');
-
-	IF iLeftJoinOverallCnt > 0 THEN
-
 		tOrigLeftJoinLine := tLeftJoinLine;
+		
+		SELECT count(1) INTO iLeftJoinLoopAliasCnt FROM regexp_matches(tLeftJoinLine,'[[:space:]]+'||tTableAlias,'g');
 
-		tLeftJoinLine := replace(tLeftJoinLine,tLeftJoinSyntax,'INNER JOIN');
-
-		IF i = 1 THEN
-
-			tSQL := replace(tTablesSQL,tOrigLeftJoinLine,tLeftJoinLine);
-					  
-		ELSE 
-					  
-			tSQL := replace(tSQL,tOrigLeftJoinLine,tLeftJoinLine);
+		IF iLeftJoinLoopAliasCnt > 0 THEN
+		
+			iLoopLeftJoinCnt := iLoopLeftJoinCnt +1;
 			
-		END IF;
+			iStartPosition :=  mv$regexpinstr(tLeftJoinLine,'[[:space:]]+'||tTableAlias,
+				1,
+				1,
+				1,
+				'i');
+				
+			iEndPosition := mv$regexpinstr(tLeftJoinLine,'[[:space:]]+'||tTableAlias||'+[a-zA-Z0-9_]+',
+				1,
+				1,
+				1,
+				'i');		
+				
+			tLeftAliasColumnName := substr(tLeftJoinLine,iStartPosition, iEndPosition - iStartPosition);
+			
+			ls_column_name := TRIM(
+				 mv$regexpreplace(
+					tLeftAliasColumnName,
+					'([' || CHR (10) || CHR (11) || CHR (13) || CHR(9) || ']+)',
+					''));
+					
+			IF iLoopLeftJoinCnt = 1 THEN
+			
+				iStartPosition := mv$regexpinstr(tLeftJoinLine,
+					'LEFT+[[:space:]]+JOIN+[[:space:]]+',
+					1,
+					1,
+					1,
+					'i');
+					
+				iEndPosition := mv$regexpinstr(tLeftJoinLine,
+					'LEFT+[[:space:]]+JOIN+[[:space:]]+[a-zA-Z0-9_]+',
+					1,
+					1,
+					1,
+					'i');
+					
+				tLeftAliasTableName := substr(tLeftJoinLine,iStartPosition, iEndPosition - iStartPosition);
+				
+				ls_table_name := TRIM(
+					 mv$regexpreplace(
+						tLeftAliasTableName,
+						'([' || CHR (10) || CHR (11) || CHR (13) || CHR(9) || ']+)',
+						''));
+						
+			END IF;
+			
+			SELECT count(1) INTO iTabColExist
+			FROM information_schema.columns 
+			WHERE table_name=ls_table_name
+			AND column_name=ls_column_name;
+			
+			IF iTabColExist = 1 THEN
+			
+				SELECT count(1) INTO iColNullableNo
+				FROM information_schema.columns 
+				WHERE table_name=ls_table_name 
+				AND column_name=ls_column_name
+				AND is_nullable = 'NO';
+				
+				IF iColNullableNo = 1 THEN
+				
+					tLeftMatched := 'Y';
+				
+					iLoopColNullableNoCnt := iLoopColNullableNoCnt +1;
+				
+					IF iLoopColNullableNoCnt = 1 THEN
+					
+						tLeftJoinLine := replace(tLeftJoinLine,'LEFT JOIN','INNER JOIN');
+						tSQL := replace(tTablesSQL,tOrigLeftJoinLine,tLeftJoinLine);
 
-	END IF;
+					ELSE 
+					
+						tLeftJoinLine := replace(tLeftJoinLine,'LEFT JOIN','INNER JOIN');
+						tSQL := replace(tSQL,tOrigLeftJoinLine,tLeftJoinLine);
+
+					END IF;
+					
+				END IF;
+
+			ELSE
+			
+				RAISE EXCEPTION 'The value of the argument to confirm alias table name and column name exist in the data dictionary cannot be found from left join line '' % ''. Function does not handle string format.',tLeftJoinLine;
+		
+			END IF;
+
+		END IF;
 
 	END LOOP;
 
 ELSIF iRightJoinOverallCnt > 0 THEN
 
-	FOR i IN 1..iRightJoinOverallCnt
+	iLoopColNullableNoCnt := 0;
+
+	FOR i IN 1..iRightJoinCnt
 	LOOP
 
-	IF iRightJoinCnt > 0 AND iLoopRightJoinCnt < iRightJoinCnt THEN
-
-		iLoopRightJoinCnt = iLoopRightJoinCnt + 1;
-		
-		tRegExpLeftOuterJoinSyntax := 'RIGHT+[[:space:]]+JOIN+';
-		iLoopJoinRightCnt := iLoopRightJoinCnt;
-		tRightJoinSyntax := 'RIGHT JOIN';
-
 		iStartPosition := mv$regexpinstr(tTablesSQL,
-		tRegExpRightOuterJoinSyntax,
+		'RIGHT+[[:space:]]+JOIN+',
 		1,
-		iLoopRightJoinCnt,
+		i,
 		1,
-		'i')-10;	
-		
-	END IF;
+		'i')-10;
 
-	IF iRightOuterJoinCnt > 0 AND iLoopRightOuterJoinCnt < iRightOuterJoinCnt THEN
-
-		iLoopRightOuterJoinCnt = iLoopRightOuterJoinCnt + 1; 
-
-		tRegExpLeftOuterJoinSyntax := 'RIGHT+[[:space:]]+OUTER+[[:space:]]+JOIN+';
-		iLoopJoinRightCnt := iLoopRightOuterJoinCnt;
-		tRightJoinSyntax := 'RIGHT OUTER JOIN';
-
-		iStartPosition := mv$regexpinstr(tTablesSQL,
-		tRegExpRightOuterJoinSyntax,
+		iEndPosition := mv$regexpinstr(tTablesSQL,
+		'RIGHT+[[:space:]]+JOIN+[[:space:]]+[a-zA-Z0-9_]+[[:space:]]+[a-zA-Z0-9_]+[[:space:]]+[a-zA-Z0-9_]+[[:space:]]+[a-zA-Z0-9_]+[.]+[a-zA-Z0-9_]+[[:space:]]+[=]+[[:space:]]+[a-zA-Z0-9_]+[.]+[a-zA-Z0-9_]+',
 		1,
-		iLoopRightOuterJoinCnt,
+		i,
 		1,
-		'i')-16;
-		
-	END IF;
-
-	iEndPosition := mv$regexpinstr(tTablesSQL,
-	tRegExpRightOuterJoinSyntax||'[[:space:]]+[a-zA-Z0-9_]+[[:space:]]+[a-zA-Z0-9_]+[[:space:]]+[a-zA-Z0-9_]+[[:space:]]+[a-zA-Z0-9_]+[.]+[a-zA-Z0-9_]+[[:space:]]+[=]+[[:space:]]+[a-zA-Z0-9_]+[.]+[a-zA-Z0-9_]+',
-	1,
-	iLoopJoinRightCnt,
-	1,
-	'i');
-
-	tRightJoinLine := substr(tTablesSQL,iStartPosition, iEndPosition - iStartPosition);
-
-	SELECT count(1) INTO iRightJoinLoopAliasCnt FROM regexp_matches(tRightJoinLine,'[[:space:]]+'||tTableAlias,'g');
-
-	IF iRightJoinLoopAliasCnt > 0 THEN
-
+		'i');
+	
+		tRightJoinLine := substr(tTablesSQL,iStartPosition, iEndPosition - iStartPosition);	
 		tOrigRightJoinLine := tRightJoinLine;
-
-		tRightJoinLine := replace(tRightJoinLine,tRightJoinSyntax,'INNER JOIN');
-
-		IF i = 1 THEN
-
-			tSQL := replace(tTablesSQL,tOrigRightJoinLine,tRightJoinLine);
-					  
-		ELSE 
-					  
-			tSQL := replace(tSQL,tOrigRightJoinLine,tRightJoinLine);
 			
-		END IF;
+		SELECT count(1) INTO iRightJoinLoopAliasCnt 
+		FROM regexp_matches(tRightJoinLine,'[[:space:]]+'||tTableAlias,'g');
 
-	END IF;
+		IF iRightJoinLoopAliasCnt > 0 THEN
+		
+			iLoopRightJoinCnt := iLoopRightJoinCnt +1;
+			
+			iStartPosition :=  mv$regexpinstr(tRightJoinLine,'[[:space:]]+'||tTableAlias,
+				1,
+				1,
+				1,
+				'i');
+				
+			iEndPosition := mv$regexpinstr(tRightJoinLine,'[[:space:]]+'||tTableAlias||'+[a-zA-Z0-9_]+',
+				1,
+				1,
+				1,
+				'i');		
+				
+			tRightAliasColumnName := substr(tRightJoinLine,iStartPosition, iEndPosition - iStartPosition);
+			
+			ls_column_name := TRIM(
+				 mv$regexpreplace(
+					tRightAliasColumnName,
+					'([' || CHR (10) || CHR (11) || CHR (13) || CHR(9) || ']+)',
+					''));
+		
+			IF iLoopRightJoinCnt = 1 THEN
+			
+				iStartPosition := mv$regexpinstr(tRightJoinLine,
+					'RIGHT+[[:space:]]+JOIN+[[:space:]]+',
+					1,
+					1,
+					1,
+					'i');
+					
+				iEndPosition := mv$regexpinstr(tRightJoinLine,
+					'RIGHT+[[:space:]]+JOIN+[[:space:]]+[a-zA-Z0-9_]+',
+					1,
+					1,
+					1,
+					'i');
+					
+				tRightAliasTableName := substr(tRightJoinLine,iStartPosition, iEndPosition - iStartPosition);
+				
+				ls_table_name := TRIM(
+					 mv$regexpreplace(
+						tRightAliasTableName,
+						'([' || CHR (10) || CHR (11) || CHR (13) || CHR(9) || ']+)',
+						''));
+				
+			END IF;
+			
+			SELECT count(1) INTO iTabColExist
+			FROM information_schema.columns 
+			WHERE table_name=ls_table_name
+			AND column_name=ls_column_name;
+				
+			IF iTabColExist = 1 THEN
+			
+				SELECT count(1) INTO iColNullableNo
+				FROM information_schema.columns 
+				WHERE table_name=ls_table_name
+				AND column_name=ls_column_name
+				AND is_nullable = 'NO';
+								
+				IF iColNullableNo = 1 THEN
+				
+					tLeftMatched := 'Y';
+				
+					iLoopColNullableNoCnt := iLoopColNullableNoCnt +1;
+				
+					IF iLoopColNullableNoCnt = 1 AND tLeftMatched = 'N' THEN
+					
+						tRightJoinLine := replace(tRightJoinLine,'RIGHT JOIN','INNER JOIN');
+						tSQL := replace(tTablesSQL,tOrigRightJoinLine,tRightJoinLine);
+
+					ELSE 
+					
+						tLeftJoinLine := replace(tRightJoinLine,'RIGHT JOIN','INNER JOIN');
+						tSQL := replace(tSQL,tOrigRightJoinLine,tRightJoinLine);
+
+					END IF;
+					
+				END IF;
+
+			ELSE
+			
+				RAISE EXCEPTION 'The value of the argument to confirm alias table name and column name exist in the data dictionary cannot be found from right join line '' % ''. Function does not handle string format.',tLeftJoinLine;
+		
+			END IF;
+
+		END IF;
 
 	END LOOP;
 
@@ -252,23 +353,17 @@ Date        | Name          | Description
 ------------+---------------+-------------------------------------------------------------------------------------------------------
 Background:     Postgres does not support Materialized View Fast Refreshes, this suite of scripts is a PL/SQL coded mechanism to
                 provide that functionality, the next phase of this project is to fold these changes into the PostGre kernel.
-
 Description:    This is a patch script to update the data dictionary pg$mviews_oj_details table new column join_replacement_from_sql
 				with the from tables sql to replace the alias outer join conditions to inner join condition to be used by the outer join delete
 				and insert sql statements to help improve performance for large scale data volumes.
-
 Notes:          
-
 Issues:        	https://forums.aws.amazon.com/thread.jspa?messageID=860564
-
 ************************************************************************************************************************************
 Copyright 2018 Amazon.com, Inc. or its affiliates. All Rights Reserved.
-
 Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files
 (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify,
 merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is
 furnished to do so.
-
 THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES
 OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE
 LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
@@ -291,10 +386,7 @@ FROM information_schema.columns
 WHERE table_name= 'pg$mviews_oj_details'
 AND column_name='join_replacement_from_sql';
 
-IF iColumnCnt = 0 THEN
-
-	ALTER TABLE pg$mviews_oj_details
-	ADD COLUMN join_replacement_from_sql text;
+IF iColumnCnt = 1 THEN
 
 	FOR rMviewsOjDetails IN (SELECT moj.owner,
 									moj.view_name,
@@ -302,7 +394,8 @@ IF iColumnCnt = 0 THEN
 									m.table_names
 							 FROM 	pg$mviews_oj_details moj
 							 ,      pg$mviews m
-							 WHERE  moj.view_name = m.view_name) LOOP
+							 WHERE  moj.view_name = m.view_name
+							 AND 	moj.join_replacement_from_sql IS NULL) LOOP
 							 
 	tClauseJoinReplacement := v102_mv$outerJoinToInnerJoinReplacement(rMviewsOjDetails.table_names, rMviewsOjDetails.table_alias);
 			
@@ -318,7 +411,7 @@ IF iColumnCnt = 0 THEN
 	WERE   join_replacement_from_sql IS NULL;
 
 	IF iJoinReplacementFromSqlIsNull > 0 THEN
-			RAISE EXCEPTION 'The UPDATE patch script 001_update_join_replacement_from_sql.sql has not successfully updated all the linking aliases for each mview in data dictionary table pg$mviews_oj_details column join_replacement_from_sql';
+			RAISE EXCEPTION 'The UPDATE patch script V102_update_join_replacement_from_sql.sql has not successfully updated all the linking aliases for each mview in data dictionary table pg$mviews_oj_details column join_replacement_from_sql';
 	END IF;
 	
 END IF;
