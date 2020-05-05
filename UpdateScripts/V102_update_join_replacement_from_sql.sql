@@ -205,7 +205,7 @@ IF iLeftJoinCnt > 0 THEN
 
 	END LOOP;
 
-ELSIF iRightJoinOverallCnt > 0 THEN
+ELSIF iRightJoinCnt > 0 THEN
 
 	iLoopColNullableNoCnt := 0;
 
@@ -297,8 +297,6 @@ ELSIF iRightJoinOverallCnt > 0 THEN
 								
 				IF iColNullableNo = 1 THEN
 				
-					tLeftMatched := 'Y';
-				
 					iLoopColNullableNoCnt := iLoopColNullableNoCnt +1;
 				
 					IF iLoopColNullableNoCnt = 1 AND tLeftMatched = 'N' THEN
@@ -308,7 +306,7 @@ ELSIF iRightJoinOverallCnt > 0 THEN
 
 					ELSE 
 					
-						tLeftJoinLine := replace(tRightJoinLine,'RIGHT JOIN','INNER JOIN');
+						tRightJoinLine := replace(tRightJoinLine,'RIGHT JOIN','INNER JOIN');
 						tSQL := replace(tSQL,tOrigRightJoinLine,tRightJoinLine);
 
 					END IF;
@@ -317,7 +315,7 @@ ELSIF iRightJoinOverallCnt > 0 THEN
 
 			ELSE
 			
-				RAISE EXCEPTION 'The value of the argument to confirm alias table name and column name exist in the data dictionary cannot be found from right join line '' % ''. Function does not handle string format.',tLeftJoinLine;
+				RAISE EXCEPTION 'The value of the argument to confirm alias table name and column name exist in the data dictionary cannot be found from right join line '' % ''. Function does not handle string format.',tRightJoinLine;
 		
 			END IF;
 
