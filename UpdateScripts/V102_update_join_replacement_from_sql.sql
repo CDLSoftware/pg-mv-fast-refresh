@@ -334,7 +334,7 @@ $BODY$
 LANGUAGE    plpgsql
 SECURITY    DEFINER;
 
-CREATE OR REPLACE FUNCTION pgrs_mview.V103_update_join_replacement_from_sql()
+CREATE OR REPLACE FUNCTION pgrs_mview.V102_update_join_replacement_from_sql()
     RETURNS VOID
 AS
 $BODY$
@@ -408,7 +408,7 @@ IF iColumnCnt = 1 THEN
 
 	SELECT COUNT(1) INTO iJoinReplacementFromSqlIsNull
 	FROM   pg$mviews_oj_details
-	WERE   join_replacement_from_sql IS NULL;
+	WHERE   join_replacement_from_sql IS NULL;
 
 	IF iJoinReplacementFromSqlIsNull > 0 THEN
 			RAISE EXCEPTION 'The UPDATE patch script V102_update_join_replacement_from_sql.sql has not successfully updated all the linking aliases for each mview in data dictionary table pg$mviews_oj_details column join_replacement_from_sql';

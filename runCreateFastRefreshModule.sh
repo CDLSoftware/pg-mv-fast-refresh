@@ -111,10 +111,6 @@ elif [ "$INSTALL_TYPE" == "UPDATE" ]; then
 
 echo "INFO: Fast Refresh Module UPDATE patch finished at `date`" >> $LOG_FILE
 
-elif [ "$INSTALL_TYPE" == "H" ]; then
-
-echo "INFO: Kingfisher Hotfix Install finished at `date`" >> $LOG_FILE
-
 fi
 
 exit
