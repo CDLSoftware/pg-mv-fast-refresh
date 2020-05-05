@@ -164,15 +164,15 @@ IF iLeftJoinCnt > 0 THEN
 			
 			SELECT count(1) INTO iTabColExist
 			FROM information_schema.columns 
-			WHERE table_name=ls_table_name
-			AND column_name=ls_column_name;
-			
+			WHERE table_name=LOWER(ls_table_name)
+			AND column_name=LOWER(ls_column_name);
+				
 			IF iTabColExist = 1 THEN
 			
 				SELECT count(1) INTO iColNullableNo
 				FROM information_schema.columns 
-				WHERE table_name=ls_table_name 
-				AND column_name=ls_column_name
+				WHERE table_name=LOWER(ls_table_name)
+				AND column_name=LOWER(ls_column_name)
 				AND is_nullable = 'NO';
 				
 				IF iColNullableNo = 1 THEN
@@ -284,15 +284,15 @@ ELSIF iRightJoinCnt > 0 THEN
 			
 			SELECT count(1) INTO iTabColExist
 			FROM information_schema.columns 
-			WHERE table_name=ls_table_name
-			AND column_name=ls_column_name;
+			WHERE table_name=LOWER(ls_table_name)
+			AND column_name=LOWER(ls_column_name);
 				
 			IF iTabColExist = 1 THEN
 			
 				SELECT count(1) INTO iColNullableNo
 				FROM information_schema.columns 
-				WHERE table_name=ls_table_name
-				AND column_name=ls_column_name
+				WHERE table_name=LOWER(ls_table_name)
+				AND column_name=LOWER(ls_column_name)
 				AND is_nullable = 'NO';
 								
 				IF iColNullableNo = 1 THEN
