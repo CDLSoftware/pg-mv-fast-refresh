@@ -250,11 +250,11 @@ ELSIF iRightJoinCnt > 0 THEN
 				
 			tRightAliasColumnName := substr(tRightJoinLine,iStartPosition, iEndPosition - iStartPosition);
 			
-			ls_column_name := TRIM(
+			ls_column_name := LOWER(TRIM(
 				 mv$regexpreplace(
 					tRightAliasColumnName,
 					'([' || CHR (10) || CHR (11) || CHR (13) || CHR(9) || ']+)',
-					''));
+					'')));
 		
 			IF iLoopRightJoinCnt = 1 THEN
 			
@@ -274,11 +274,11 @@ ELSIF iRightJoinCnt > 0 THEN
 					
 				tRightAliasTableName := substr(tRightJoinLine,iStartPosition, iEndPosition - iStartPosition);
 				
-				ls_table_name := TRIM(
+				ls_table_name := LOWER(TRIM(
 					 mv$regexpreplace(
 						tRightAliasTableName,
 						'([' || CHR (10) || CHR (11) || CHR (13) || CHR(9) || ']+)',
-						''));
+						'')));
 				
 			END IF;
 			
