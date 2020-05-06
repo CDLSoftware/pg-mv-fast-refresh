@@ -1,10 +1,11 @@
-CREATE OR REPLACE FUNCTION v102_mv$outerJoinToInnerJoinReplacement(
-	pTableNames TEXT,
-	pTableAlias TEXT)
+CREATE OR REPLACE FUNCTION pgrs_mview.v102_mv$outerJoinToInnerJoinReplacement(
+	pConst          IN      mv$allConstants,
+	pTableNames 	IN		TEXT,
+	pTableAlias 	IN		TEXT)
     RETURNS text
 AS $BODY$
 /* ---------------------------------------------------------------------------------------------------------------------------------
-Routine Name: v102_mv$outerJoinToInnerJoinReplacement(
+Routine Name: mv$outerJoinToInnerJoinReplacement
 Author:       David Day
 Date:         28/04/2020
 ------------------------------------------------------------------------------------------------------------------------------------
@@ -17,8 +18,6 @@ Date        | Name          | Description
 ------------+---------------+-------------------------------------------------------------------------------------------------------
 Description:    Function to replace the alias driven outer join conditions to inner join in the from tables join sql
 				regular expression pattern.
-				
-				ONLY to be used by UPDATE patch release v102 and will be dropped once patch has been applied.
 
 Arguments:      IN      pTableNames             
                 IN      pTableAlias              
@@ -68,6 +67,8 @@ DECLARE
 	tRightAliasColumnName	TEXT;
 	tRightAliasTableName	TEXT;
 	
+	tTablesMarkerSQL		TEXT;
+
 BEGIN
 
 tTablesSQL := regexp_replace(tTablesSQL,'left join','LEFT JOIN','gi');
@@ -84,6 +85,13 @@ tTablesSQL :=
 			  tTablesSQL,
 			  '([' || CHR (11) || CHR (13) || CHR (9) || ']+)',
 			  ' '));
+
+tTablesMarkerSQL :=	mv$regexpreplace(tTablesSQL, 'LEFT JOIN',pConst.COMMA_LEFT_TOKEN);
+tTablesMarkerSQL :=	mv$regexpreplace(tTablesMarkerSQL, 'RIGHT JOIN',pConst.COMMA_RIGHT_TOKEN);
+tTablesMarkerSQL :=	mv$regexpreplace(tTablesMarkerSQL, 'INNER JOIN',pConst.COMMA_INNER_TOKEN);
+tTablesMarkerSQL :=	mv$regexpreplace(tTablesMarkerSQL, 'JOIN',pConst.COMMA_INNER_TOKEN);
+
+tTablesMarkerSQL := tTablesMarkerSQL||pConst.COMMA_INNER_TOKEN;
 			  
 tSQL := tTablesSQL;
 
@@ -91,22 +99,23 @@ IF iLeftJoinCnt > 0 THEN
 	  
 	FOR i IN 1..iLeftJoinCnt
 	LOOP
-
-		iStartPosition := mv$regexpinstr(tTablesSQL,
-		'LEFT+[[:space:]]+JOIN+',
+	
+	tLeftJoinLine :=  'LEFT JOIN'||substr(substr(tTablesMarkerSQL,mv$regexpinstr(tTablesMarkerSQL, 
+	'('|| pConst.COMMA_LEFT_TOKEN ||'+)',
 		1,
 		i,
 		1,
-		'i')-9;
-
-		iEndPosition := mv$regexpinstr(tTablesSQL,
-		'LEFT+[[:space:]]+JOIN+[[:space:]]+[a-zA-Z0-9_]+[[:space:]]+[a-zA-Z0-9_]+[[:space:]]+[a-zA-Z0-9_]+[[:space:]]+[a-zA-Z0-9_]+[.]+[a-zA-Z0-9_]+[[:space:]]+[=]+[[:space:]]+[a-zA-Z0-9_]+[.]+[a-zA-Z0-9_]+',
-		1,
+		'i')),1,
+			   mv$regexpinstr(substr(tTablesMarkerSQL,mv$regexpinstr(tTablesMarkerSQL,
+	'('|| pConst.COMMA_LEFT_TOKEN ||'+)',
+					   1,
 		i,
 		1,
-		'i');
-		
-		tLeftJoinLine := substr(tTablesSQL,iStartPosition, iEndPosition - iStartPosition);
+		'i')),'('||pConst.COMMA_LEFT_TOKEN||'|'||pConst.COMMA_INNER_TOKEN||'|'||pConst.COMMA_RIGHT_TOKEN||')',
+		1,
+		1,
+		1,
+		'i')-3);
 		
 		tOrigLeftJoinLine := tLeftJoinLine;
 		
@@ -166,12 +175,12 @@ IF iLeftJoinCnt > 0 THEN
 			FROM information_schema.columns 
 			WHERE table_name=LOWER(ls_table_name)
 			AND column_name=LOWER(ls_column_name);
-				
+			
 			IF iTabColExist = 1 THEN
 			
 				SELECT count(1) INTO iColNullableNo
 				FROM information_schema.columns 
-				WHERE table_name=LOWER(ls_table_name)
+				WHERE table_name=LOWER(ls_table_name) 
 				AND column_name=LOWER(ls_column_name)
 				AND is_nullable = 'NO';
 				
@@ -211,22 +220,24 @@ ELSIF iRightJoinCnt > 0 THEN
 
 	FOR i IN 1..iRightJoinCnt
 	LOOP
-
-		iStartPosition := mv$regexpinstr(tTablesSQL,
-		'RIGHT+[[:space:]]+JOIN+',
-		1,
-		i,
-		1,
-		'i')-10;
-
-		iEndPosition := mv$regexpinstr(tTablesSQL,
-		'RIGHT+[[:space:]]+JOIN+[[:space:]]+[a-zA-Z0-9_]+[[:space:]]+[a-zA-Z0-9_]+[[:space:]]+[a-zA-Z0-9_]+[[:space:]]+[a-zA-Z0-9_]+[.]+[a-zA-Z0-9_]+[[:space:]]+[=]+[[:space:]]+[a-zA-Z0-9_]+[.]+[a-zA-Z0-9_]+',
-		1,
-		i,
-		1,
-		'i');
 	
-		tRightJoinLine := substr(tTablesSQL,iStartPosition, iEndPosition - iStartPosition);	
+		tRightJoinLine := 'RIGHT JOIN'||substr(substr(tTablesMarkerSQL,mv$regexpinstr(tTablesMarkerSQL, 
+	'('|| pConst.COMMA_RIGHT_TOKEN ||'+)',
+		1,
+		i,
+		1,
+		'i')),1,
+			   mv$regexpinstr(substr(tTablesMarkerSQL,mv$regexpinstr(tTablesMarkerSQL,
+	'('|| pConst.COMMA_RIGHT_TOKEN ||'+)',
+					   1,
+		i,
+		1,
+		'i')),'('||pConst.COMMA_LEFT_TOKEN||'|'||pConst.COMMA_INNER_TOKEN||'|'||pConst.COMMA_RIGHT_TOKEN||')',
+		1,
+		1,
+		1,
+		'i')-3);
+			
 		tOrigRightJoinLine := tRightJoinLine;
 			
 		SELECT count(1) INTO iRightJoinLoopAliasCnt 
@@ -376,8 +387,11 @@ rMviewsOjDetails				RECORD;
 tClauseJoinReplacement 			TEXT;
 iJoinReplacementFromSqlIsNull	INTEGER := 0;
 
+rConst              			mv$allConstants;
+
 BEGIN
 
+rConst      := mv$buildAllConstants();
 
 SELECT count(1) INTO iColumnCnt
 FROM information_schema.columns 
@@ -395,7 +409,7 @@ IF iColumnCnt = 1 THEN
 							 WHERE  moj.view_name = m.view_name
 							 AND 	moj.join_replacement_from_sql IS NULL) LOOP
 							 
-	tClauseJoinReplacement := v102_mv$outerJoinToInnerJoinReplacement(rMviewsOjDetails.table_names, rMviewsOjDetails.table_alias);
+	tClauseJoinReplacement := v102_mv$outerJoinToInnerJoinReplacement(rConst, rMviewsOjDetails.table_names, rMviewsOjDetails.table_alias);
 			
 	UPDATE pg$mviews_oj_details
 	SET join_replacement_from_sql = tClauseJoinReplacement

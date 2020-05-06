@@ -1745,7 +1745,7 @@ BEGIN
 						 tUpdateSetSql || pConst.NEW_LINE ||
 						 tWhereClause;
 						 
-		tClauseJoinReplacement := mv$OuterJoinToInnerJoinReplacement(pTableNames, tColumnNameAlias);
+		tClauseJoinReplacement := mv$OuterJoinToInnerJoinReplacement(pConst, pTableNames, tColumnNameAlias);
 		
 		INSERT INTO pg$mviews_oj_details
 		(	owner
@@ -2521,6 +2521,34 @@ Returns:                TEXT
 ************************************************************************************************************************************
 Copyright 2018 Amazon.com, Inc. or its affiliates. All Rights Reserved. SPDX-License-Identifier: MIT-0
 ***********************************************************************************************************************************/
+CREATE OR REPLACE FUNCTION mv$outerJoinToInnerJoinReplacement(
+	pConst          IN      mv$allConstants,
+	pTableNames 	IN		TEXT,
+	pTableAlias 	IN		TEXT)
+    RETURNS text
+AS $BODY$
+/* ---------------------------------------------------------------------------------------------------------------------------------
+Routine Name: mv$outerJoinToInnerJoinReplacement
+Author:       David Day
+Date:         28/04/2020
+------------------------------------------------------------------------------------------------------------------------------------
+Revision History    Push Down List
+------------------------------------------------------------------------------------------------------------------------------------
+Date        | Name          | Description
+------------+---------------+-------------------------------------------------------------------------------------------------------
+            |               |
+28/04/2020  | D Day      	| Initial version
+------------+---------------+-------------------------------------------------------------------------------------------------------
+Description:    Function to replace the alias driven outer join conditions to inner join in the from tables join sql
+				regular expression pattern.
+
+Arguments:      IN      pTableNames             
+                IN      pTableAlias              
+Returns:                TEXT
+
+************************************************************************************************************************************
+Copyright 2018 Amazon.com, Inc. or its affiliates. All Rights Reserved. SPDX-License-Identifier: MIT-0
+***********************************************************************************************************************************/
 DECLARE	
 	
 	iLeftJoinCnt 			INTEGER := 0;	
@@ -2562,6 +2590,8 @@ DECLARE
 	tRightAliasColumnName	TEXT;
 	tRightAliasTableName	TEXT;
 	
+	tTablesMarkerSQL		TEXT;
+
 BEGIN
 
 tTablesSQL := regexp_replace(tTablesSQL,'left join','LEFT JOIN','gi');
@@ -2578,6 +2608,13 @@ tTablesSQL :=
 			  tTablesSQL,
 			  '([' || CHR (11) || CHR (13) || CHR (9) || ']+)',
 			  ' '));
+
+tTablesMarkerSQL :=	mv$regexpreplace(tTablesSQL, 'LEFT JOIN',pConst.COMMA_LEFT_TOKEN);
+tTablesMarkerSQL :=	mv$regexpreplace(tTablesMarkerSQL, 'RIGHT JOIN',pConst.COMMA_RIGHT_TOKEN);
+tTablesMarkerSQL :=	mv$regexpreplace(tTablesMarkerSQL, 'INNER JOIN',pConst.COMMA_INNER_TOKEN);
+tTablesMarkerSQL :=	mv$regexpreplace(tTablesMarkerSQL, 'JOIN',pConst.COMMA_INNER_TOKEN);
+
+tTablesMarkerSQL := tTablesMarkerSQL||pConst.COMMA_INNER_TOKEN;
 			  
 tSQL := tTablesSQL;
 
@@ -2585,22 +2622,23 @@ IF iLeftJoinCnt > 0 THEN
 	  
 	FOR i IN 1..iLeftJoinCnt
 	LOOP
-
-		iStartPosition := mv$regexpinstr(tTablesSQL,
-		'LEFT+[[:space:]]+JOIN+',
+	
+	tLeftJoinLine :=  'LEFT JOIN'||substr(substr(tTablesMarkerSQL,mv$regexpinstr(tTablesMarkerSQL, 
+	'('|| pConst.COMMA_LEFT_TOKEN ||'+)',
 		1,
 		i,
 		1,
-		'i')-9;
-
-		iEndPosition := mv$regexpinstr(tTablesSQL,
-		'LEFT+[[:space:]]+JOIN+[[:space:]]+[a-zA-Z0-9_]+[[:space:]]+[a-zA-Z0-9_]+[[:space:]]+[a-zA-Z0-9_]+[[:space:]]+[a-zA-Z0-9_]+[.]+[a-zA-Z0-9_]+[[:space:]]+[=]+[[:space:]]+[a-zA-Z0-9_]+[.]+[a-zA-Z0-9_]+',
-		1,
+		'i')),1,
+			   mv$regexpinstr(substr(tTablesMarkerSQL,mv$regexpinstr(tTablesMarkerSQL,
+	'('|| pConst.COMMA_LEFT_TOKEN ||'+)',
+					   1,
 		i,
 		1,
-		'i');
-		
-		tLeftJoinLine := substr(tTablesSQL,iStartPosition, iEndPosition - iStartPosition);
+		'i')),'('||pConst.COMMA_LEFT_TOKEN||'|'||pConst.COMMA_INNER_TOKEN||'|'||pConst.COMMA_RIGHT_TOKEN||')',
+		1,
+		1,
+		1,
+		'i')-3);
 		
 		tOrigLeftJoinLine := tLeftJoinLine;
 		
@@ -2705,22 +2743,24 @@ ELSIF iRightJoinCnt > 0 THEN
 
 	FOR i IN 1..iRightJoinCnt
 	LOOP
-
-		iStartPosition := mv$regexpinstr(tTablesSQL,
-		'RIGHT+[[:space:]]+JOIN+',
-		1,
-		i,
-		1,
-		'i')-10;
-
-		iEndPosition := mv$regexpinstr(tTablesSQL,
-		'RIGHT+[[:space:]]+JOIN+[[:space:]]+[a-zA-Z0-9_]+[[:space:]]+[a-zA-Z0-9_]+[[:space:]]+[a-zA-Z0-9_]+[[:space:]]+[a-zA-Z0-9_]+[.]+[a-zA-Z0-9_]+[[:space:]]+[=]+[[:space:]]+[a-zA-Z0-9_]+[.]+[a-zA-Z0-9_]+',
-		1,
-		i,
-		1,
-		'i');
 	
-		tRightJoinLine := substr(tTablesSQL,iStartPosition, iEndPosition - iStartPosition);	
+		tRightJoinLine := 'RIGHT JOIN'||substr(substr(tTablesMarkerSQL,mv$regexpinstr(tTablesMarkerSQL, 
+	'('|| pConst.COMMA_RIGHT_TOKEN ||'+)',
+		1,
+		i,
+		1,
+		'i')),1,
+			   mv$regexpinstr(substr(tTablesMarkerSQL,mv$regexpinstr(tTablesMarkerSQL,
+	'('|| pConst.COMMA_RIGHT_TOKEN ||'+)',
+					   1,
+		i,
+		1,
+		'i')),'('||pConst.COMMA_LEFT_TOKEN||'|'||pConst.COMMA_INNER_TOKEN||'|'||pConst.COMMA_RIGHT_TOKEN||')',
+		1,
+		1,
+		1,
+		'i')-3);
+			
 		tOrigRightJoinLine := tRightJoinLine;
 			
 		SELECT count(1) INTO iRightJoinLoopAliasCnt 
