@@ -70,15 +70,15 @@ echo $UPDATE_SCRIPTS_SQL >> $MODULE_HOME/fast_refresh_module_update_patch_object
 
 done
 
-UPDATE_FUNCTIONS=$(echo "\\i $MODULE_HOME/BuildScripts/mvApplicationFunctions.sql;")$'\n'
-echo $UPDATE_FUNCTIONS >> $MODULE_HOME/fast_refresh_module_update_patch_objects.sql
-UPDATE_FUNCTIONS=$(echo "\\i $MODULE_HOME/BuildScripts/mvComplexFunctions.sql;")$'\n'
+UPDATE_FUNCTIONS=$(echo "\\i $MODULE_HOME/BuildScripts/mvTypes.sql;")$'\n'
 echo $UPDATE_FUNCTIONS >> $MODULE_HOME/fast_refresh_module_update_patch_objects.sql
 UPDATE_FUNCTIONS=$(echo "\\i $MODULE_HOME/BuildScripts/mvConstants.sql;")$'\n'
 echo $UPDATE_FUNCTIONS >> $MODULE_HOME/fast_refresh_module_update_patch_objects.sql
 UPDATE_FUNCTIONS=$(echo "\\i $MODULE_HOME/BuildScripts/mvSimpleFunctions.sql;")$'\n'
 echo $UPDATE_FUNCTIONS >> $MODULE_HOME/fast_refresh_module_update_patch_objects.sql
-UPDATE_FUNCTIONS=$(echo "\\i $MODULE_HOME/BuildScripts/mvTypes.sql;")$'\n'
+UPDATE_FUNCTIONS=$(echo "\\i $MODULE_HOME/BuildScripts/mvComplexFunctions.sql;")$'\n'
+echo $UPDATE_FUNCTIONS >> $MODULE_HOME/fast_refresh_module_update_patch_objects.sql
+UPDATE_FUNCTIONS=$(echo "\\i $MODULE_HOME/BuildScripts/mvApplicationFunctions.sql;")$'\n'
 echo $UPDATE_FUNCTIONS >> $MODULE_HOME/fast_refresh_module_update_patch_objects.sql
 
 PGPASSWORD=$MODULEOWNERPASS
@@ -87,7 +87,9 @@ echo "INFO: Run $MODULEOWNER schema UPDATE patch scripts" >> $LOG_FILE
 echo "INFO: Connect to postgres database $DBNAME via PSQL session" >> $LOG_FILE
 
 psql --host=$HOSTNAME --port=$PORT --username=$MODULEOWNER --dbname=$DBNAME -v MODULE_HOME=$MODULE_HOME -v MODULEOWNER=$MODULEOWNER << EOF3 >> $LOG_FILE 2>&1
-  
+ 
+	SET search_path = :MODULEOWNER,catalog,public;
+ 
    \i :MODULE_HOME/fast_refresh_module_update_patch_objects.sql;
 
 EOF3

@@ -2495,33 +2495,6 @@ LANGUAGE    plpgsql
 SECURITY    DEFINER;
 ------------------------------------------------------------------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION mv$outerJoinToInnerJoinReplacement(
-	pTableNames TEXT,
-	pTableAlias TEXT)
-    RETURNS text
-AS $BODY$
-/* ---------------------------------------------------------------------------------------------------------------------------------
-Routine Name: mv$outerJoinToInnerJoinReplacement
-Author:       David Day
-Date:         28/04/2020
-------------------------------------------------------------------------------------------------------------------------------------
-Revision History    Push Down List
-------------------------------------------------------------------------------------------------------------------------------------
-Date        | Name          | Description
-------------+---------------+-------------------------------------------------------------------------------------------------------
-            |               |
-28/04/2020  | D Day      	| Initial version
-------------+---------------+-------------------------------------------------------------------------------------------------------
-Description:    Function to replace the alias driven outer join conditions to inner join in the from tables join sql
-				regular expression pattern.
-
-Arguments:      IN      pTableNames             
-                IN      pTableAlias              
-Returns:                TEXT
-
-************************************************************************************************************************************
-Copyright 2018 Amazon.com, Inc. or its affiliates. All Rights Reserved. SPDX-License-Identifier: MIT-0
-***********************************************************************************************************************************/
-CREATE OR REPLACE FUNCTION mv$outerJoinToInnerJoinReplacement(
 	pConst          IN      mv$allConstants,
 	pTableNames 	IN		TEXT,
 	pTableAlias 	IN		TEXT)
