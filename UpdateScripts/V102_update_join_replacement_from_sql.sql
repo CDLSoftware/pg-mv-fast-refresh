@@ -5,7 +5,7 @@ CREATE OR REPLACE FUNCTION pgrs_mview.v102_mv$outerJoinToInnerJoinReplacement(
     RETURNS text
 AS $BODY$
 /* ---------------------------------------------------------------------------------------------------------------------------------
-Routine Name: mv$outerJoinToInnerJoinReplacement
+Routine Name: v102_mv$outerJoinToInnerJoinReplacement
 Author:       David Day
 Date:         28/04/2020
 ------------------------------------------------------------------------------------------------------------------------------------
@@ -343,7 +343,7 @@ $BODY$
 LANGUAGE    plpgsql
 SECURITY    DEFINER;
 
-CREATE OR REPLACE FUNCTION pgrs_mview.V102_update_join_replacement_from_sql()
+CREATE OR REPLACE FUNCTION V102_update_join_replacement_from_sql()
     RETURNS VOID
 AS
 $BODY$
