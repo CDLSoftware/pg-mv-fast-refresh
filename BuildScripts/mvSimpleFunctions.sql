@@ -1616,7 +1616,7 @@ FUNCTION    mv$getPgMviewOjDetailsTableData
                 pViewName   IN      TEXT,
 				pTableAlias IN      TEXT
             )
-    RETURNS pg$mviews
+    RETURNS pg$mviews_oj_details
 AS
 $BODY$
 /* ---------------------------------------------------------------------------------------------------------------------------------
@@ -1642,6 +1642,8 @@ Copyright 2019 Amazon.com, Inc. or its affiliates. All Rights Reserved. SPDX-Lic
 ***********************************************************************************************************************************/
 DECLARE
     aPgMviewOjDetails           pg$mviews_oj_details;
+	
+	iAliasExists				INTEGER := 0;
 
     cgetPgMviewOjDetailTableData   CURSOR
     FOR
@@ -1652,12 +1654,15 @@ DECLARE
     AND     view_name   = pViewName
 	AND 	table_alias = pTableAlias;
 BEGIN
+
     OPEN    cgetPgMviewOjDetailTableData;
     FETCH   cgetPgMviewOjDetailTableData
     INTO    aPgMviewOjDetails;
     CLOSE   cgetPgMviewOjDetailTableData;
+	
+	SELECT count( aPgMviewOjDetails.table_alias ) INTO iAliasExists;
 
-    IF 0 = COALESCE( CARDINALITY( aPgMviewOjDetails.table_alias ), 0 )
+	IF iAliasExists = 0
     THEN
         RAISE EXCEPTION 'Materialised View ''%'' does not have a alias % table', pOwner || pConst.DOT_CHARACTER || pViewName, pTableAlias;
     ELSE
