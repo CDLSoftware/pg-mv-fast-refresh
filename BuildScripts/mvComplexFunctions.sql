@@ -56,8 +56,6 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 SET     CLIENT_MIN_MESSAGES = ERROR;
 
-DROP FUNCTION IF EXISTS mv$clearPgMvLogTableBitsAction;
-DROP FUNCTION IF EXISTS mv$clearPgMvLogTableBitsUpdate;
 DROP FUNCTION IF EXISTS mv$clearAllPgMvLogTableBits;
 DROP FUNCTION IF EXISTS mv$clearPgMvLogTableBits;
 DROP FUNCTION IF EXISTS mv$clearPgMviewLogBit;
@@ -178,108 +176,6 @@ LANGUAGE    plpgsql
 SECURITY    DEFINER;
 ------------------------------------------------------------------------------------------------------------------------------------
 CREATE OR REPLACE
-FUNCTION    mv$clearPgMvLogTableBitsAction
-            (
-                pSqlStatement   IN      TEXT
-            )
-    RETURNS VOID
-AS
-$BODY$
-/* ---------------------------------------------------------------------------------------------------------------------------------
-Routine Name: mv$clearPgMvLogTableBitsAction
-Author:       David Day
-Date:         18/03/2020
-------------------------------------------------------------------------------------------------------------------------------------
-Revision History    Push Down List
-------------------------------------------------------------------------------------------------------------------------------------
-Date        | Name          | Description
-------------+---------------+-------------------------------------------------------------------------------------------------------
-18/03/2020  | D Day      	| Initial version
-------------+---------------+-------------------------------------------------------------------------------------------------------
-Description:    Execute the mv$clearPgMvLogTableBitsUpdate function to UPDATE the Mv Log table bits as a separate transaction using
-				DBLink extension.
-
-Notes:          
-
-Arguments:      IN      pSqlStatement          The Mv Log Table bit Update SQL Statement
-Returns:                VOID
-
-************************************************************************************************************************************
-Copyright 2018 Amazon.com, Inc. or its affiliates. All Rights Reserved. SPDX-License-Identifier: MIT-0
-***********************************************************************************************************************************/
-DECLARE
-    
-    tQuery 			TEXT;
-	
-	tsqlstatement 	TEXT := pSqlStatement;
-BEGIN
-	
-	tsqlstatement := tsqlstatement||';';
-
-    tQuery := 'SELECT true FROM mv$clearPgMvLogTableBitsUpdate('||quote_nullable(tsqlstatement)||')';
-	
-    PERFORM * FROM dblink('pgmv$_instance',tQuery) AS p (ret BOOLEAN);
-
-EXCEPTION
-    WHEN OTHERS
-    THEN
-        RAISE INFO      'Exception in function mv$clearPgMvLogTableBitsAction';
-        RAISE INFO      'Error %:- %:',     SQLSTATE, SQLERRM;
-        RAISE INFO      'Error Context:% %',CHR(10),  tSqlStatement;
-        RAISE EXCEPTION '%',                SQLSTATE;
-END;
-$BODY$
-LANGUAGE    plpgsql
-SECURITY    DEFINER;
-------------------------------------------------------------------------------------------------------------------------------------
-CREATE OR REPLACE FUNCTION mv$clearPgMvLogTableBitsUpdate(
-	psqlstatement text)
-    RETURNS VOID
-AS
-$BODY$
-/* ---------------------------------------------------------------------------------------------------------------------------------
-Routine Name: mv$clearPgMvLogTableBitsUpdate
-Author:       David Day
-Date:         18/03/2020
-------------------------------------------------------------------------------------------------------------------------------------
-Revision History    Push Down List
-------------------------------------------------------------------------------------------------------------------------------------
-Date        | Name          | Description
-------------+---------------+-------------------------------------------------------------------------------------------------------
-18/03/2020  | D Day      	| Initial version
-------------+---------------+-------------------------------------------------------------------------------------------------------
-Description:    This function is executed by function mv$clearPgMvLogTableBitsUpdate to run the Mv Log table bits UPDATE statement 
-				as a separate transaction so that it reduces the overall row lock time during the refresh process steps. Previously
-				any rows due to be updated were locked until all refresh steps had completed which was causing deadlocks for other
-				mview refreshes waiting to update the same mv log bit row.
-				
-Notes:          
-
-Arguments:      IN      pSqlStatement          The Mv Log Table bit Update SQL Statement
-Returns:                VOID
-
-************************************************************************************************************************************
-Copyright 2018 Amazon.com, Inc. or its affiliates. All Rights Reserved. SPDX-License-Identifier: MIT-0
-***********************************************************************************************************************************/
-DECLARE
-   
-BEGIN
-
-	EXECUTE pSqlStatement;
-
-EXCEPTION
-    WHEN OTHERS
-    THEN
-        RAISE INFO      'Exception in function mv$clearPgMvLogTableBitsUpdate';
-        RAISE INFO      'Error %:- %:',     SQLSTATE, SQLERRM;
-        RAISE INFO      'Error Context:% %',CHR(10),  pSqlStatement;
-        RAISE EXCEPTION '%',                SQLSTATE;
-END;
-$BODY$
-LANGUAGE    plpgsql
-SECURITY    DEFINER;
-------------------------------------------------------------------------------------------------------------------------------------
-CREATE OR REPLACE
 FUNCTION    mv$clearPgMvLogTableBits
             (
                 pConst          IN      mv$allConstants,
@@ -300,6 +196,8 @@ Revision History    Push Down List
 ------------------------------------------------------------------------------------------------------------------------------------
 Date        | Name          | Description
 ------------+---------------+-------------------------------------------------------------------------------------------------------
+29/05/2020  | D Day			| Defect fix - Removed dblink action and call to function mv$clearPgMvLogTableBitsAction as this
+			|				| was causing missing when an error occurred during the transaction process steps.
 18/03/202   | D Day         | Defect fix - To reduce the impact of deadlocks caused by multiple mview refreshes trying to update them
 			|				| the same mview log BITMAP$ column row. The UPDATE statement has been moved to a separate transaction 
 			|				| using dblink extension. PG_BACKGROUND extension would have been the preferred option - this is not 
@@ -349,8 +247,8 @@ BEGIN
                                                        pConst.EQUALS_COMMAND            || tBitValue.BIT_MAP            ||
                        pConst.AND_COMMAND           || pConst.MV_SEQUENCE$_COLUMN       || pConst.LESS_THAN_EQUAL       ||
                        pMaxSequence                 || pConst.CLOSE_BRACKET;
-					   
-	PERFORM mv$clearPgMvLogTableBitsAction(tSqlStatement);
+		
+	EXECUTE tSqlStatement;
 
     RETURN;
 
@@ -1198,7 +1096,7 @@ BEGIN
     EXCEPTION
     WHEN OTHERS
     THEN
-        RAISE INFO      'Exception in function mv$refreshMaterializedViewFull';
+        RAISE INFO      'Exception in function mv$refreshMaterializedViewFast';
         RAISE INFO      'Error %:- %:',     SQLSTATE, SQLERRM;
         RAISE EXCEPTION '%',                SQLSTATE;
 END;
