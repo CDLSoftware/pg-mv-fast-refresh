@@ -1096,7 +1096,7 @@ BEGIN
     EXCEPTION
     WHEN OTHERS
     THEN
-        RAISE INFO      'Exception in function mv$refreshMaterializedViewFull';
+        RAISE INFO      'Exception in function mv$refreshMaterializedViewFast';
         RAISE INFO      'Error %:- %:',     SQLSTATE, SQLERRM;
         RAISE EXCEPTION '%',                SQLSTATE;
 END;
