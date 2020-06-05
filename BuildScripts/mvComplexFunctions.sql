@@ -940,11 +940,11 @@ BEGIN
                         biMaxSequence
                     );
 					
-		COMMIT;
+		--COMMIT;
 
         CALL mv$clearSpentPgMviewLogs( pConst, aViewLog.owner, aViewLog.pglog$_name );
 		
-		COMMIT;
+		--COMMIT;
 		
     END IF;
 
@@ -1081,7 +1081,7 @@ BEGIN
                         aPgMview.inner_rowid_array[i]
                     );
 					
-		COMMIT;
+		--COMMIT;
 		
     END LOOP;
 
