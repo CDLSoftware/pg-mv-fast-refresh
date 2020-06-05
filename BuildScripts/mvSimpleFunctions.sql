@@ -1,13 +1,13 @@
 /* ---------------------------------------------------------------------------------------------------------------------------------
 Routine Name: mvSimpleFunctions.sql
 Author:       Mike Revitt
-Date:         12/11/2018
+Date:         11/03/2018
 ------------------------------------------------------------------------------------------------------------------------------------
 Revision History    Push Down List
 ------------------------------------------------------------------------------------------------------------------------------------
 Date        | Name          | Description
 ------------+---------------+-------------------------------------------------------------------------------------------------------
-            |               |
+04/06/2020  | D Day         | Change functions with RETURN VOID to procedures allowing support/control of COMMITS during refresh process.
 14/01/2020  | M Revitt      | Changes to fix the array boundaries when doing > 62 materialised views per table
             |               | Fixed bug in getBitValue
 30/10/2019  | M Revitt      | Added an exception handler to the bottom of every function to aid bug and error tracking
@@ -16,15 +16,15 @@ Date        | Name          | Description
 Background:     PostGre does not support Materialized View Fast Refreshes, this suite of scripts is a PL/SQL coded mechanism to
                 provide that functionality, the next phase of this projecdt is to fold these changes into the PostGre kernel.
 
-Description:    This is the build script for the simple database functions that are required to support the Materialized View
+Description:    This is the build script for the simple database procedures that are required to support the Materialized View
                 fast refresh process.
 
-                This script contains functions that can run standalone and must therefore be run before the complex functions and
-                application functions can be created.
+                This script contains procedures that can run standalone and must therefore be run before the complex procedures and
+                application procedures can be created.
 
-Notes:          The functions in this script should be maintained in alphabetic order.
+Notes:          The procedures in this script should be maintained in alphabetic order.
 
-                All functions must be created with SECURITY DEFINER to ensure they run with the privileges of the owner.
+                All procedures must be created with SECURITY DEFINER to ensure they run with the privileges of the owner.
 
 Issues:         There is a bug in RDS for PostGres version 10.4 that prevents queries against the information_schema,
                 this bug is fixed in versions 10.5 and 10.3
@@ -53,21 +53,21 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ----------------------- Write DROP-FUNCTION-stage scripts ----------------------
 SET     CLIENT_MIN_MESSAGES = ERROR;
 
-DROP FUNCTION IF EXISTS mv$addIndexToMvLog$Table;
-DROP FUNCTION IF EXISTS mv$addRow$ToMv$Table;
-DROP FUNCTION IF EXISTS mv$addRow$ToSourceTable;
+DROP PROCEDURE IF EXISTS mv$addIndexToMvLog$Table;
+DROP PROCEDURE IF EXISTS mv$addRow$ToMv$Table;
+DROP PROCEDURE IF EXISTS mv$addRow$ToSourceTable;
 DROP FUNCTION IF EXISTS mv$checkIfOuterJoinedTable;
-DROP FUNCTION IF EXISTS mv$clearSpentPgMviewLogs;
-DROP FUNCTION IF EXISTS mv$createMvLog$Table;
-DROP FUNCTION IF EXISTS mv$createMvLogTrigger;
+DROP PROCEDURE IF EXISTS mv$clearSpentPgMviewLogs;
+DROP PROCEDURE IF EXISTS mv$createMvLog$Table;
+DROP PROCEDURE IF EXISTS mv$createMvLogTrigger;
 DROP FUNCTION IF EXISTS mv$createRow$Column;
 DROP FUNCTION IF EXISTS mv$deconstructSqlStatement;
-DROP FUNCTION IF EXISTS mv$deleteMaterializedViewRows;
-DROP FUNCTION IF EXISTS mv$deletePgMview;
-DROP FUNCTION IF EXISTS mv$deletePgMviewOjDetails;
-DROP FUNCTION IF EXISTS mv$deletePgMviewLog;
-DROP FUNCTION IF EXISTS mv$dropTable;
-DROP FUNCTION IF EXISTS mv$dropTrigger;
+DROP PROCEDURE IF EXISTS mv$deleteMaterializedViewRows;
+DROP PROCEDURE IF EXISTS mv$deletePgMview;
+DROP PROCEDURE IF EXISTS mv$deletePgMviewOjDetails;
+DROP PROCEDURE IF EXISTS mv$deletePgMviewLog;
+DROP PROCEDURE IF EXISTS mv$dropTable;
+DROP PROCEDURE IF EXISTS mv$dropTrigger;
 DROP FUNCTION IF EXISTS mv$extractCompoundViewTables;
 DROP FUNCTION IF EXISTS mv$findFirstFreeBit;
 DROP FUNCTION IF EXISTS mv$getBitValue;
@@ -76,24 +76,22 @@ DROP FUNCTION IF EXISTS mv$getPgMviewTableData;
 DROP FUNCTION IF EXISTS mv$getPgMviewOjDetailsTableData;
 DROP FUNCTION IF EXISTS mv$getPgMviewViewColumns;
 DROP FUNCTION IF EXISTS mv$getSourceTableSchema;
-DROP FUNCTION IF EXISTS mv$grantSelectPrivileges;
-DROP FUNCTION IF EXISTS mv$insertPgMviewLogs;
-DROP FUNCTION IF EXISTS mv$removeRow$FromSourceTable;
+DROP PROCEDURE IF EXISTS mv$grantSelectPrivileges;
+DROP PROCEDURE IF EXISTS mv$insertPgMviewLogs;
+DROP PROCEDURE IF EXISTS mv$removeRow$FromSourceTable;
 DROP FUNCTION IF EXISTS mv$replaceCommandWithToken;
-DROP FUNCTION IF EXISTS mv$truncateMaterializedView;
+DROP PROCEDURE IF EXISTS mv$truncateMaterializedView;
 
 ----------------------- Write CREATE-FUNCTION-stage scripts --------------------
 SET CLIENT_MIN_MESSAGES = NOTICE;
 
 CREATE OR REPLACE
-FUNCTION    mv$addIndexToMvLog$Table
+PROCEDURE    mv$addIndexToMvLog$Table
             (
                 pConst          IN      mv$allConstants,
                 pOwner          IN      TEXT,
                 pPgLog$Name     IN      TEXT
             )
-
-    RETURNS VOID
 AS
 $BODY$
 /* ---------------------------------------------------------------------------------------------------------------------------------
@@ -109,7 +107,7 @@ Date        | Name          | Description
 05/11/2019  | M Revitt      | mv$clearPgMvLogTableBits is now a complex function so move it into the conplex script
 07/06/2019  | M Revitt      | Initial version
 ------------+---------------+-------------------------------------------------------------------------------------------------------
-Description:    This function creates an index on the materilized view log table to speed up bit manipulation
+Description:    This procedure creates an index on the materilized view log table to speed up bit manipulation
 
 Arguments:      IN      pConst              The memory structure containing all constants
                 IN      pOwner              The owner of the object
@@ -132,12 +130,10 @@ BEGIN
 
     EXECUTE tSqlStatement;
 
-    RETURN;
-
     EXCEPTION
     WHEN OTHERS
     THEN
-        RAISE INFO      'Exception in function mv$addIndexToMvLog$Table';
+        RAISE INFO      'Exception in procedure mv$addIndexToMvLog$Table';
         RAISE INFO      'Error %:- %:',     SQLSTATE, SQLERRM;
         RAISE INFO      'Error Context:% %',CHR(10),  tSqlStatement;
         RAISE EXCEPTION '%',                SQLSTATE;
@@ -147,7 +143,7 @@ LANGUAGE    plpgsql
 SECURITY    DEFINER;
 ------------------------------------------------------------------------------------------------------------------------------------
 CREATE OR REPLACE
-FUNCTION    mv$addRow$ToMv$Table
+PROCEDURE    mv$addRow$ToMv$Table
             (
                 pConst              IN      mv$allConstants,
                 pOwner              IN      TEXT,
@@ -157,7 +153,6 @@ FUNCTION    mv$addRow$ToMv$Table
                 pViewColumns        INOUT   TEXT,
                 pSelectColumns      INOUT   TEXT
             )
-    RETURNS RECORD
 AS
 $BODY$
 /* ---------------------------------------------------------------------------------------------------------------------------------
@@ -169,7 +164,7 @@ Revision History    Push Down List
 ------------------------------------------------------------------------------------------------------------------------------------
 Date        | Name          | Description
 ------------+---------------+-------------------------------------------------------------------------------------------------------
-            |               |
+05/06/2020  | D Day         | Change functions with RETURN VOID to procedures allowing support/control of COMMITS during refresh process.
 15/01/2019  | M Revitt      | Initial version
 ------------+---------------+-------------------------------------------------------------------------------------------------------
 Description:    For every table that is used to construct this materialized view, add a MV_M_ROW$_COLUMN to the base table.
@@ -181,7 +176,7 @@ Arguments:      IN      pConst              The memory structure containing all 
                 IN      pRowidArray         An array containing the MV_M_ROW$_COLUMN column name for the base table
                 INOUT   pViewColumns        This is the list of view columns to which the MV_M_ROW$_COLUMNs will be added
                 INOUT   pSelectColumns      The columns from the SQL Statement that created the materialised view
-Returns:                RECORD              The 2 INOUT variables constitute a RECORD
+
 ************************************************************************************************************************************
 Copyright 2019 Amazon.com, Inc. or its affiliates. All Rights Reserved. SPDX-License-Identifier: MIT-0
 ***********************************************************************************************************************************/
@@ -216,12 +211,10 @@ BEGIN
         iTableArryPos   := iTableArryPos + 1;
     END LOOP;
 
-    RETURN;
-
     EXCEPTION
     WHEN OTHERS
     THEN
-        RAISE INFO      'Exception in function mv$addRow$ToMv$Table';
+        RAISE INFO      'Exception in procedure mv$addRow$ToMv$Table';
         RAISE INFO      'Error %:- %:',     SQLSTATE, SQLERRM;
         RAISE INFO      'Error Context:% %',CHR(10),  tSqlStatement;
         RAISE EXCEPTION '%',                SQLSTATE;
@@ -231,13 +224,12 @@ LANGUAGE    plpgsql
 SECURITY    DEFINER;
 ------------------------------------------------------------------------------------------------------------------------------------
 CREATE OR REPLACE
-FUNCTION    mv$addRow$ToSourceTable
+PROCEDURE    mv$addRow$ToSourceTable
             (
                 pConst          IN      mv$allConstants,
                 pOwner          IN      TEXT,
                 pTableName      IN      TEXT
             )
-    RETURNS VOID
 AS
 $BODY$
 /* ---------------------------------------------------------------------------------------------------------------------------------
@@ -249,7 +241,7 @@ Revision History    Push Down List
 ------------------------------------------------------------------------------------------------------------------------------------
 Date        | Name          | Description
 ------------+---------------+-------------------------------------------------------------------------------------------------------
-            |               |
+04/06/2020  | D Day         | Change functions with RETURN VOID to procedures allowing support/control of COMMITS during refresh process.
 11/03/2018  | M Revitt      | Initial version
 ------------+---------------+-------------------------------------------------------------------------------------------------------
 Description:    PostGre does not have a ROWID pseudo column and so a ROWID column has to be added to the source table, ideally this
@@ -258,7 +250,7 @@ Description:    PostGre does not have a ROWID pseudo column and so a ROWID colum
 Arguments:      IN      pConst              The memory structure containing all constants
                 IN      pOwner              The owner of the object
                 IN      pTableName          The name of the materialized view source table
-Returns:                VOID
+
 ************************************************************************************************************************************
 Copyright 2019 Amazon.com, Inc. or its affiliates. All Rights Reserved. SPDX-License-Identifier: MIT-0
 ***********************************************************************************************************************************/
@@ -276,7 +268,7 @@ BEGIN
     EXCEPTION
     WHEN OTHERS
     THEN
-        RAISE INFO      'Exception in function mv$addRow$ToSourceTable';
+        RAISE INFO      'Exception in procedure mv$addRow$ToSourceTable';
         RAISE INFO      'Error %:- %:',     SQLSTATE, SQLERRM;
         RAISE INFO      'Error Context:% %',CHR(10),  tSqlStatement;
         RAISE EXCEPTION '%',                SQLSTATE;
@@ -347,25 +339,24 @@ LANGUAGE    plpgsql
 SECURITY    DEFINER;
 ------------------------------------------------------------------------------------------------------------------------------------
 CREATE OR REPLACE
-FUNCTION    mv$clearSpentPgMviewLogs
+PROCEDURE    mv$clearSpentPgMviewLogs
             (
                 pConst          IN      mv$allConstants,
                 pOwner          IN      TEXT,
                 pPgLog$Name     IN      TEXT
             )
-    RETURNS VOID
 AS
 $BODY$
 /* ---------------------------------------------------------------------------------------------------------------------------------
 Routine Name: mv$clearSpentPgMviewLogs
 Author:       Mike Revitt
-Date:         12/11/2018
+Date:         11/03/2018
 ------------------------------------------------------------------------------------------------------------------------------------
 Revision History    Push Down List
 ------------------------------------------------------------------------------------------------------------------------------------
 Date        | Name          | Description
 ------------+---------------+-------------------------------------------------------------------------------------------------------
-            |               |
+04/06/2020  | D Day         | Change functions with RETURN VOID to procedures allowing support/control of COMMITS during refresh process.
 11/03/2018  | M Revitt      | Initial version
 ------------+---------------+-------------------------------------------------------------------------------------------------------
 Description:    Bitmaps are how we manage multiple registrations against the same base table, once all interested materialized
@@ -374,7 +365,7 @@ Description:    Bitmaps are how we manage multiple registrations against the sam
 Arguments:      IN      pConst              The memory structure containing all constants
                 IN      pOwner              The owner of the object
                 IN      pPgLog$Name         The name of the materialized view log table
-Returns:                VOID
+
 ************************************************************************************************************************************
 Copyright 2019 Amazon.com, Inc. or its affiliates. All Rights Reserved. SPDX-License-Identifier: MIT-0
 ***********************************************************************************************************************************/
@@ -387,12 +378,11 @@ BEGIN
     tSqlStatement := pConst.DELETE_FROM || pOwner || pConst.DOT_CHARACTER || pPgLog$Name || pConst.MV_LOG$_WHERE_BITMAP_ZERO;
 
     EXECUTE tSqlStatement;
-    RETURN;
 
     EXCEPTION
     WHEN OTHERS
     THEN
-        RAISE INFO      'Exception in function mv$clearSpentPgMviewLogs';
+        RAISE INFO      'Exception in procedure mv$clearSpentPgMviewLogs';
         RAISE INFO      'Error %:- %:',     SQLSTATE, SQLERRM;
         RAISE INFO      'Error Context:% %',CHR(10),  tSqlStatement;
         RAISE EXCEPTION '%',                SQLSTATE;
@@ -402,15 +392,13 @@ LANGUAGE    plpgsql
 SECURITY    DEFINER;
 ------------------------------------------------------------------------------------------------------------------------------------
 CREATE OR REPLACE
-FUNCTION    mv$createMvLog$Table
+PROCEDURE    mv$createMvLog$Table
             (
                 pConst          IN      mv$allConstants,
                 pOwner          IN      TEXT,
                 pPgLog$Name     IN      TEXT,
                 pStorageClause  IN      TEXT     DEFAULT NULL
             )
-
-    RETURNS VOID
 AS
 $BODY$
 /* ---------------------------------------------------------------------------------------------------------------------------------
@@ -422,7 +410,7 @@ Revision History    Push Down List
 ------------------------------------------------------------------------------------------------------------------------------------
 Date        | Name          | Description
 ------------+---------------+-------------------------------------------------------------------------------------------------------
-            |               |
+04/06/2020  | D Day         | Change functions with RETURN VOID to procedures allowing support/control of COMMITS during refresh process.
 11/03/2018  | M Revitt      | Initial version
 ------------+---------------+-------------------------------------------------------------------------------------------------------
 Description:    This function creates the materilized view log table against the source table for the materialized view
@@ -431,7 +419,7 @@ Arguments:      IN      pConst              The memory structure containing all 
                 IN      pOwner              The owner of the object
                 IN      pPgLog$Name         The name of the materialized view log table
                 IN      pStorageClause      Optional, storage clause for the materialized view log
-Returns:                VOID
+
 ************************************************************************************************************************************
 Copyright 2019 Amazon.com, Inc. or its affiliates. All Rights Reserved. SPDX-License-Identifier: MIT-0
 ***********************************************************************************************************************************/
@@ -449,12 +437,10 @@ BEGIN
 
     EXECUTE tSqlStatement;
 
-    RETURN;
-
     EXCEPTION
     WHEN OTHERS
     THEN
-        RAISE INFO      'Exception in function mv$createMvLog$Table';
+        RAISE INFO      'Exception in procedure mv$createMvLog$Table';
         RAISE INFO      'Error %:- %:',     SQLSTATE, SQLERRM;
         RAISE INFO      'Error Context:% %',CHR(10),  tSqlStatement;
         RAISE EXCEPTION '%',                SQLSTATE;
@@ -464,14 +450,13 @@ LANGUAGE    plpgsql
 SECURITY    DEFINER;
 ------------------------------------------------------------------------------------------------------------------------------------
 CREATE OR REPLACE
-FUNCTION    mv$createMvLogTrigger
+PROCEDURE    mv$createMvLogTrigger
             (
                 pConst              IN      mv$allConstants,
                 pOwner              IN      TEXT,
                 pTableName          IN      TEXT,
                 pMvTriggerName      IN      TEXT
             )
-    RETURNS VOID
 AS
 $BODY$
 /* ---------------------------------------------------------------------------------------------------------------------------------
@@ -483,7 +468,7 @@ Revision History    Push Down List
 ------------------------------------------------------------------------------------------------------------------------------------
 Date        | Name          | Description
 ------------+---------------+-------------------------------------------------------------------------------------------------------
-            |               |
+04/06/2020  | D Day         | Change functions with RETURN VOID to procedures allowing support/control of COMMITS during refresh process.
 11/03/2018  | M Revitt      | Initial version
 ------------+---------------+-------------------------------------------------------------------------------------------------------
 Description:    After the materialized view log table has been created a trigger is required on the source table to populate the
@@ -493,7 +478,7 @@ Arguments:      IN      pConst              The memory structure containing all 
                 IN      pOwner              The owner of the object
                 IN      pTableName          The name of the materialized view source table
                 IN      pMvTriggerName      The name of the materialized view source trigger
-Returns:                VOID
+
 ************************************************************************************************************************************
 Copyright 2019 Amazon.com, Inc. or its affiliates. All Rights Reserved. SPDX-License-Identifier: MIT-0
 ***********************************************************************************************************************************/
@@ -508,12 +493,11 @@ BEGIN
                         pConst.TRIGGER_FOR_EACH_ROW;
 
     EXECUTE tSqlStatement;
-    RETURN;
 
     EXCEPTION
     WHEN OTHERS
     THEN
-        RAISE INFO      'Exception in function mv$createMvLogTrigger';
+        RAISE INFO      'Exception in procedure mv$createMvLogTrigger';
         RAISE INFO      'Error %:- %:',     SQLSTATE, SQLERRM;
         RAISE INFO      'Error Context:% %',CHR(10),  tSqlStatement;
         RAISE EXCEPTION '%',                SQLSTATE;
@@ -634,13 +618,13 @@ Notes:          The technique used here is to search for each of the key words i
 
 Arguments:      IN      pConst              The memory structure containing all constants
                 IN      pSqlStatement       The SQL Statement used to create the materialized view
-                    OUT pTableNames         The name of the materialized view source tables
+                OUT 	pTableNames         The name of the materialized view source tables
                                                 all text between the FROM and WHERE clauses
-                    OUT pSelectColumns      The list of columns in the SQL Statement used to create the materialized view
+                OUT 	pSelectColumns      The list of columns in the SQL Statement used to create the materialized view
                                                 all text between the SELECT and FROM clauses
-                    OUT pWhereClause        The where clause from the SQL Statement used to create the materialized view
+                OUT 	pWhereClause        The where clause from the SQL Statement used to create the materialized view
                                                 all text after the WHERE clause
-Returns:                RECORD              The three out parameters
+Returns:        RECORD              		The three out parameters
 ************************************************************************************************************************************
 Copyright 2019 Amazon.com, Inc. or its affiliates. All Rights Reserved. SPDX-License-Identifier: MIT-0
 ***********************************************************************************************************************************/
@@ -694,7 +678,7 @@ LANGUAGE    plpgsql
 SECURITY    DEFINER;
 ------------------------------------------------------------------------------------------------------------------------------------
 CREATE OR REPLACE
-FUNCTION    mv$deleteMaterializedViewRows
+PROCEDURE    mv$deleteMaterializedViewRows
             (
                 pConst          IN      mv$allConstants,
                 pOwner          IN      TEXT,
@@ -702,7 +686,6 @@ FUNCTION    mv$deleteMaterializedViewRows
                 pRowidColumn    IN      TEXT,
                 pRowIDs         IN      UUID[]
             )
-    RETURNS VOID
 AS
 $BODY$
 /* ---------------------------------------------------------------------------------------------------------------------------------
@@ -714,7 +697,7 @@ Revision History    Push Down List
 ------------------------------------------------------------------------------------------------------------------------------------
 Date        | Name          | Description
 ------------+---------------+-------------------------------------------------------------------------------------------------------
-            |               |
+05/06/2020  | D Day         | Change functions with RETURN VOID to procedures allowing support/control of COMMITS during refresh process.
 07/05/2019  | M Revitt      | Convert to array processing
 11/03/2018  | M Revitt      | Initial version
 ------------+---------------+-------------------------------------------------------------------------------------------------------
@@ -727,7 +710,6 @@ Arguments:      IN      pConst              The memory structure containing all 
                 IN      pViewName           The name of the underlying table for the materialized view
                 IN      pRowidColumn        The MV_M_ROW$_COLUMN for this table in the base table
                 IN      pRowIDs             An array holding the unique identifiers to locate the modified row
-Returns:                VOID
 
 ************************************************************************************************************************************
 Copyright 2019 Amazon.com, Inc. or its affiliates. All Rights Reserved. SPDX-License-Identifier: MIT-0
@@ -743,12 +725,11 @@ BEGIN
 
     EXECUTE tSqlStatement
     USING   pRowIDs;
-    RETURN;
-
+	
     EXCEPTION
     WHEN OTHERS
     THEN
-        RAISE INFO      'Exception in function mv$deleteMaterializedViewRows';
+        RAISE INFO      'Exception in procedure mv$deleteMaterializedViewRows';
         RAISE INFO      'Error %:- %:',     SQLSTATE, SQLERRM;
         RAISE INFO      'Error Context:% %',CHR(10),  tSqlStatement;
         RAISE EXCEPTION '%',                SQLSTATE;
@@ -758,12 +739,11 @@ LANGUAGE    plpgsql
 SECURITY    DEFINER;
 ------------------------------------------------------------------------------------------------------------------------------------
 CREATE OR REPLACE
-FUNCTION    mv$deletePgMview
+PROCEDURE    mv$deletePgMview
             (
                 pOwner      IN      TEXT,
                 pViewName   IN      TEXT
             )
-    RETURNS VOID
 AS
 $BODY$
 /* ---------------------------------------------------------------------------------------------------------------------------------
@@ -775,17 +755,16 @@ Revision History    Push Down List
 ------------------------------------------------------------------------------------------------------------------------------------
 Date        | Name          | Description
 ------------+---------------+-------------------------------------------------------------------------------------------------------
-            |               |
+05/06/2020  | D Day         | Change functions with RETURN VOID to procedures allowing support/control of COMMITS during refresh process.
 04/06/2019  | M Revitt      | Initial version
 ------------+---------------+-------------------------------------------------------------------------------------------------------
 Description:    Every time a new materialized view is created, a record of that view is also created in the data dictionary table
                 pg$mviews.
 
-                This function removes that row when a materialized view is removed.
+                This procedure removes that row when a materialized view is removed.
 
 Arguments:      IN      pOwner              The owner of the object
                 IN      pViewName           The name of the materialized view
-Returns:                VOID
 
 ************************************************************************************************************************************
 Copyright 2019 Amazon.com, Inc. or its affiliates. All Rights Reserved. SPDX-License-Identifier: MIT-0
@@ -802,7 +781,7 @@ BEGIN
     EXCEPTION
     WHEN OTHERS
     THEN
-        RAISE INFO      'Exception in function mv$deletePgMview';
+        RAISE INFO      'Exception in procedure mv$deletePgMview';
         RAISE INFO      'Error %:- %:',     SQLSTATE, SQLERRM;
         RAISE EXCEPTION '%',                SQLSTATE;
 END;
@@ -811,12 +790,11 @@ LANGUAGE    plpgsql
 SECURITY    DEFINER;
 ------------------------------------------------------------------------------------------------------------------------------------
 CREATE OR REPLACE
-FUNCTION    mv$deletePgMviewOjDetails
+PROCEDURE    mv$deletePgMviewOjDetails
             (
                 pOwner      IN      TEXT,
                 pViewName   IN      TEXT
             )
-    RETURNS VOID
 AS
 $BODY$
 /* ---------------------------------------------------------------------------------------------------------------------------------
@@ -828,17 +806,16 @@ Revision History    Push Down List
 ------------------------------------------------------------------------------------------------------------------------------------
 Date        | Name          | Description
 ------------+---------------+-------------------------------------------------------------------------------------------------------
-            |               |
+05/06/2020  | D Day         | Change functions with RETURN VOID to procedures allowing support/control of COMMITS during refresh process.
 01/07/2019  | D Day	    	| Initial version
 ------------+---------------+-------------------------------------------------------------------------------------------------------
 Description:    Every time a new materialized view is created, a record of the outer join table(s) details is also created in the data dictionary table
                 pg$mviews_oj_details which is used as part of the outer join source table(s) DELETE process.
 
-                This function removes that row(s) when a materialized view is removed.
+                This procedure removes that row(s) when a materialized view is removed.
 
 Arguments:      IN      pOwner              The owner of the object
                 IN      pViewName           The name of the materialized view
-Returns:                VOID
 
 ************************************************************************************************************************************
 Copyright 2019 Amazon.com, Inc. or its affiliates. All Rights Reserved. SPDX-License-Identifier: MIT-0
@@ -851,11 +828,10 @@ BEGIN
             owner       = pOwner
     AND     view_name   = pViewName;
 
-    RETURN;
     EXCEPTION
     WHEN OTHERS
     THEN
-        RAISE INFO      'Exception in function mv$deletePgMviewOjDetails';
+        RAISE INFO      'Exception in procedure mv$deletePgMviewOjDetails';
         RAISE INFO      'Error %:- %:',     SQLSTATE, SQLERRM;
         RAISE EXCEPTION '%',                SQLSTATE;
 END;
@@ -864,12 +840,11 @@ LANGUAGE    plpgsql
 SECURITY    DEFINER;
 ------------------------------------------------------------------------------------------------------------------------------------
 CREATE OR REPLACE
-FUNCTION    mv$deletePgMviewLog
+PROCEDURE    mv$deletePgMviewLog
             (
                 pOwner      IN      TEXT,
                 pTableName  IN      TEXT
             )
-    RETURNS VOID
 AS
 $BODY$
 /* ---------------------------------------------------------------------------------------------------------------------------------
@@ -881,13 +856,13 @@ Revision History    Push Down List
 ------------------------------------------------------------------------------------------------------------------------------------
 Date        | Name          | Description
 ------------+---------------+-------------------------------------------------------------------------------------------------------
-            |               |
+05/06/2020  | D Day         | Change functions with RETURN VOID to procedures allowing support/control of COMMITS during refresh process.
 04/06/2019  | M Revitt      | Initial version
 ------------+---------------+-------------------------------------------------------------------------------------------------------
 Description:    Every time a new materialized view log is created, a record of that log is also created in the data dictionary table
                 pg$mview_logs.
 
-                This function removes that row when a materialized view log is removed.
+                This procedure removes that row when a materialized view log is removed.
 
 Arguments:      IN      pOwner              The owner of the object
                 IN      pTableName          The name of the materialized view log
@@ -904,12 +879,10 @@ BEGIN
             owner       = pOwner
     AND     table_name  = pTableName;
 
-    RETURN;
-
     EXCEPTION
     WHEN OTHERS
     THEN
-        RAISE INFO      'Exception in function mv$deletePgMviewLog';
+        RAISE INFO      'Exception in procedure mv$deletePgMviewLog';
         RAISE INFO      'Error %:- %:',     SQLSTATE, SQLERRM;
         RAISE EXCEPTION '%',                SQLSTATE;
 END;
@@ -918,13 +891,12 @@ LANGUAGE    plpgsql
 SECURITY    DEFINER;
 ------------------------------------------------------------------------------------------------------------------------------------
 CREATE OR REPLACE
-FUNCTION    mv$dropTable
+PROCEDURE    mv$dropTable
             (
                 pConst              IN      mv$allConstants,
                 pOwner              IN      TEXT,
                 pTableName          IN      TEXT
             )
-    RETURNS VOID
 AS
 $BODY$
 /* ---------------------------------------------------------------------------------------------------------------------------------
@@ -936,7 +908,7 @@ Revision History    Push Down List
 ------------------------------------------------------------------------------------------------------------------------------------
 Date        | Name          | Description
 ------------+---------------+-------------------------------------------------------------------------------------------------------
-            |               |
+05/06/2020  | D Day         | Change functions with RETURN VOID to procedures allowing support/control of COMMITS during refresh process.
 04/06/2019  | M Revitt      | Initial version
 ------------+---------------+-------------------------------------------------------------------------------------------------------
 Description:    Generic function to drop any tables in a Postgres database, used in this context to remove the Materialized View
@@ -945,7 +917,7 @@ Description:    Generic function to drop any tables in a Postgres database, used
 Arguments:      IN      pConst              The memory structure containing all constants
                 IN      pOwner              The owner of the object
                 IN      pTableName          The name of the table to be dropped
-Returns:                VOID
+
 ************************************************************************************************************************************
 Copyright 2019 Amazon.com, Inc. or its affiliates. All Rights Reserved. SPDX-License-Identifier: MIT-0
 ***********************************************************************************************************************************/
@@ -958,12 +930,11 @@ BEGIN
     tSqlStatement   :=  pConst.DROP_TABLE || pOwner || pConst.DOT_CHARACTER || pTableName;
 
     EXECUTE tSqlStatement;
-    RETURN;
 
     EXCEPTION
     WHEN OTHERS
     THEN
-        RAISE INFO      'Exception in function mv$dropTable';
+        RAISE INFO      'Exception in procedure mv$dropTable';
         RAISE INFO      'Error %:- %:',     SQLSTATE, SQLERRM;
         RAISE INFO      'Error Context:% %',CHR(10),  tSqlStatement;
         RAISE EXCEPTION '%',                SQLSTATE;
@@ -973,14 +944,13 @@ LANGUAGE    plpgsql
 SECURITY    DEFINER;
 ------------------------------------------------------------------------------------------------------------------------------------
 CREATE OR REPLACE
-FUNCTION    mv$dropTrigger
+PROCEDURE    mv$dropTrigger
             (
                 pConst          IN      mv$allConstants,
                 pOwner          IN      TEXT,
                 pTriggerName    IN      TEXT,
                 pTableName      IN      TEXT
             )
-    RETURNS VOID
 AS
 $BODY$
 /* ---------------------------------------------------------------------------------------------------------------------------------
@@ -992,7 +962,7 @@ Revision History    Push Down List
 ------------------------------------------------------------------------------------------------------------------------------------
 Date        | Name          | Description
 ------------+---------------+-------------------------------------------------------------------------------------------------------
-            |               |
+05/06/2020  | D Day         | Change functions with RETURN VOID to procedures allowing support/control of COMMITS during refresh process.
 11/03/2018  | M Revitt      | Initial version
 ------------+---------------+-------------------------------------------------------------------------------------------------------
 Description:    Generic function to drop any trigger in a Postgres database, used in this context to remove the trigger from the
@@ -1002,7 +972,7 @@ Arguments:      IN      pConst              The memory structure containing all 
                 IN      pOwner              The owner of the object
                 IN      pTriggerName        The name of the materialized view source trigger
                 IN      pTableName          The name of the materialized view source table
-Returns:                VOID
+				
 ************************************************************************************************************************************
 Copyright 2019 Amazon.com, Inc. or its affiliates. All Rights Reserved. SPDX-License-Identifier: MIT-0
 ***********************************************************************************************************************************/
@@ -1015,12 +985,11 @@ BEGIN
     tSqlStatement := pConst.TRIGGER_DROP || pTriggerName || pConst.ON_COMMAND || pOwner || pConst.DOT_CHARACTER || pTableName;
 
     EXECUTE tSqlStatement;
-    RETURN;
 
     EXCEPTION
     WHEN OTHERS
     THEN
-        RAISE INFO      'Exception in function mv$dropTrigger';
+        RAISE INFO      'Exception in procedure mv$dropTrigger';
         RAISE INFO      'Error %:- %:',     SQLSTATE, SQLERRM;
         RAISE INFO      'Error Context:% %',CHR(10),  tSqlStatement;
         RAISE EXCEPTION '%',                SQLSTATE;
@@ -1301,7 +1270,8 @@ Description:    When a new materialized view is registered against a base table,
                 The bit that is assigned is the lowest value bit that has not yet been assigned, as long as that balue is lower
                 then the maximum number of pg$mviews per table
 
-Arguments:      IN      pBitMap[]           The bit map value constructed from assigned bits
+Arguments:      IN      pConst              The memory structure containing all constants
+				IN      pBitMap[]           The bit map value constructed from assigned bits
 Returns:                mv$bitValue         A record containing the next free bit, the array row it is in and it's map
 ************************************************************************************************************************************
 Copyright 2019 Amazon.com, Inc. or its affiliates. All Rights Reserved. SPDX-License-Identifier: MIT-0
@@ -1392,7 +1362,8 @@ Date        | Name          | Description
 ------------+---------------+-------------------------------------------------------------------------------------------------------
 Description:    Converts a bit into it's binary value.
 
-Arguments:      IN      pBit                The bit
+Arguments:      IN      pConst              The memory structure containing all constants
+				IN      pBit                The bit
 Returns:                mv$bitValue         The record containing all the pertinant bit information
 ************************************************************************************************************************************
 Copyright 2019 Amazon.com, Inc. or its affiliates. All Rights Reserved. SPDX-License-Identifier: MIT-0
@@ -1445,7 +1416,8 @@ Date        | Name          | Description
 ------------+---------------+-------------------------------------------------------------------------------------------------------
 Description:    Returns all of the data stored in the data dictionary about this materialized view log.
 
-Arguments:      IN      pOwner              The owner of the object
+Arguments:      IN      pConst              The memory structure containing all constants
+				IN      pOwner              The owner of the object
                 IN      pPgLog$Name         The name of the materialized view log table
 Returns:                RECORD              The row of data from the data dictionary relating to this materialized view log
 ************************************************************************************************************************************
@@ -1516,7 +1488,8 @@ Note:           This function is used when the table owner is not know
                 The default for PostGres functions is to not use the search path when executing with the privileges of the creator
 
 
-Arguments:      IN      pPgLog$Name         The name of the materialized view log table
+Arguments:      IN      pConst              The memory structure containing all constants
+				IN      pPgLog$Name         The name of the materialized view log table
 Returns:                RECORD              The row of data from the data dictionary relating to this materialized view log
 ************************************************************************************************************************************
 Copyright 2019 Amazon.com, Inc. or its affiliates. All Rights Reserved. SPDX-License-Identifier: MIT-0
@@ -1567,7 +1540,8 @@ Date        | Name          | Description
 ------------+---------------+-------------------------------------------------------------------------------------------------------
 Description:    Returns all of the data stored in the data dictionary about this materialized view.
 
-Arguments:      IN      pOwner              The owner of the object
+Arguments:      IN      pConst              The memory structure containing all constants
+				IN      pOwner              The owner of the object
                 IN      pViewName           The name of the materialized view
 Returns:                RECORD              The row of data from the data dictionary relating to this materialized view
 
@@ -1632,7 +1606,8 @@ Date        | Name          | Description
 ------------+---------------+-------------------------------------------------------------------------------------------------------
 Description:    Returns all of the data stored in the data dictionary about this materialized view outer join table alias details.
 
-Arguments:      IN      pOwner              The owner of the object
+Arguments:      IN      pConst              The memory structure containing all constants
+				IN      pOwner              The owner of the object
                 IN      pViewName           The name of the materialized view
 				IN		pTableAlias			The outer join table alias of the materialized view
 Returns:                RECORD              The row of data from the data dictionary relating to this materialized view
@@ -1707,7 +1682,8 @@ Description:    The easiest way to get the names of the columns that have been c
 
 Notes:          Because the final column is always the ROWID column, we add that manually at the end
 
-Arguments:      IN      pOwner              The owner of the object
+Arguments:      IN      pConst              The memory structure containing all constants
+				IN      pOwner              The owner of the object
                 IN      pViewName           The name of the materialized view
 Returns:                TEXT                A comma delimited string of the column names in the materialized view
 
@@ -1778,7 +1754,8 @@ Note:           This function also requires the SEARCH_PATH to be set to the cur
                 the source tables.
                 The default for PostGres functions is to not use the search path when executing with the privileges of the creator
 
-Arguments:      IN      pTableName          The name of the table we are trying to locate
+Arguments:      IN      pConst              The memory structure containing all constants
+				IN      pTableName          The name of the table we are trying to locate
 Returns:                TEXT                The name of the schema where the table was located
 ************************************************************************************************************************************
 Copyright 2019 Amazon.com, Inc. or its affiliates. All Rights Reserved. SPDX-License-Identifier: MIT-0
@@ -1838,34 +1815,33 @@ LANGUAGE    plpgsql
 SECURITY    DEFINER;
 ------------------------------------------------------------------------------------------------------------------------------------
 CREATE OR REPLACE
-FUNCTION    mv$grantSelectPrivileges
+PROCEDURE    mv$grantSelectPrivileges
             (
                 pConst          IN      mv$allConstants,
                 pOwner          IN      TEXT,
                 pObjectName     IN      TEXT
             )
-    RETURNS VOID
 AS
 $BODY$
 /* ---------------------------------------------------------------------------------------------------------------------------------
 Routine Name: mv$grantSelectPrivileges
 Author:       Mike Revitt
-Date:         21/02/2019
+Date:         11/03/2018
 ------------------------------------------------------------------------------------------------------------------------------------
 Revision History    Push Down List
 ------------------------------------------------------------------------------------------------------------------------------------
 Date        | Name          | Description
 ------------+---------------+-------------------------------------------------------------------------------------------------------
-            |               |
+05/06/2020  | D Day         | Change functions with RETURN VOID to procedures allowing support/control of COMMITS during refresh process.
 11/03/2018  | M Revitt      | Initial version
 ------------+---------------+-------------------------------------------------------------------------------------------------------
 Description:    Whilst objects are created into the named schema, the ownership remains with the package owner, mike_pgmview, so in
                 order to allow other users to access these materialized views it is necessary to grant select privileges to the
                 default role 'PGMV_ROLE_NAME'
 
-Arguments:      IN      pOwner              The owner of the object
+Arguments:      IN      pConst              The memory structure containing all constants
+				IN      pOwner              The owner of the object
                 IN      pObjectName         The name of the object to receive select privileges
-Returns:                VOID
 ************************************************************************************************************************************
 Copyright 2019 Amazon.com, Inc. or its affiliates. All Rights Reserved. SPDX-License-Identifier: MIT-0
 ***********************************************************************************************************************************/
@@ -1880,12 +1856,10 @@ BEGIN
 
     EXECUTE tSqlStatement;
 
-    RETURN;
-
     EXCEPTION
     WHEN OTHERS
     THEN
-        RAISE INFO      'Exception in function mv$grantSelectPrivileges';
+        RAISE INFO      'Exception in procedure mv$grantSelectPrivileges';
         RAISE INFO      'Error %:- %:',     SQLSTATE, SQLERRM;
         RAISE INFO      'Error Context:% %',CHR(10),  tSqlStatement;
         RAISE EXCEPTION '%',                SQLSTATE;
@@ -1895,7 +1869,7 @@ LANGUAGE    plpgsql
 SECURITY    DEFINER;
 ------------------------------------------------------------------------------------------------------------------------------------
 CREATE OR REPLACE
-FUNCTION    mv$insertPgMviewLogs
+PROCEDURE    mv$insertPgMviewLogs
             (
                 pConst          IN      mv$allConstants,
                 pOwner          IN      TEXT,
@@ -1903,28 +1877,28 @@ FUNCTION    mv$insertPgMviewLogs
                 pTableName      IN      TEXT,
                 pTriggerName    IN      TEXT
             )
-    RETURNS VOID
 AS
 $BODY$
 /* ---------------------------------------------------------------------------------------------------------------------------------
 Routine Name: mv$insertPgMviewLogs
 Author:       Mike Revitt
-Date:         12/11/2018
+Date:         11/03/2018
 ------------------------------------------------------------------------------------------------------------------------------------
 Revision History    Push Down List
 ------------------------------------------------------------------------------------------------------------------------------------
 Date        | Name          | Description
 ------------+---------------+-------------------------------------------------------------------------------------------------------
-            |               |
+05/06/2020  | D Day         | Change functions with RETURN VOID to procedures allowing support/control of COMMITS during refresh process.
 11/03/2018  | M Revitt      | Initial version
 ------------+---------------+-------------------------------------------------------------------------------------------------------
 Description:    inserts the row into the materialized view log data dictionary table
 
-Arguments:      IN      pOwner              The owner of the object
+Arguments:      IN      pConst              The memory structure containing all constants
+				IN      pOwner              The owner of the object
                 IN      pPgLog$Name         The name of the materialized view log table
                 IN      pTableName          The name of the materialized view source table
                 IN      pMvSequenceName     The name of the materialized view sequence
-Returns:                VOID
+
 ************************************************************************************************************************************
 Copyright 2019 Amazon.com, Inc. or its affiliates. All Rights Reserved. SPDX-License-Identifier: MIT-0
 ***********************************************************************************************************************************/
@@ -1939,12 +1913,10 @@ BEGIN
                 pOwner, pPgLog$Name, pTableName, pTriggerName
             );
 
-    RETURN;
-
     EXCEPTION
     WHEN OTHERS
     THEN
-        RAISE INFO      'Exception in function mv$insertPgMviewLogs';
+        RAISE INFO      'Exception in procedure mv$insertPgMviewLogs';
         RAISE INFO      'Error %:- %:',     SQLSTATE, SQLERRM;
         RAISE EXCEPTION '%',                SQLSTATE;
 END;
@@ -1953,13 +1925,12 @@ LANGUAGE    plpgsql
 SECURITY    DEFINER;
 ------------------------------------------------------------------------------------------------------------------------------------
 CREATE OR REPLACE
-FUNCTION    mv$removeRow$FromSourceTable
+PROCEDURE    mv$removeRow$FromSourceTable
             (
                 pConst          IN      mv$allConstants,
                 pOwner          IN      TEXT,
                 pTableName      IN      TEXT
             )
-    RETURNS VOID
 AS
 $BODY$
 /* ---------------------------------------------------------------------------------------------------------------------------------
@@ -1971,13 +1942,14 @@ Revision History    Push Down List
 ------------------------------------------------------------------------------------------------------------------------------------
 Date        | Name          | Description
 ------------+---------------+-------------------------------------------------------------------------------------------------------
-            |               |
+05/06/2020  | D Day         | Change functions with RETURN VOID to procedures allowing support/control of COMMITS during refresh process.
 04/06/2019  | M Revitt      | Initial version
 ------------+---------------+-------------------------------------------------------------------------------------------------------
 Description:    PostGre does not have a ROWID pseudo column and so a ROWID column has to be added to the source table, ideally this
                 should be a hidden column, but I can't find any way of doing this
 
-Arguments:      IN      pOwner              The owner of the object
+Arguments:      IN      pConst              The memory structure containing all constants
+				IN      pOwner              The owner of the object
                 IN      pTableName          The name of the materialized view source table
 Returns:                VOID
 ************************************************************************************************************************************
@@ -1992,12 +1964,11 @@ BEGIN
     tSqlStatement := pConst.ALTER_TABLE || pOwner || pConst.DOT_CHARACTER || pTableName || pConst.DROP_M_ROW$_COLUMN_FROM_TABLE;
 
     EXECUTE tSqlStatement;
-    RETURN;
 
     EXCEPTION
     WHEN OTHERS
     THEN
-        RAISE INFO      'Exception in function mv$removeRow$FromSourceTable';
+        RAISE INFO      'Exception in procedure mv$removeRow$FromSourceTable';
         RAISE INFO      'Error %:- %:',     SQLSTATE, SQLERRM;
         RAISE INFO      'Error Context:% %',CHR(10),  tSqlStatement;
         RAISE EXCEPTION '%',                SQLSTATE;
@@ -2020,7 +1991,7 @@ $BODY$
 /* ---------------------------------------------------------------------------------------------------------------------------------
 Routine Name: mv$replaceCommandWithToken
 Author:       Mike Revitt
-Date:         12/11/2018
+Date:         15/01/2019
 ------------------------------------------------------------------------------------------------------------------------------------
 Revision History    Push Down List
 ------------------------------------------------------------------------------------------------------------------------------------
@@ -2034,7 +2005,8 @@ Description:    A huge amount of coding in this program is to locate specific ke
                 repetative process which I have now moved to a common function
 
 
-Arguments:      IN      pSearchString       The string to be searched
+Arguments:      IN      pConst              The memory structure containing all constants
+				IN      pSearchString       The string to be searched
                 IN      pSearchValue        The value to look for in the string
                 IN      pTokan              The value to replace the search value with within the string
 Returns:                TEXT                The tokanised string
@@ -2082,31 +2054,30 @@ LANGUAGE    plpgsql
 SECURITY    DEFINER;
 ------------------------------------------------------------------------------------------------------------------------------------
 CREATE OR REPLACE
-FUNCTION    mv$truncateMaterializedView
+PROCEDURE    mv$truncateMaterializedView
             (
                 pConst      IN      mv$allConstants,
                 pOwner      IN      TEXT,
                 pViewName   IN      TEXT
             )
-
-    RETURNS VOID
 AS
 $BODY$
 /* ---------------------------------------------------------------------------------------------------------------------------------
 Routine Name: mv$truncateMaterializedView
 Author:       Mike Revitt
-Date:         12/11/2018
+Date:         11/03/2018
 ------------------------------------------------------------------------------------------------------------------------------------
 Revision History    Push Down List
 ------------------------------------------------------------------------------------------------------------------------------------
 Date        | Name          | Description
 ------------+---------------+-------------------------------------------------------------------------------------------------------
-            |               |
+05/06/2020  | D Day         | Change functions with RETURN VOID to procedures allowing support/control of COMMITS during refresh process.
 11/03/2018  | M Revitt      | Initial version
 ------------+---------------+-------------------------------------------------------------------------------------------------------
 Description:    When performing a full refresh, we first have to truncate the materialized view
 
-Arguments:      IN      pOwner              The owner of the object
+Arguments:      IN      pConst             The memory structure containing all constants
+				IN      pOwner             The owner of the object
                 IN      pViewName          The name of the materialized view base table
 Returns:                VOID
 
@@ -2126,7 +2097,7 @@ BEGIN
     EXCEPTION
     WHEN OTHERS
     THEN
-        RAISE INFO      'Exception in function mv$truncateMaterializedView';
+        RAISE INFO      'Exception in procedure mv$truncateMaterializedView';
         RAISE INFO      'Error %:- %:',     SQLSTATE, SQLERRM;
         RAISE INFO      'Error Context:% %',CHR(10),  tSqlStatement;
         RAISE EXCEPTION '%',                SQLSTATE;

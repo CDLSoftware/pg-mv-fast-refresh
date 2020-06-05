@@ -401,12 +401,12 @@ DO
 DECLARE
     cResult CHAR(1) := NULL;
 BEGIN
-    cResult := $MODULEOWNER.mv\$createMaterializedViewlog( 'test1','$SOURCEUSERNAME');
-    cResult := $MODULEOWNER.mv\$createMaterializedViewlog( 'test2','$SOURCEUSERNAME');
-    cResult := $MODULEOWNER.mv\$createMaterializedViewlog( 'test3','$SOURCEUSERNAME');
-    cResult := $MODULEOWNER.mv\$createMaterializedViewlog( 'test4','$SOURCEUSERNAME');
-    cResult := $MODULEOWNER.mv\$createMaterializedViewlog( 'test5','$SOURCEUSERNAME');
-    cResult := $MODULEOWNER.mv\$createMaterializedViewlog( 'test6','$SOURCEUSERNAME');
+    CALL $MODULEOWNER.mv\$createMaterializedViewlog( 'test1','$SOURCEUSERNAME');
+    CALL $MODULEOWNER.mv\$createMaterializedViewlog( 'test2','$SOURCEUSERNAME');
+    CALL $MODULEOWNER.mv\$createMaterializedViewlog( 'test3','$SOURCEUSERNAME');
+    CALL $MODULEOWNER.mv\$createMaterializedViewlog( 'test4','$SOURCEUSERNAME');
+    CALL $MODULEOWNER.mv\$createMaterializedViewlog( 'test5','$SOURCEUSERNAME');
+    CALL $MODULEOWNER.mv\$createMaterializedViewlog( 'test6','$SOURCEUSERNAME');
 
 END
 \$do\$;
@@ -461,7 +461,7 @@ LEFT JOIN test6 ON test5.trans_id = test6.trans_id';
 
     FOR iTableCounter IN 10 .. 100
     LOOP
-        cResult := mv\$createMaterializedView
+        CALL mv\$createMaterializedView
         (
             pViewName           => 'mvtesting' || iTableCounter,
             pSelectStatement    =>  pSqlStatement,
@@ -623,7 +623,7 @@ DECLARE
 BEGIN
     FOR iTableCounter IN 10 .. 20
     LOOP
-    cResult := mv\$refreshMaterializedView
+    CALL mv\$refreshMaterializedView
     (
         pViewName       => 'mvtesting' || iTableCounter,
         pOwner          => '$MVUSERNAME',
@@ -643,7 +643,7 @@ DECLARE
 BEGIN
     FOR iTableCounter IN 70 .. 100
     LOOP
-    cResult := mv\$refreshMaterializedView
+    CALL mv\$refreshMaterializedView
     (
         pViewName       => 'mvtesting' || iTableCounter,
         pOwner          => '$MVUSERNAME',
@@ -664,7 +664,7 @@ DECLARE
 BEGIN
     FOR iTableCounter IN 21 .. 69
     LOOP
-    cResult := mv\$refreshMaterializedView
+    CALL mv\$refreshMaterializedView
     (
         pViewName       => 'mvtesting' || iTableCounter,
         pOwner          => '$MVUSERNAME',

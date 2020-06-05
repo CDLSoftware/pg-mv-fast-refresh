@@ -7,23 +7,23 @@ Revision History    Push Down List
 ------------------------------------------------------------------------------------------------------------------------------------
 Date        | Name          | Description
 ------------+---------------+-------------------------------------------------------------------------------------------------------
-            |               |
+03/06/2020  | D Day         | Change functions with RETURN VOID to procedures allowing support/control of COMMITS during refresh process.
 15/01/2020  | M Revitt      | Fixed the bug in mv$removeMaterializedViewLog
 11/03/2018  | M Revitt      | Initial version
 ------------+---------------+-------------------------------------------------------------------------------------------------------
 Background:     PostGre does not support Materialized View Fast Refreshes, this suite of scripts is a PL/SQL coded mechanism to
                 provide that functionality, the next phase of this projecdt is to fold these changes into the PostGre kernel.
 
-Description:    This is the build script for the Application database functions that are required to support the Materialized View
+Description:    This is the build script for the Application database procedures that are required to support the Materialized View
                 fast refresh process.
 
-                This script contains functions that rely on other database functions having been previously created and must
+                This script contains procedures that rely on other database procedures having been previously created and must
                 therefore be run last in the build process.
 
-Notes:          Some of the functions in this file rely on functions that are created within this file and so whilst the functions
+Notes:          Some of the procedures in this file rely on procedures that are created within this file and so whilst the procedures
                 should be maintained in alphabetic order, this is not always possible.
 
-                All functions must be created with SECURITY DEFINER to ensure they run with the privileges of the owner.
+                All procedures must be created with SECURITY DEFINER to ensure they run with the privileges of the owner.
 
 Issues:         There is a bug in RDS for PostGres version 10.4 that prevents this code from working, this but is fixed in
                 versions 10.5 and 10.3
@@ -31,7 +31,7 @@ Issues:         There is a bug in RDS for PostGres version 10.4 that prevents th
                 https://forums.aws.amazon.com/thread.jspa?messageID=860564
 
 Debug:          Add a variant of the following command anywhere you need some debug inforaiton
-                RAISE NOTICE '<Funciton Name> % %',  CHR(10), <Variable to be examined>;
+                RAISE NOTICE '<Funciton/Procedure Name> % %',  CHR(10), <Variable to be examined>;
 
 ************************************************************************************************************************************
 Copyright 2019 Amazon.com, Inc. or its affiliates. All Rights Reserved.
@@ -52,22 +52,22 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 -- psql -h localhost -p 5432 -d postgres -U pgrs_mview -q -f mvApplicationFunctions.sql
 
--- -------------------- Write DROP-FUNCTION-stage scripts ----------------------
+-- -------------------- Write DROP-PROCEDURE-FUNCTION-stage scripts ----------------------
 
 SET     CLIENT_MIN_MESSAGES = ERROR;
 
-DROP FUNCTION IF EXISTS mv$createMaterializedView;
-DROP FUNCTION IF EXISTS mv$createMaterializedViewlog;
-DROP FUNCTION IF EXISTS mv$refreshMaterializedView;
+DROP PROCEDURE IF EXISTS mv$createMaterializedView;
+DROP PROCEDURE IF EXISTS mv$createMaterializedViewlog;
+DROP PROCEDURE IF EXISTS mv$refreshMaterializedView;
 DROP FUNCTION IF EXISTS mv$help;
-DROP FUNCTION IF EXISTS mv$removeMaterializedView;
-DROP FUNCTION IF EXISTS mv$removeMaterializedViewLog;
+DROP PROCEDURE IF EXISTS mv$removeMaterializedView;
+DROP PROCEDURE IF EXISTS mv$removeMaterializedViewLog;
 
 SET CLIENT_MIN_MESSAGES = NOTICE;
 
--- -------------------- Write CREATE-FUNCTION-stage scripts --------------------
+-- -------------------- Write CREATE-PROCEDURE-FUNCTION-stage scripts --------------------
 CREATE OR REPLACE
-FUNCTION    mv$createMaterializedView
+PROCEDURE    mv$createMaterializedView
             (
                 pViewName           IN      TEXT,
                 pSelectStatement    IN      TEXT,
@@ -76,7 +76,6 @@ FUNCTION    mv$createMaterializedView
                 pStorageClause      IN      TEXT        DEFAULT NULL,
                 pFastRefresh        IN      BOOLEAN     DEFAULT FALSE
             )
-    RETURNS VOID
 AS
 $BODY$
 /* ---------------------------------------------------------------------------------------------------------------------------------
@@ -88,16 +87,16 @@ Revision History    Push Down List
 ------------------------------------------------------------------------------------------------------------------------------------
 Date        | Name          | Description
 ------------+---------------+-------------------------------------------------------------------------------------------------------
-            |               |
-12/11/2018  | M Revitt      | Initial version
+03/06/2020	| D Day			| Changed function to procedure to allow support/control of COMMITS within the refresh process.
+28/04/2020	| D Day			| Added tTableNames input value parameter to mv$insertPgMviewOuterJoinDetails function call
 23/07/2019  | D Day			| Added function mv$insertPgMviewOuterJoinDetails to handle Outer Join table DELETE
 			|				| changes.
-28/04/2020	| D Day			| Added tTableNames input value parameter to mv$insertPgMviewOuterJoinDetails function call
+12/11/2018  | M Revitt      | Initial version
 ------------+---------------+-------------------------------------------------------------------------------------------------------
 Description:    Creates a materialized view, as a base table, and then populates the data dictionary table before calling the full
                 refresh routine to populate it.
 
-            This function performs the following steps
+            This procedure performs the following steps
             1)  A base table is created based on the select statement provided
             2)  The MV_M_ROW$_COLUMN column is added to the base table
             3)  A record of the materialized view is entered into the data dictionary table
@@ -117,8 +116,6 @@ Returns:                VOID
 Copyright 2019 Amazon.com, Inc. or its affiliates. All Rights Reserved. SPDX-License-Identifier: MIT-0
 ***********************************************************************************************************************************/
 DECLARE
-    cResult             	CHAR(1)     := NULL;
-
     rConst              	mv$allConstants;
 
     tSelectColumns      	TEXT        := NULL;
@@ -177,7 +174,7 @@ BEGIN
 			tLeftOuterJoinArray,
 			tRightOuterJoinArray;
 
-    tViewColumns    :=  mv$createPgMv$Table
+    CALL mv$createPgMv$Table
                         (
                             rConst,
                             pOwner,
@@ -185,14 +182,11 @@ BEGIN
                             pNamedColumns,
                             tSelectColumns,
                             tTableNames,
-                            pStorageClause
+                            pStorageClause,
+							tViewColumns
                         );
-
-    SELECT
-            pViewColumns,
-            pSelectColumns
-    FROM
-            mv$addRow$ToMv$Table
+						
+	CALL mv$addRow$ToMv$Table
             (
                 rConst,
                 pOwner,
@@ -201,12 +195,9 @@ BEGIN
                 tRowidArray,
                 tViewColumns,
                 tSelectColumns
-            )
-    INTO
-        tViewColumns,
-        tSelectColumns;
+            );
 	
-    cResult :=  mv$insertPgMview
+    CALL mv$insertPgMview
                 (
                     rConst,
                     pOwner,
@@ -224,7 +215,7 @@ BEGIN
                     pFastRefresh
                 );
 				
-	cResult := mv$insertPgMviewOuterJoinDetails
+	CALL mv$insertPgMviewOuterJoinDetails
 			(	rConst,
                 pOwner,
                 pViewName,
@@ -239,21 +230,20 @@ BEGIN
 				tRightOuterJoinArray
 			 );
 
-    cResult := mv$refreshMaterializedView( pViewName, pOwner, FALSE );
-    RETURN;
+    CALL mv$refreshMaterializedView( pViewName, pOwner, FALSE );
+
 END;
 $BODY$
 LANGUAGE    plpgsql
 SECURITY    DEFINER;
 ------------------------------------------------------------------------------------------------------------------------------------
 CREATE OR REPLACE
-FUNCTION    mv$createMaterializedViewlog
+PROCEDURE    mv$createMaterializedViewlog
             (
                 pTableName          IN      TEXT,
                 pOwner              IN      TEXT     DEFAULT USER,
                 pStorageClause      IN      TEXT     DEFAULT NULL
             )
-    RETURNS VOID
 AS
 $BODY$
 /* ---------------------------------------------------------------------------------------------------------------------------------
@@ -265,14 +255,14 @@ Revision History    Push Down List
 ------------------------------------------------------------------------------------------------------------------------------------
 Date        | Name          | Description
 ------------+---------------+-------------------------------------------------------------------------------------------------------
-            |               |
+03/06/2020	| D Day			| Changed function to procedure to allow support/control of COMMITS within the refresh process.
 12/11/2018  | M Revitt      | Initial version
 ------------+---------------+-------------------------------------------------------------------------------------------------------
 Description:    Creates a materialized view log against the base table, which is mandatory for fast refresh materialized views,
                 sets up the row tracking on the base table, adds a database trigger to the base table and populates the data
                 dictionary tables
 
-                This function performs the following steps
+                This procedure performs the following steps
                 1)  The MV_M_ROW$_COLUMN column is added to the base table
                 2)  A log table is created to hold a record of all changes to the base table
                 3)  Creates a trigger on the base table to populate the log table
@@ -295,7 +285,6 @@ DECLARE
     tSqlStatement   TEXT    := NULL;
     tLog$Name       TEXT    := NULL;
     tTriggerName    TEXT    := NULL;
-    cResult         CHAR(1) := NULL;
 
 BEGIN
 
@@ -303,11 +292,11 @@ BEGIN
     tLog$Name       := rConst.MV_LOG_TABLE_PREFIX   || SUBSTRING( pTableName, 1, rConst.MV_MAX_BASE_TABLE_LEN );
     tTriggerName    := rConst.MV_TRIGGER_PREFIX     || SUBSTRING( pTableName, 1, rConst.MV_MAX_BASE_TABLE_LEN );
 
-    cResult :=  mv$addRow$ToSourceTable(    rConst, pOwner, pTableName );
-    cResult :=  mv$createMvLog$Table(       rConst, pOwner, tLog$Name,  pStorageClause );
-    cResult :=  mv$addIndexToMvLog$Table(   rConst, pOwner, tLog$Name                  );
-    cResult :=  mv$createMvLogTrigger(      rConst, pOwner, pTableName, tTriggerName   );
-    cResult :=  mv$insertPgMviewLogs
+    CALL mv$addRow$ToSourceTable(    rConst, pOwner, pTableName );
+    CALL mv$createMvLog$Table(       rConst, pOwner, tLog$Name,  pStorageClause );
+    CALL mv$addIndexToMvLog$Table(   rConst, pOwner, tLog$Name                  );
+    CALL mv$createMvLogTrigger(      rConst, pOwner, pTableName, tTriggerName   );
+    CALL mv$insertPgMviewLogs
                 (
                     rConst,
                     pOwner,
@@ -315,12 +304,11 @@ BEGIN
                     pTableName,
                     tTriggerName
                 );
-    RETURN;
 
     EXCEPTION
     WHEN OTHERS
     THEN
-        RAISE INFO      'Exception in function mv$createMaterializedViewlog';
+        RAISE INFO      'Exception in procedure mv$createMaterializedViewlog';
         RAISE INFO      'Error %:- %:',     SQLSTATE, SQLERRM;
         RAISE EXCEPTION '%',                SQLSTATE;
 
@@ -343,7 +331,6 @@ Revision History    Push Down List
 ------------------------------------------------------------------------------------------------------------------------------------
 Date        | Name          | Description
 ------------+---------------+-------------------------------------------------------------------------------------------------------
-            |               |
 11/03/2018  | M Revitt      | Initial version
 ------------+---------------+-------------------------------------------------------------------------------------------------------
 Description:    Displays the help message
@@ -376,31 +363,30 @@ LANGUAGE    plpgsql
 SECURITY    DEFINER;
 ------------------------------------------------------------------------------------------------------------------------------------
 CREATE OR REPLACE
-FUNCTION    mv$refreshMaterializedView
+PROCEDURE    mv$refreshMaterializedView
             (
                 pViewName           IN      TEXT,
                 pOwner              IN      TEXT    DEFAULT USER,
                 pFastRefresh        IN      BOOLEAN DEFAULT FALSE
             )
-    RETURNS VOID
 AS
 $BODY$
 /* ---------------------------------------------------------------------------------------------------------------------------------
 Routine Name: mv$refreshMaterializedView
 Author:       Mike Revitt
-Date:         12/011/2018
+Date:         12/11/2018
 ------------------------------------------------------------------------------------------------------------------------------------
 Revision History    Push Down List
 ------------------------------------------------------------------------------------------------------------------------------------
 Date        | Name          | Description
 ------------+---------------+-------------------------------------------------------------------------------------------------------
-            |               |
+03/06/2020	| D Day			| Changed function to procedure to allow support/control of COMMITS within the refresh process.
 11/03/2018  | M Revitt      | Initial version
 ------------+---------------+-------------------------------------------------------------------------------------------------------
 Description:    Loops through each of the base tables, upon which this materialised view is based, and updates the materialized
                 view for each table in turn
 
-Notes:          This function must come after the creation of the 2 functions it calls
+Notes:          This procedure must come after the creation of the 2 procedures it calls
                 o   mv$refreshMaterializedViewFast;
                 o   mv$refreshMaterializedViewFull;
 
@@ -413,10 +399,8 @@ Returns:                VOID
 Copyright 2019 Amazon.com, Inc. or its affiliates. All Rights Reserved. SPDX-License-Identifier: MIT-0
 ***********************************************************************************************************************************/
 DECLARE
-
-    cResult     CHAR(1) := NULL;
-
-    rConst      mv$allConstants;
+	
+	rConst      mv$allConstants;
 
 BEGIN
 
@@ -424,24 +408,22 @@ BEGIN
 
     IF TRUE = pFastRefresh
     THEN
-        cResult :=  mv$refreshMaterializedViewFast( rConst, pOwner, pViewName );
+        CALL mv$refreshMaterializedViewFast( rConst, pOwner, pViewName );
     ELSE
-        cResult :=  mv$refreshMaterializedViewFull( rConst, pOwner, pViewName );
+        CALL mv$refreshMaterializedViewFull( rConst, pOwner, pViewName );
     END IF;
 
-    RETURN;
 END;
 $BODY$
 LANGUAGE    plpgsql
 SECURITY    DEFINER;
 ------------------------------------------------------------------------------------------------------------------------------------
 CREATE OR REPLACE
-FUNCTION    mv$removeMaterializedView
+PROCEDURE    mv$removeMaterializedView
             (
                 pViewName           IN      TEXT,
                 pOwner              IN      TEXT        DEFAULT USER
             )
-    RETURNS VOID
 AS
 $BODY$
 /* ---------------------------------------------------------------------------------------------------------------------------------
@@ -453,14 +435,14 @@ Revision History    Push Down List
 ------------------------------------------------------------------------------------------------------------------------------------
 Date        | Name          | Description
 ------------+---------------+-------------------------------------------------------------------------------------------------------
-            |               |
+03/06/2020	| D Day			| Changed function to procedure to allow support/control of COMMITS within the fast refresh process.            |               |
+01/07/2019	| David Day		| Added procedure mv$deletePgMviewOjDetails to delete data from data dictionary table pgmview_oj_details. 
 11/03/2018  | M Revitt      | Initial version
-01/07/2019	| David Day		| Added function mv$deletePgMviewOjDetails to delete data from data dictionary table pgmview_oj_details. 
 ------------+---------------+-------------------------------------------------------------------------------------------------------
 Description:    Removes a materialized view, clears down the entries in the Materialized View Log adn then removes the entry from
                 the data dictionary table
 
-                This function performs the following steps
+                This procedure performs the following steps
                 1)  Clears the MV Bit from all base tables logs used by thie materialized view
                 2)  Drops the materialized view
                 3)  Removes the MV_M_ROW$_COLUMN column from the base table
@@ -477,31 +459,27 @@ DECLARE
     aPgMview    pg$mviews;
     rConst      mv$allConstants;
 
-    cResult     CHAR(1);
-
 BEGIN
 
     rConst      := mv$buildAllConstants();
     aPgMview    := mv$getPgMviewTableData(      rConst, pOwner, pViewName           );
-    cResult     := mv$clearAllPgMvLogTableBits( rConst, pOwner, pViewName           );
-    cResult     := mv$clearPgMviewLogBit(       rConst, pOwner, pViewName           );
-    cResult     := mv$dropTable(                rConst, pOwner, aPgMview.view_name  );
-    cResult     := mv$deletePgMview(               pOwner, pViewName           );
-	cResult		:= mv$deletePgMviewOjDetails(      pOwner, pViewName           );
+    CALL mv$clearAllPgMvLogTableBits( rConst, pOwner, pViewName           );
+    CALL mv$clearPgMviewLogBit(       rConst, pOwner, pViewName           );
+    CALL mv$dropTable(                rConst, pOwner, aPgMview.view_name  );
+    CALL mv$deletePgMview(               pOwner, pViewName           );
+	CALL mv$deletePgMviewOjDetails(      pOwner, pViewName           );
 
-    RETURN;
 END;
 $BODY$
 LANGUAGE    plpgsql
 SECURITY    DEFINER;
 ------------------------------------------------------------------------------------------------------------------------------------
 CREATE OR REPLACE
-FUNCTION    mv$removeMaterializedViewLog
+PROCEDURE    mv$removeMaterializedViewLog
             (
                 pTableName          IN      TEXT,
                 pOwner              IN      TEXT        DEFAULT USER
             )
-    RETURNS VOID
 AS
 $BODY$
 /* ---------------------------------------------------------------------------------------------------------------------------------
@@ -513,16 +491,16 @@ Revision History    Push Down List
 ------------------------------------------------------------------------------------------------------------------------------------
 Date        | Name          | Description
 ------------+---------------+-------------------------------------------------------------------------------------------------------
-            |               |
+03/06/2020	| D Day			| Changed function to procedure to allow support/control of COMMITS within the refresh process.
 15/01/2020  | M Revitt      | Changed bitmap check to look at all values in the bitmap array
 11/03/2018  | M Revitt      | Initial version
 ------------+---------------+-------------------------------------------------------------------------------------------------------
 Description:    Removes a materialized view log from the base table.
 
-            This function has the following pre-requisites
+            This procedure has the following pre-requisites
             1)  All Materialized Views, with an interest in the log, must have been previously removed
 
-            This function performs the following steps
+            This procedure performs the following steps
             1)  Drops the trigger from the base table
             2)  Drops the Materialized View Log table
             3)  Removes the MV_M_ROW$_COLUMN column from the base table
@@ -542,7 +520,6 @@ DECLARE
     tSqlStatement       TEXT;
     tLog$Name           TEXT        := NULL;
     tMvTriggerName      TEXT        := NULL;
-    cResult             CHAR(1)     := NULL;
 
 BEGIN
 
@@ -551,19 +528,18 @@ BEGIN
 
     IF rConst.BITMAP_NOT_SET = ALL( aViewLog.pg_mview_bitmap )
     THEN
-        cResult  := mv$dropTrigger(                 rConst, pOwner, aViewLog.trigger_name, pTableName   );
-        cResult  := mv$dropTable(                   rConst, pOwner, aViewLog.pglog$_name                );
-        cResult  := mv$removeRow$FromSourceTable(   rConst, pOwner, pTableName                          );
-        cResult  := mv$deletePgMviewLog(                    pOwner, pTableName                          );
+        CALL mv$dropTrigger(                 rConst, pOwner, aViewLog.trigger_name, pTableName   );
+        CALL mv$dropTable(                   rConst, pOwner, aViewLog.pglog$_name                );
+        CALL mv$removeRow$FromSourceTable(   rConst, pOwner, pTableName                          );
+        CALL mv$deletePgMviewLog(                    pOwner, pTableName                          );
     ELSE
         RAISE EXCEPTION 'The Materialized View Log on Table % is still in use', pTableName;
     END IF;
-    RETURN;
 
     EXCEPTION
     WHEN OTHERS
     THEN
-        RAISE INFO      'Exception in function mv$removeMaterializedViewLog';
+        RAISE INFO      'Exception in procedure mv$removeMaterializedViewLog';
         RAISE INFO      'Error %:- %:',     SQLSTATE, SQLERRM;
         RAISE EXCEPTION '%',                SQLSTATE;
 
@@ -574,9 +550,9 @@ SECURITY    DEFINER;
 
 ------------------------------------------------------------------------------------------------------------------------------------
 
-GRANT   EXECUTE ON  FUNCTION    mv$createMaterializedViewlog    TO  pgmv$_execute;
-GRANT   EXECUTE ON  FUNCTION    mv$createMaterializedView       TO  pgmv$_execute;
-GRANT   EXECUTE ON  FUNCTION    mv$refreshMaterializedView      TO  pgmv$_execute;
-GRANT   EXECUTE ON  FUNCTION    mv$removeMaterializedView       TO  pgmv$_execute;
-GRANT   EXECUTE ON  FUNCTION    mv$removeMaterializedViewLog    TO  pgmv$_execute;
+GRANT   EXECUTE ON  PROCEDURE   mv$createMaterializedViewlog    TO  pgmv$_execute;
+GRANT   EXECUTE ON  PROCEDURE   mv$createMaterializedView       TO  pgmv$_execute;
+GRANT   EXECUTE ON  PROCEDURE   mv$refreshMaterializedView      TO  pgmv$_execute;
+GRANT   EXECUTE ON  PROCEDURE   mv$removeMaterializedView       TO  pgmv$_execute;
+GRANT   EXECUTE ON  PROCEDURE   mv$removeMaterializedViewLog    TO  pgmv$_execute;
 GRANT   EXECUTE ON  FUNCTION    mv$help                         TO  pgmv$_execute;
