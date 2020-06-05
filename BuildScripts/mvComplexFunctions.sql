@@ -939,12 +939,8 @@ BEGIN
                         pPgMviewBit,
                         biMaxSequence
                     );
-					
-		--COMMIT;
 
         CALL mv$clearSpentPgMviewLogs( pConst, aViewLog.owner, aViewLog.pglog$_name );
-		
-		--COMMIT;
 		
     END IF;
 
