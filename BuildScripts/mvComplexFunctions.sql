@@ -1066,8 +1066,11 @@ BEGIN
 
     FOR i IN ARRAY_LOWER( aPgMview.table_array, 1 ) .. ARRAY_UPPER( aPgMview.table_array, 1 )
     LOOP
-        bOuterJoined := mv$checkIfOuterJoinedTable( pConst, aPgMview.table_array[i], aPgMview.outer_table_array[i] );
-        CALL mv$refreshMaterializedViewFast
+	
+		BEGIN
+		
+			bOuterJoined := mv$checkIfOuterJoinedTable( pConst, aPgMview.table_array[i], aPgMview.outer_table_array[i] );
+			CALL mv$refreshMaterializedViewFast
                     (
                         pConst,
                         pOwner,
@@ -1081,16 +1084,19 @@ BEGIN
                         aPgMview.inner_rowid_array[i]
                     );
 					
-		--COMMIT;
+		EXCEPTION
+		WHEN OTHERS
+		THEN
+			RAISE INFO      'Exception in procedure mv$refreshMaterializedViewFast';
+			RAISE INFO      'Error %:- %:',     SQLSTATE, SQLERRM;
+			RAISE EXCEPTION '%',                SQLSTATE;
+			
+		END;
+					
+		COMMIT;
 		
     END LOOP;
 
-    EXCEPTION
-    WHEN OTHERS
-    THEN
-        RAISE INFO      'Exception in procedure mv$refreshMaterializedViewFast';
-        RAISE INFO      'Error %:- %:',     SQLSTATE, SQLERRM;
-        RAISE EXCEPTION '%',                SQLSTATE;
 END;
 $BODY$
 LANGUAGE    plpgsql;
