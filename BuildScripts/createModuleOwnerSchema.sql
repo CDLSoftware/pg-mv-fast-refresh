@@ -203,14 +203,17 @@ CREATE TABLE IF NOT EXISTS :MODULEOWNER.pg$mviews_oj_details
 
 );
 
+ALTER TABLE :MODULEOWNER.pg$mviews       	   OWNER TO :MODULEOWNER;
+ALTER TABLE :MODULEOWNER.pg$mview_logs   	   OWNER TO :MODULEOWNER;
+ALTER TABLE :MODULEOWNER.pg$mviews_oj_details  OWNER TO :MODULEOWNER;
+
 GRANT   USAGE   ON                      SCHEMA  :MODULEOWNER    TO  pgmv$_role;
 GRANT   USAGE   ON                      SCHEMA  :MODULEOWNER    TO  pgmv$_usage;
 GRANT   SELECT  ON  ALL TABLES      IN  SCHEMA  :MODULEOWNER    TO  pgmv$_role;
 GRANT   SELECT  ON  ALL TABLES      IN  SCHEMA  :MODULEOWNER    TO  pgmv$_view;
 
-ALTER TABLE :MODULEOWNER.pg$mviews       	   OWNER TO :MODULEOWNER;
-ALTER TABLE :MODULEOWNER.pg$mview_logs   	   OWNER TO :MODULEOWNER;
-ALTER TABLE :MODULEOWNER.pg$mviews_oj_details  OWNER TO :MODULEOWNER;
+GRANT ALL ON ALL TABLES in schema :MODULEOWNER to pgmv$_role ;
+GRANT ALL ON ALL sequences in schema :MODULEOWNER to pgmv$_role;
 
 ALTER EXTENSION "uuid-ossp" SET SCHEMA public;
 ALTER EXTENSION "dblink" SET SCHEMA public;

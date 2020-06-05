@@ -112,6 +112,7 @@ END
  GRANT ALL ON SCHEMA $MODULEOWNER TO $SOURCEUSERNAME;
  GRANT USAGE ON FOREIGN SERVER pgmv\$_instance TO $SOURCEUSERNAME;
 
+
 EOF1
 
 }
@@ -168,8 +169,8 @@ GRANT USAGE ON SCHEMA $MODULEOWNER TO $MVUSERNAME;
 GRANT ALL ON SCHEMA $SOURCEUSERNAME TO $MODULEOWNER;
 GRANT   $SOURCEUSERNAME,$MVUSERNAME     TO $PGUSERNAME;
 GRANT   $SOURCEUSERNAME TO   $MODULEOWNER;
-GRANT   pgmv\$_view, pgmv\$_usage                     TO      $MVUSERNAME;
-GRANT   pgmv\$_view, pgmv\$_usage,    pgmv\$_execute   TO      $SOURCEUSERNAME;
+GRANT   pgmv\$_view, pgmv\$_usage TO $MVUSERNAME;
+GRANT   pgmv\$_view, pgmv\$_usage, pgmv\$_execute, pgmv\$_role TO $SOURCEUSERNAME;
 GRANT USAGE ON FOREIGN SERVER pgmv\$_instance TO $MVUSERNAME;
 
 EOF2
@@ -422,7 +423,6 @@ echo "INFO: Creating MV in $MVUSERNAME " >> $LOG_FILE
 
 PGPASSWORD=$MVPASSWORD
 
-
 psql --host=$HOSTNAME --port=$PORT --username=$MVUSERNAME --dbname=$DBNAME << EOF5 >> $LOG_FILE 2>&1
 
 DO
@@ -494,7 +494,7 @@ DECLARE
 BEGIN
 	FOR iTableCounter IN 10 .. 100 
     	LOOP
-    	cResult := mv\$removeMaterializedView( 'mvtesting' || iTableCounter, '$MVUSERNAME' );
+    	CALL mv\$removeMaterializedView( 'mvtesting' || iTableCounter, '$MVUSERNAME' );
     	END LOOP;
 END
 \$do\$;
@@ -511,12 +511,12 @@ DO
 DECLARE
     cResult         CHAR(1)     := NULL;
 BEGIN
-    cResult := mv\$removeMaterializedViewLog( 'test1', '$SOURCEUSERNAME' );
-    cResult := mv\$removeMaterializedViewLog( 'test2', '$SOURCEUSERNAME' );
-    cResult := mv\$removeMaterializedViewLog( 'test3', '$SOURCEUSERNAME' );
-    cResult := mv\$removeMaterializedViewLog( 'test4', '$SOURCEUSERNAME' );
-    cResult := mv\$removeMaterializedViewLog( 'test5', '$SOURCEUSERNAME' );
-    cResult := mv\$removeMaterializedViewLog( 'test6', '$SOURCEUSERNAME' );
+    CALL mv\$removeMaterializedViewLog( 'test1', '$SOURCEUSERNAME' );
+    CALL mv\$removeMaterializedViewLog( 'test2', '$SOURCEUSERNAME' );
+    CALL mv\$removeMaterializedViewLog( 'test3', '$SOURCEUSERNAME' );
+    CALL mv\$removeMaterializedViewLog( 'test4', '$SOURCEUSERNAME' );
+    CALL mv\$removeMaterializedViewLog( 'test5', '$SOURCEUSERNAME' );
+    CALL mv\$removeMaterializedViewLog( 'test6', '$SOURCEUSERNAME' );
 END
 \$do\$;
 
