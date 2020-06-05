@@ -7,7 +7,7 @@ Revision History    Push Down List
 ------------------------------------------------------------------------------------------------------------------------------------
 Date        | Name          | Description
 ------------+---------------+-------------------------------------------------------------------------------------------------------
-04/06/2020  | D Day         | Change functions with RETURN VOID to procedures allowing support/control of COMMITS during refresh process.
+04/06/2020  | D Day         | Change functions with RETURNS VOID to procedures allowing support/control of COMMITS during refresh process.
 05/11/2019  | M Revitt      | mv$clearPgMvLogTableBits is now a complex function so move it into the conplex script
 11/03/2018  | M Revitt      | Initial version
 ------------+---------------+-------------------------------------------------------------------------------------------------------
@@ -98,7 +98,7 @@ Revision History    Push Down List
 ------------------------------------------------------------------------------------------------------------------------------------
 Date        | Name          | Description
 ------------+---------------+-------------------------------------------------------------------------------------------------------
-04/06/2020  | D Day         | Change functions with RETURN VOID to procedures allowing support/control of COMMITS during refresh process.
+04/06/2020  | D Day         | Change functions with RETURNS VOID to procedures allowing support/control of COMMITS during refresh process.
 17/09/2019  | D Day         | Bug fix - Added logic to ignore table name if it already exists when clearing the bits in the mview logs
 			|				| mview logs
 04/06/2019  | M Revitt      | Initial version
@@ -192,7 +192,7 @@ Revision History    Push Down List
 ------------------------------------------------------------------------------------------------------------------------------------
 Date        | Name          | Description
 ------------+---------------+-------------------------------------------------------------------------------------------------------
-04/06/2020  | D Day         | Change functions with RETURN VOID to procedures allowing support/control of COMMITS during refresh process.
+04/06/2020  | D Day         | Change functions with RETURNS VOID to procedures allowing support/control of COMMITS during refresh process.
 29/05/2020  | D Day			| Defect fix - Removed dblink action and call to function mv$clearPgMvLogTableBitsAction as this
 			|				| was causing missing when an error occurred during the transaction process steps.
 18/03/2020  | D Day         | Defect fix - To reduce the impact of deadlocks caused by multiple mview refreshes trying to update them
@@ -276,7 +276,7 @@ Revision History    Push Down List
 ------------------------------------------------------------------------------------------------------------------------------------
 Date        | Name          | Description
 ------------+---------------+-------------------------------------------------------------------------------------------------------
-04/06/2020  | D Day         | Change functions with RETURN VOID to procedures allowing support/control of COMMITS during refresh process.
+04/06/2020  | D Day         | Change functions with RETURNS VOID to procedures allowing support/control of COMMITS during refresh process.
 30/11/2019  | M Revitt      | Use mv$bitValue to accomodate > 62 MV's per base Table
 17/09/2019  | D Day         | Bug fix - Added logic to ignore table name if it already exists to stop pg$mview_logs table
 			|				| pg_mview_bitmap column not being updated multiple times.
@@ -368,7 +368,7 @@ Revision History    Push Down List
 ------------------------------------------------------------------------------------------------------------------------------------
 Date        | Name          | Description
 ------------+---------------+-------------------------------------------------------------------------------------------------------
-04/06/2020  | D Day         | Change functions with RETURN VOID to procedures allowing support/control of COMMITS during refresh process.
+04/06/2020  | D Day         | Change functions with RETURNS VOID to procedures allowing support/control of COMMITS during refresh process.
 			|				| Added new INOUT parameter to replace the RETURN TEXT as this function was previously doing UPDATE and RETURN
 			|				| which is not supported by procedure.
 16/01/2019  | M Revitt      | Initial version
@@ -462,7 +462,7 @@ Revision History    Push Down List
 ------------------------------------------------------------------------------------------------------------------------------------
 Date        | Name          | Description
 ------------+---------------+-------------------------------------------------------------------------------------------------------
-04/06/2020  | D Day         | Change functions with RETURN VOID to procedures allowing support/control of COMMITS during refresh process.
+04/06/2020  | D Day         | Change functions with RETURNS VOID to procedures allowing support/control of COMMITS during refresh process.
 11/03/2018  | M Revitt      | Initial version
 ------------+---------------+-------------------------------------------------------------------------------------------------------
 Description:    Gets called to insert a new row into the Materialized View when an insert is detected
@@ -555,7 +555,7 @@ Revision History    Push Down List
 ------------------------------------------------------------------------------------------------------------------------------------
 Date        | Name          | Description
 ------------+---------------+-------------------------------------------------------------------------------------------------------
-04/06/2020  | D Day         | Change functions with RETURN VOID to procedures allowing support/control of COMMITS during refresh process.
+04/06/2020  | D Day         | Change functions with RETURNS VOID to procedures allowing support/control of COMMITS during refresh process.
 17/09/2019  | D Day         | Bug fix - Added logic to ignore log table name if it already exists as this was causing the bit value being set incorrectly
 			|				| in the data dictionary table bit_array column in pg$mviews table.
 11/03/2018  | M Revitt      | Initial version
@@ -727,7 +727,7 @@ Revision History    Push Down List
 ------------------------------------------------------------------------------------------------------------------------------------
 Date        | Name          | Description
 ------------+---------------+-------------------------------------------------------------------------------------------------------
-04/06/2020  | D Day         | Change functions with RETURN VOID to procedures allowing support/control of COMMITS during refresh process.
+04/06/2020  | D Day         | Change functions with RETURNS VOID to procedures allowing support/control of COMMITS during refresh process.
 01/07/2019	| David Day		| Added function mv$updateOuterJoinColumnsNull to handle outer join deletes.            |               |
 11/03/2018  | M Revitt      | Initial version
 ------------+---------------+-------------------------------------------------------------------------------------------------------
@@ -830,7 +830,6 @@ PROCEDURE    mv$refreshMaterializedViewFast
                 pInnerAlias     IN      TEXT,
                 pInnerRowid     IN      TEXT
             )
-    RETURNS VOID
 AS
 $BODY$
 /* ---------------------------------------------------------------------------------------------------------------------------------
@@ -842,7 +841,7 @@ Revision History    Push Down List
 ------------------------------------------------------------------------------------------------------------------------------------
 Date        | Name          | Description
 ------------+---------------+-------------------------------------------------------------------------------------------------------
-04/06/2020  | D Day         | Change functions with RETURN VOID to procedures allowing support/control of COMMITS during refresh process.
+04/06/2020  | D Day         | Change functions with RETURNS VOID to procedures allowing support/control of COMMITS during refresh process.
 11/03/2018  | M Revitt      | Initial version
 ------------+---------------+-------------------------------------------------------------------------------------------------------
 Description:    Selects all of the data from the materialized view log, in the order it was created, and applies the changes to
@@ -988,7 +987,7 @@ Revision History    Push Down List
 ------------------------------------------------------------------------------------------------------------------------------------
 Date        | Name          | Description
 ------------+---------------+-------------------------------------------------------------------------------------------------------
-04/06/2020  | D Day         | Change functions with RETURN VOID to procedures allowing support/control of COMMITS during refresh process.
+04/06/2020  | D Day         | Change functions with RETURNS VOID to procedures allowing support/control of COMMITS during refresh process.
 11/03/2018  | M Revitt      | Initial version
 ------------+---------------+-------------------------------------------------------------------------------------------------------
 Description:    Performs a full refresh of the materialized view, which consists of truncating the table and then re-populating it.
@@ -1048,7 +1047,7 @@ Revision History    Push Down List
 ------------------------------------------------------------------------------------------------------------------------------------
 Date        | Name          | Description
 ------------+---------------+-------------------------------------------------------------------------------------------------------
-04/06/2020  | D Day         | Change functions with RETURN VOID to procedures allowing support/control of COMMITS during refresh process.
+04/06/2020  | D Day         | Change functions with RETURNS VOID to procedures allowing support/control of COMMITS during refresh process.
 03/03/2020  | D Day         | Defect fix to resolve outer join check function mv$checkIfOuterJoinedTable to handle if the table_array
 			|				| value had both an inner join and outer join condition inside the main sql query. Amended to only pass in
 			|				| in the outer_table_array loop value not the full array.
@@ -1130,7 +1129,7 @@ Revision History    Push Down List
 ------------------------------------------------------------------------------------------------------------------------------------
 Date        | Name          | Description
 ------------+---------------+-------------------------------------------------------------------------------------------------------
-04/06/2020  | D Day         | Change functions with RETURN VOID to procedures allowing support/control of COMMITS during refresh process.
+04/06/2020  | D Day         | Change functions with RETURNS VOID to procedures allowing support/control of COMMITS during refresh process.
 28/04/2020	| D Day			| Added join_replacement_from_sql value from pg$mview_oj_details data dictionary table to use in DELETE 
 			|				| and INSERT statements to help performance.
 14/02/2020	| D Day			| Added dot character inbetween pInnerAlias and pConst.MV_M_ROW$_SOURCE_COLUMN as the inner alias array
@@ -1236,7 +1235,7 @@ Revision History    Push Down List
 ------------------------------------------------------------------------------------------------------------------------------------
 Date        | Name          | Description
 ------------+---------------+-------------------------------------------------------------------------------------------------------
-04/06/2020  | D Day         | Change functions with RETURN VOID to procedures allowing support/control of COMMITS during refresh process.
+04/06/2020  | D Day         | Change functions with RETURNS VOID to procedures allowing support/control of COMMITS during refresh process.
 28/04/2020	| D Day			| Added mv$OuterJoinToInnerJoinReplacement function call to replace alias matching outer join conditions
 			|				| with inner join conditions and new IN parameter pTableNames.
 01/07/2019  | D Day      	| Initial version
@@ -1802,7 +1801,7 @@ Revision History    Push Down List
 ------------------------------------------------------------------------------------------------------------------------------------
 Date        | Name          | Description
 ------------+---------------+-------------------------------------------------------------------------------------------------------
-04/06/2020  | D Day         | Change functions with RETURN VOID to procedures allowing support/control of COMMITS during refresh process.
+04/06/2020  | D Day         | Change functions with RETURNS VOID to procedures allowing support/control of COMMITS during refresh process.
 28/04/2020	| D Day			| Added mv$OuterJoinToInnerJoinReplacement function call to replace alias matching outer join conditions
 			|				| with inner join conditions and new IN parameter pTableNames.
 25/06/2019  | D Day      	| Initial version
@@ -1873,7 +1872,7 @@ Revision History    Push Down List
 ------------------------------------------------------------------------------------------------------------------------------------
 Date        | Name          | Description
 ------------+---------------+-------------------------------------------------------------------------------------------------------
-04/06/2020  | D Day         | Change functions with RETURN VOID to procedures allowing support/control of COMMITS during refresh process.
+04/06/2020  | D Day         | Change functions with RETURNS VOID to procedures allowing support/control of COMMITS during refresh process.
 08/10/2019  | D Day         | Changed returns type from INTEGER to SMALLINT to match the bit data type.
 11/03/2018  | M Revitt      | Initial version
 ------------+---------------+-------------------------------------------------------------------------------------------------------
@@ -1934,7 +1933,7 @@ Revision History    Push Down List
 ------------------------------------------------------------------------------------------------------------------------------------
 Date        | Name          | Description
 ------------+---------------+-------------------------------------------------------------------------------------------------------
-04/06/2020  | D Day         | Change functions with RETURN VOID to procedures allowing support/control of COMMITS during refresh process.
+04/06/2020  | D Day         | Change functions with RETURNS VOID to procedures allowing support/control of COMMITS during refresh process.
 11/03/2018  | M Revitt      | Initial version
 ------------+---------------+-------------------------------------------------------------------------------------------------------
 Description:    Gets called to insert a new row into the Materialized View when an insert is detected
