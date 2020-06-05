@@ -428,7 +428,7 @@ BEGIN
 
     CALL mv$grantSelectPrivileges( pConst, pOwner, pViewName );
 	
-	pTableColumns    :=  mv$getPgMviewViewColumns( rConst, pOwner, pViewName );
+	pTableColumns    :=  mv$getPgMviewViewColumns( pConst, pOwner, pViewName );
 
     EXCEPTION
     WHEN OTHERS
