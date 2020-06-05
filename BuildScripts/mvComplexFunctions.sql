@@ -169,8 +169,7 @@ BEGIN
         RAISE EXCEPTION '%',                SQLSTATE;
 END;
 $BODY$
-LANGUAGE    plpgsql
-SECURITY    DEFINER;
+LANGUAGE    plpgsql;
 ------------------------------------------------------------------------------------------------------------------------------------
 CREATE OR REPLACE
 PROCEDURE    mv$clearPgMvLogTableBits
@@ -255,8 +254,7 @@ BEGIN
         RAISE EXCEPTION '%',                SQLSTATE;
 END;
 $BODY$
-LANGUAGE    plpgsql
-SECURITY    DEFINER;
+LANGUAGE    plpgsql;
 ------------------------------------------------------------------------------------------------------------------------------------
 CREATE OR REPLACE
 PROCEDURE    mv$clearPgMviewLogBit
@@ -342,8 +340,7 @@ BEGIN
         RAISE EXCEPTION '%',                SQLSTATE;
 END;
 $BODY$
-LANGUAGE    plpgsql
-SECURITY    DEFINER;
+LANGUAGE    plpgsql;
 ------------------------------------------------------------------------------------------------------------------------------------
 CREATE OR REPLACE
 PROCEDURE    mv$createPgMv$Table
@@ -439,8 +436,7 @@ BEGIN
         RAISE EXCEPTION '%',                SQLSTATE;
 END;
 $BODY$
-LANGUAGE    plpgsql
-SECURITY    DEFINER;
+LANGUAGE    plpgsql;
 ------------------------------------------------------------------------------------------------------------------------------------
 CREATE OR REPLACE
 PROCEDURE    mv$insertMaterializedViewRows
@@ -523,8 +519,7 @@ BEGIN
         RAISE EXCEPTION '%',                SQLSTATE;
 END;
 $BODY$
-LANGUAGE    plpgsql
-SECURITY    DEFINER;
+LANGUAGE    plpgsql;
 ------------------------------------------------------------------------------------------------------------------------------------
 CREATE OR REPLACE
 PROCEDURE    mv$insertPgMview
@@ -699,8 +694,7 @@ BEGIN
 
 END;
 $BODY$
-LANGUAGE    plpgsql
-SECURITY    DEFINER;
+LANGUAGE    plpgsql;
 ------------------------------------------------------------------------------------------------------------------------------------
 CREATE OR REPLACE
 PROCEDURE    mv$executeMVFastRefresh
@@ -813,8 +807,7 @@ BEGIN
         RAISE EXCEPTION '%',                SQLSTATE;
 END;
 $BODY$
-LANGUAGE    plpgsql
-SECURITY    DEFINER;
+LANGUAGE    plpgsql;
 ------------------------------------------------------------------------------------------------------------------------------------
 CREATE OR REPLACE
 PROCEDURE    mv$refreshMaterializedViewFast
@@ -966,8 +959,7 @@ BEGIN
         RAISE EXCEPTION '%',                SQLSTATE;
 END;
 $BODY$
-LANGUAGE    plpgsql
-SECURITY    DEFINER;
+LANGUAGE    plpgsql;
 ------------------------------------------------------------------------------------------------------------------------------------
 CREATE OR REPLACE
 PROCEDURE    mv$refreshMaterializedViewFull
@@ -1026,8 +1018,7 @@ BEGIN
         RAISE EXCEPTION '%',                SQLSTATE;
 END;
 $BODY$
-LANGUAGE    plpgsql
-SECURITY    DEFINER;
+LANGUAGE    plpgsql;
 ------------------------------------------------------------------------------------------------------------------------------------
 CREATE OR REPLACE
 PROCEDURE    mv$refreshMaterializedViewFast
@@ -1104,8 +1095,7 @@ BEGIN
         RAISE EXCEPTION '%',                SQLSTATE;
 END;
 $BODY$
-LANGUAGE    plpgsql
-SECURITY    DEFINER;
+LANGUAGE    plpgsql;
 ------------------------------------------------------------------------------------------------------------------------------------
 CREATE OR REPLACE
 PROCEDURE    mv$insertOuterJoinRows
@@ -1205,8 +1195,7 @@ BEGIN
         RAISE EXCEPTION '%',                SQLSTATE;
 END;
 $BODY$
-LANGUAGE    plpgsql
-SECURITY    DEFINER;
+LANGUAGE    plpgsql;
 
 ------------------------------------------------------------------------------------------------------------------------------------
 CREATE OR REPLACE
@@ -1685,8 +1674,7 @@ BEGIN
         RAISE EXCEPTION '%',                SQLSTATE;
 END;
 $BODY$
-LANGUAGE    plpgsql
-SECURITY    DEFINER;
+LANGUAGE    plpgsql;
 ------------------------------------------------------------------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION mv$checkParentToChildOuterJoinAlias(
 	pConst 					IN	"mv$allconstants",
@@ -1775,8 +1763,7 @@ BEGIN
         RAISE EXCEPTION '%',                SQLSTATE;
 END;
 $BODY$
-LANGUAGE    plpgsql
-SECURITY    DEFINER;
+LANGUAGE    plpgsql;
 ------------------------------------------------------------------------------------------------------------------------------------
 
 CREATE OR REPLACE
@@ -1849,8 +1836,7 @@ BEGIN
         RAISE EXCEPTION '%',                SQLSTATE;
 END;
 $BODY$
-LANGUAGE    plpgsql
-SECURITY    DEFINER;
+LANGUAGE    plpgsql;
 ------------------------------------------------------------------------------------------------------------------------------------
 CREATE OR REPLACE
 PROCEDURE    mv$setPgMviewLogBit
@@ -1910,8 +1896,7 @@ BEGIN
         RAISE EXCEPTION '%',                SQLSTATE;
 END;
 $BODY$
-LANGUAGE    plpgsql
-SECURITY    DEFINER;
+LANGUAGE    plpgsql;
 ------------------------------------------------------------------------------------------------------------------------------------
 CREATE OR REPLACE
 PROCEDURE    mv$updateMaterializedViewRows
@@ -1981,8 +1966,7 @@ BEGIN
         RAISE EXCEPTION '%',                SQLSTATE;
 END;
 $BODY$
-LANGUAGE    plpgsql
-SECURITY    DEFINER;
+LANGUAGE    plpgsql;
 ------------------------------------------------------------------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION mv$regExpCount(
 						p_src_string text,
@@ -2053,8 +2037,7 @@ BEGIN
     RETURN v_res_count;
 END;
 $BODY$
-LANGUAGE    plpgsql
-SECURITY    DEFINER;
+LANGUAGE    plpgsql;
 ------------------------------------------------------------------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION mv$regExpInstr(
 	p_src_string TEXT,
@@ -2161,8 +2144,7 @@ BEGIN
            END;
 END;
 $BODY$
-LANGUAGE    plpgsql
-SECURITY    DEFINER;
+LANGUAGE    plpgsql;
 ------------------------------------------------------------------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION mv$regExpReplace(
 	p_srcstring TEXT,
@@ -2284,8 +2266,7 @@ BEGIN
 END;
 																		   
 $BODY$
-LANGUAGE    plpgsql
-SECURITY    DEFINER;
+LANGUAGE    plpgsql;
 ------------------------------------------------------------------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION mv$regExpSubstr(
 	p_src_string TEXT,
@@ -2379,8 +2360,7 @@ BEGIN
 END;
 
 $BODY$
-LANGUAGE    plpgsql
-SECURITY    DEFINER;
+LANGUAGE    plpgsql;
 ------------------------------------------------------------------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION mv$outerJoinToInnerJoinReplacement(
 	pConst          IN      mv$allConstants,
@@ -2724,5 +2704,4 @@ RETURN tSQL;
 
 END;
 $BODY$
-LANGUAGE    plpgsql
-SECURITY    DEFINER;
+LANGUAGE    plpgsql;

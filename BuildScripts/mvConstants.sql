@@ -157,8 +157,7 @@ BEGIN
     RETURN( rMvConstants );
 END;
 $BODY$
-LANGUAGE    plpgsql
-SECURITY    DEFINER;
+LANGUAGE    plpgsql;
 
 ----------------------- Write CREATE-FUNCTION-stage scripts ------------------------------------------------------------------------
 CREATE OR REPLACE
@@ -470,8 +469,7 @@ BEGIN
     RETURN( rMvConstants );
 END;
 $BODY$
-LANGUAGE    plpgsql
-SECURITY    DEFINER;
+LANGUAGE    plpgsql;
 ------------------------------------------------------------------------------------------------------------------------------------
 CREATE OR REPLACE
 FUNCTION    mv$help()
@@ -505,7 +503,6 @@ BEGIN
     RETURN rMvConstants.HELP_TEXT;
 END;
 $BODY$
-LANGUAGE    plpgsql
-SECURITY    DEFINER;
+LANGUAGE    plpgsql;
 
 SELECT mv$help();

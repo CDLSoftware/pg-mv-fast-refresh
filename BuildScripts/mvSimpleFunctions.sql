@@ -7,7 +7,7 @@ Revision History    Push Down List
 ------------------------------------------------------------------------------------------------------------------------------------
 Date        | Name          | Description
 ------------+---------------+-------------------------------------------------------------------------------------------------------
-04/06/2020  | D Day         | Change functions with RETURN VOID to procedures allowing support/control of COMMITS during refresh process.
+04/06/2020  | D Day         | Change functions with RETURNS VOID to procedures allowing support/control of COMMITS during refresh process.
 14/01/2020  | M Revitt      | Changes to fix the array boundaries when doing > 62 materialised views per table
             |               | Fixed bug in getBitValue
 30/10/2019  | M Revitt      | Added an exception handler to the bottom of every function to aid bug and error tracking
@@ -139,8 +139,7 @@ BEGIN
         RAISE EXCEPTION '%',                SQLSTATE;
 END;
 $BODY$
-LANGUAGE    plpgsql
-SECURITY    DEFINER;
+LANGUAGE    plpgsql;
 ------------------------------------------------------------------------------------------------------------------------------------
 CREATE OR REPLACE
 PROCEDURE    mv$addRow$ToMv$Table
@@ -164,7 +163,7 @@ Revision History    Push Down List
 ------------------------------------------------------------------------------------------------------------------------------------
 Date        | Name          | Description
 ------------+---------------+-------------------------------------------------------------------------------------------------------
-05/06/2020  | D Day         | Change functions with RETURN VOID to procedures allowing support/control of COMMITS during refresh process.
+05/06/2020  | D Day         | Change functions with RETURNS VOID to procedures allowing support/control of COMMITS during refresh process.
 15/01/2019  | M Revitt      | Initial version
 ------------+---------------+-------------------------------------------------------------------------------------------------------
 Description:    For every table that is used to construct this materialized view, add a MV_M_ROW$_COLUMN to the base table.
@@ -220,8 +219,7 @@ BEGIN
         RAISE EXCEPTION '%',                SQLSTATE;
 END;
 $BODY$
-LANGUAGE    plpgsql
-SECURITY    DEFINER;
+LANGUAGE    plpgsql;
 ------------------------------------------------------------------------------------------------------------------------------------
 CREATE OR REPLACE
 PROCEDURE    mv$addRow$ToSourceTable
@@ -241,7 +239,7 @@ Revision History    Push Down List
 ------------------------------------------------------------------------------------------------------------------------------------
 Date        | Name          | Description
 ------------+---------------+-------------------------------------------------------------------------------------------------------
-04/06/2020  | D Day         | Change functions with RETURN VOID to procedures allowing support/control of COMMITS during refresh process.
+04/06/2020  | D Day         | Change functions with RETURNS VOID to procedures allowing support/control of COMMITS during refresh process.
 11/03/2018  | M Revitt      | Initial version
 ------------+---------------+-------------------------------------------------------------------------------------------------------
 Description:    PostGre does not have a ROWID pseudo column and so a ROWID column has to be added to the source table, ideally this
@@ -274,8 +272,7 @@ BEGIN
         RAISE EXCEPTION '%',                SQLSTATE;
 END;
 $BODY$
-LANGUAGE    plpgsql
-SECURITY    DEFINER;
+LANGUAGE    plpgsql;
 ------------------------------------------------------------------------------------------------------------------------------------
 CREATE OR REPLACE
 FUNCTION    mv$checkIfOuterJoinedTable
@@ -335,8 +332,7 @@ BEGIN
         RAISE EXCEPTION '%',                SQLSTATE;
 END;
 $BODY$
-LANGUAGE    plpgsql
-SECURITY    DEFINER;
+LANGUAGE    plpgsql;
 ------------------------------------------------------------------------------------------------------------------------------------
 CREATE OR REPLACE
 PROCEDURE    mv$clearSpentPgMviewLogs
@@ -356,7 +352,7 @@ Revision History    Push Down List
 ------------------------------------------------------------------------------------------------------------------------------------
 Date        | Name          | Description
 ------------+---------------+-------------------------------------------------------------------------------------------------------
-04/06/2020  | D Day         | Change functions with RETURN VOID to procedures allowing support/control of COMMITS during refresh process.
+04/06/2020  | D Day         | Change functions with RETURNS VOID to procedures allowing support/control of COMMITS during refresh process.
 11/03/2018  | M Revitt      | Initial version
 ------------+---------------+-------------------------------------------------------------------------------------------------------
 Description:    Bitmaps are how we manage multiple registrations against the same base table, once all interested materialized
@@ -388,8 +384,7 @@ BEGIN
         RAISE EXCEPTION '%',                SQLSTATE;
 END;
 $BODY$
-LANGUAGE    plpgsql
-SECURITY    DEFINER;
+LANGUAGE    plpgsql;
 ------------------------------------------------------------------------------------------------------------------------------------
 CREATE OR REPLACE
 PROCEDURE    mv$createMvLog$Table
@@ -410,7 +405,7 @@ Revision History    Push Down List
 ------------------------------------------------------------------------------------------------------------------------------------
 Date        | Name          | Description
 ------------+---------------+-------------------------------------------------------------------------------------------------------
-04/06/2020  | D Day         | Change functions with RETURN VOID to procedures allowing support/control of COMMITS during refresh process.
+04/06/2020  | D Day         | Change functions with RETURNS VOID to procedures allowing support/control of COMMITS during refresh process.
 11/03/2018  | M Revitt      | Initial version
 ------------+---------------+-------------------------------------------------------------------------------------------------------
 Description:    This function creates the materilized view log table against the source table for the materialized view
@@ -446,8 +441,7 @@ BEGIN
         RAISE EXCEPTION '%',                SQLSTATE;
 END;
 $BODY$
-LANGUAGE    plpgsql
-SECURITY    DEFINER;
+LANGUAGE    plpgsql;
 ------------------------------------------------------------------------------------------------------------------------------------
 CREATE OR REPLACE
 PROCEDURE    mv$createMvLogTrigger
@@ -468,7 +462,7 @@ Revision History    Push Down List
 ------------------------------------------------------------------------------------------------------------------------------------
 Date        | Name          | Description
 ------------+---------------+-------------------------------------------------------------------------------------------------------
-04/06/2020  | D Day         | Change functions with RETURN VOID to procedures allowing support/control of COMMITS during refresh process.
+04/06/2020  | D Day         | Change functions with RETURNS VOID to procedures allowing support/control of COMMITS during refresh process.
 11/03/2018  | M Revitt      | Initial version
 ------------+---------------+-------------------------------------------------------------------------------------------------------
 Description:    After the materialized view log table has been created a trigger is required on the source table to populate the
@@ -503,8 +497,7 @@ BEGIN
         RAISE EXCEPTION '%',                SQLSTATE;
 END;
 $BODY$
-LANGUAGE    plpgsql
-SECURITY    DEFINER;
+LANGUAGE    plpgsql;
 ------------------------------------------------------------------------------------------------------------------------------------
 CREATE OR REPLACE
 FUNCTION    mv$createRow$Column
@@ -567,8 +560,7 @@ BEGIN
         RAISE EXCEPTION '%',                SQLSTATE;
 END;
 $BODY$
-LANGUAGE    plpgsql
-SECURITY    DEFINER;
+LANGUAGE    plpgsql;
 ------------------------------------------------------------------------------------------------------------------------------------
 CREATE OR REPLACE
 FUNCTION    mv$deconstructSqlStatement
@@ -674,8 +666,7 @@ BEGIN
         RAISE EXCEPTION '%',                SQLSTATE;
 END;
 $BODY$
-LANGUAGE    plpgsql
-SECURITY    DEFINER;
+LANGUAGE    plpgsql;
 ------------------------------------------------------------------------------------------------------------------------------------
 CREATE OR REPLACE
 PROCEDURE    mv$deleteMaterializedViewRows
@@ -697,7 +688,7 @@ Revision History    Push Down List
 ------------------------------------------------------------------------------------------------------------------------------------
 Date        | Name          | Description
 ------------+---------------+-------------------------------------------------------------------------------------------------------
-05/06/2020  | D Day         | Change functions with RETURN VOID to procedures allowing support/control of COMMITS during refresh process.
+05/06/2020  | D Day         | Change functions with RETURNS VOID to procedures allowing support/control of COMMITS during refresh process.
 07/05/2019  | M Revitt      | Convert to array processing
 11/03/2018  | M Revitt      | Initial version
 ------------+---------------+-------------------------------------------------------------------------------------------------------
@@ -735,8 +726,7 @@ BEGIN
         RAISE EXCEPTION '%',                SQLSTATE;
 END;
 $BODY$
-LANGUAGE    plpgsql
-SECURITY    DEFINER;
+LANGUAGE    plpgsql;
 ------------------------------------------------------------------------------------------------------------------------------------
 CREATE OR REPLACE
 PROCEDURE    mv$deletePgMview
@@ -755,7 +745,7 @@ Revision History    Push Down List
 ------------------------------------------------------------------------------------------------------------------------------------
 Date        | Name          | Description
 ------------+---------------+-------------------------------------------------------------------------------------------------------
-05/06/2020  | D Day         | Change functions with RETURN VOID to procedures allowing support/control of COMMITS during refresh process.
+05/06/2020  | D Day         | Change functions with RETURNS VOID to procedures allowing support/control of COMMITS during refresh process.
 04/06/2019  | M Revitt      | Initial version
 ------------+---------------+-------------------------------------------------------------------------------------------------------
 Description:    Every time a new materialized view is created, a record of that view is also created in the data dictionary table
@@ -786,8 +776,7 @@ BEGIN
         RAISE EXCEPTION '%',                SQLSTATE;
 END;
 $BODY$
-LANGUAGE    plpgsql
-SECURITY    DEFINER;
+LANGUAGE    plpgsql;
 ------------------------------------------------------------------------------------------------------------------------------------
 CREATE OR REPLACE
 PROCEDURE    mv$deletePgMviewOjDetails
@@ -806,7 +795,7 @@ Revision History    Push Down List
 ------------------------------------------------------------------------------------------------------------------------------------
 Date        | Name          | Description
 ------------+---------------+-------------------------------------------------------------------------------------------------------
-05/06/2020  | D Day         | Change functions with RETURN VOID to procedures allowing support/control of COMMITS during refresh process.
+05/06/2020  | D Day         | Change functions with RETURNS VOID to procedures allowing support/control of COMMITS during refresh process.
 01/07/2019  | D Day	    	| Initial version
 ------------+---------------+-------------------------------------------------------------------------------------------------------
 Description:    Every time a new materialized view is created, a record of the outer join table(s) details is also created in the data dictionary table
@@ -836,8 +825,7 @@ BEGIN
         RAISE EXCEPTION '%',                SQLSTATE;
 END;
 $BODY$
-LANGUAGE    plpgsql
-SECURITY    DEFINER;
+LANGUAGE    plpgsql;
 ------------------------------------------------------------------------------------------------------------------------------------
 CREATE OR REPLACE
 PROCEDURE    mv$deletePgMviewLog
@@ -856,7 +844,7 @@ Revision History    Push Down List
 ------------------------------------------------------------------------------------------------------------------------------------
 Date        | Name          | Description
 ------------+---------------+-------------------------------------------------------------------------------------------------------
-05/06/2020  | D Day         | Change functions with RETURN VOID to procedures allowing support/control of COMMITS during refresh process.
+05/06/2020  | D Day         | Change functions with RETURNS VOID to procedures allowing support/control of COMMITS during refresh process.
 04/06/2019  | M Revitt      | Initial version
 ------------+---------------+-------------------------------------------------------------------------------------------------------
 Description:    Every time a new materialized view log is created, a record of that log is also created in the data dictionary table
@@ -887,8 +875,7 @@ BEGIN
         RAISE EXCEPTION '%',                SQLSTATE;
 END;
 $BODY$
-LANGUAGE    plpgsql
-SECURITY    DEFINER;
+LANGUAGE    plpgsql;
 ------------------------------------------------------------------------------------------------------------------------------------
 CREATE OR REPLACE
 PROCEDURE    mv$dropTable
@@ -908,7 +895,7 @@ Revision History    Push Down List
 ------------------------------------------------------------------------------------------------------------------------------------
 Date        | Name          | Description
 ------------+---------------+-------------------------------------------------------------------------------------------------------
-05/06/2020  | D Day         | Change functions with RETURN VOID to procedures allowing support/control of COMMITS during refresh process.
+05/06/2020  | D Day         | Change functions with RETURNS VOID to procedures allowing support/control of COMMITS during refresh process.
 04/06/2019  | M Revitt      | Initial version
 ------------+---------------+-------------------------------------------------------------------------------------------------------
 Description:    Generic function to drop any tables in a Postgres database, used in this context to remove the Materialized View
@@ -940,8 +927,7 @@ BEGIN
         RAISE EXCEPTION '%',                SQLSTATE;
 END;
 $BODY$
-LANGUAGE    plpgsql
-SECURITY    DEFINER;
+LANGUAGE    plpgsql;
 ------------------------------------------------------------------------------------------------------------------------------------
 CREATE OR REPLACE
 PROCEDURE    mv$dropTrigger
@@ -962,7 +948,7 @@ Revision History    Push Down List
 ------------------------------------------------------------------------------------------------------------------------------------
 Date        | Name          | Description
 ------------+---------------+-------------------------------------------------------------------------------------------------------
-05/06/2020  | D Day         | Change functions with RETURN VOID to procedures allowing support/control of COMMITS during refresh process.
+05/06/2020  | D Day         | Change functions with RETURNS VOID to procedures allowing support/control of COMMITS during refresh process.
 11/03/2018  | M Revitt      | Initial version
 ------------+---------------+-------------------------------------------------------------------------------------------------------
 Description:    Generic function to drop any trigger in a Postgres database, used in this context to remove the trigger from the
@@ -995,8 +981,7 @@ BEGIN
         RAISE EXCEPTION '%',                SQLSTATE;
 END;
 $BODY$
-LANGUAGE    plpgsql
-SECURITY    DEFINER;
+LANGUAGE    plpgsql;
 ------------------------------------------------------------------------------------------------------------------------------------
 CREATE OR REPLACE
 FUNCTION    mv$extractCompoundViewTables
@@ -1239,8 +1224,7 @@ BEGIN
         RAISE EXCEPTION '%',                SQLSTATE;
 END;
 $BODY$
-LANGUAGE    plpgsql
-SECURITY    DEFINER;
+LANGUAGE    plpgsql;
 ------------------------------------------------------------------------------------------------------------------------------------
 CREATE OR REPLACE
 FUNCTION    mv$findFirstFreeBit
@@ -1334,8 +1318,7 @@ BEGIN
         RAISE EXCEPTION '%',                SQLSTATE;
 END;
 $BODY$
-LANGUAGE    plpgsql
-SECURITY    DEFINER;
+LANGUAGE    plpgsql;
 ------------------------------------------------------------------------------------------------------------------------------------
 CREATE OR REPLACE
 FUNCTION    mv$getBitValue
@@ -1389,8 +1372,7 @@ BEGIN
         RAISE EXCEPTION '%',                SQLSTATE;
 END;
 $BODY$
-LANGUAGE    plpgsql
-SECURITY    DEFINER;
+LANGUAGE    plpgsql;
 ------------------------------------------------------------------------------------------------------------------------------------
 CREATE OR REPLACE
 FUNCTION    mv$getPgMviewLogTableData
@@ -1456,8 +1438,7 @@ BEGIN
         RAISE EXCEPTION '%',                SQLSTATE;
 END;
 $BODY$
-LANGUAGE    plpgsql
-SECURITY    DEFINER;
+LANGUAGE    plpgsql;
 ------------------------------------------------------------------------------------------------------------------------------------
 CREATE OR REPLACE
 FUNCTION    mv$getPgMviewLogTableData
@@ -1512,8 +1493,7 @@ BEGIN
         RAISE EXCEPTION '%',                SQLSTATE;
 END;
 $BODY$
-LANGUAGE    plpgsql
-SECURITY    DEFINER;
+LANGUAGE    plpgsql;
 ------------------------------------------------------------------------------------------------------------------------------------
 CREATE OR REPLACE
 FUNCTION    mv$getPgMviewTableData
@@ -1579,8 +1559,7 @@ BEGIN
         RAISE EXCEPTION '%',                SQLSTATE;
 END;
 $BODY$
-LANGUAGE    plpgsql
-SECURITY    DEFINER;
+LANGUAGE    plpgsql;
 ------------------------------------------------------------------------------------------------------------------------------------
 CREATE OR REPLACE
 FUNCTION    mv$getPgMviewOjDetailsTableData
@@ -1652,8 +1631,7 @@ BEGIN
         RAISE EXCEPTION '%',                SQLSTATE;
 END;
 $BODY$
-LANGUAGE    plpgsql
-SECURITY    DEFINER;
+LANGUAGE    plpgsql;
 ------------------------------------------------------------------------------------------------------------------------------------
 CREATE OR REPLACE
 FUNCTION    mv$getPgMviewViewColumns
@@ -1724,8 +1702,7 @@ BEGIN
         RAISE EXCEPTION '%',                SQLSTATE;
 END;
 $BODY$
-LANGUAGE    plpgsql
-SECURITY    DEFINER;
+LANGUAGE    plpgsql;
 ------------------------------------------------------------------------------------------------------------------------------------
 CREATE OR REPLACE
 FUNCTION    mv$getSourceTableSchema
@@ -1811,8 +1788,7 @@ BEGIN
         RAISE EXCEPTION '%',                SQLSTATE;
 END;
 $BODY$
-LANGUAGE    plpgsql
-SECURITY    DEFINER;
+LANGUAGE    plpgsql;
 ------------------------------------------------------------------------------------------------------------------------------------
 CREATE OR REPLACE
 PROCEDURE    mv$grantSelectPrivileges
@@ -1832,7 +1808,7 @@ Revision History    Push Down List
 ------------------------------------------------------------------------------------------------------------------------------------
 Date        | Name          | Description
 ------------+---------------+-------------------------------------------------------------------------------------------------------
-05/06/2020  | D Day         | Change functions with RETURN VOID to procedures allowing support/control of COMMITS during refresh process.
+05/06/2020  | D Day         | Change functions with RETURNS VOID to procedures allowing support/control of COMMITS during refresh process.
 11/03/2018  | M Revitt      | Initial version
 ------------+---------------+-------------------------------------------------------------------------------------------------------
 Description:    Whilst objects are created into the named schema, the ownership remains with the package owner, mike_pgmview, so in
@@ -1865,8 +1841,7 @@ BEGIN
         RAISE EXCEPTION '%',                SQLSTATE;
 END;
 $BODY$
-LANGUAGE    plpgsql
-SECURITY    DEFINER;
+LANGUAGE    plpgsql;
 ------------------------------------------------------------------------------------------------------------------------------------
 CREATE OR REPLACE
 PROCEDURE    mv$insertPgMviewLogs
@@ -1888,7 +1863,7 @@ Revision History    Push Down List
 ------------------------------------------------------------------------------------------------------------------------------------
 Date        | Name          | Description
 ------------+---------------+-------------------------------------------------------------------------------------------------------
-05/06/2020  | D Day         | Change functions with RETURN VOID to procedures allowing support/control of COMMITS during refresh process.
+05/06/2020  | D Day         | Change functions with RETURNS VOID to procedures allowing support/control of COMMITS during refresh process.
 11/03/2018  | M Revitt      | Initial version
 ------------+---------------+-------------------------------------------------------------------------------------------------------
 Description:    inserts the row into the materialized view log data dictionary table
@@ -1921,8 +1896,7 @@ BEGIN
         RAISE EXCEPTION '%',                SQLSTATE;
 END;
 $BODY$
-LANGUAGE    plpgsql
-SECURITY    DEFINER;
+LANGUAGE    plpgsql;
 ------------------------------------------------------------------------------------------------------------------------------------
 CREATE OR REPLACE
 PROCEDURE    mv$removeRow$FromSourceTable
@@ -1942,7 +1916,7 @@ Revision History    Push Down List
 ------------------------------------------------------------------------------------------------------------------------------------
 Date        | Name          | Description
 ------------+---------------+-------------------------------------------------------------------------------------------------------
-05/06/2020  | D Day         | Change functions with RETURN VOID to procedures allowing support/control of COMMITS during refresh process.
+05/06/2020  | D Day         | Change functions with RETURNS VOID to procedures allowing support/control of COMMITS during refresh process.
 04/06/2019  | M Revitt      | Initial version
 ------------+---------------+-------------------------------------------------------------------------------------------------------
 Description:    PostGre does not have a ROWID pseudo column and so a ROWID column has to be added to the source table, ideally this
@@ -1974,8 +1948,7 @@ BEGIN
         RAISE EXCEPTION '%',                SQLSTATE;
 END;
 $BODY$
-LANGUAGE    plpgsql
-SECURITY    DEFINER;
+LANGUAGE    plpgsql;
 ------------------------------------------------------------------------------------------------------------------------------------
 CREATE OR REPLACE
 FUNCTION    mv$replaceCommandWithToken
@@ -2050,8 +2023,7 @@ BEGIN
         RAISE EXCEPTION '%',                SQLSTATE;
 END;
 $BODY$
-LANGUAGE    plpgsql
-SECURITY    DEFINER;
+LANGUAGE    plpgsql;
 ------------------------------------------------------------------------------------------------------------------------------------
 CREATE OR REPLACE
 PROCEDURE    mv$truncateMaterializedView
@@ -2071,7 +2043,7 @@ Revision History    Push Down List
 ------------------------------------------------------------------------------------------------------------------------------------
 Date        | Name          | Description
 ------------+---------------+-------------------------------------------------------------------------------------------------------
-05/06/2020  | D Day         | Change functions with RETURN VOID to procedures allowing support/control of COMMITS during refresh process.
+05/06/2020  | D Day         | Change functions with RETURNS VOID to procedures allowing support/control of COMMITS during refresh process.
 11/03/2018  | M Revitt      | Initial version
 ------------+---------------+-------------------------------------------------------------------------------------------------------
 Description:    When performing a full refresh, we first have to truncate the materialized view
@@ -2103,6 +2075,4 @@ BEGIN
         RAISE EXCEPTION '%',                SQLSTATE;
 END;
 $BODY$
-LANGUAGE    plpgsql
-SECURITY    DEFINER;
-
+LANGUAGE    plpgsql;

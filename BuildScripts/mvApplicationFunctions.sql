@@ -7,7 +7,7 @@ Revision History    Push Down List
 ------------------------------------------------------------------------------------------------------------------------------------
 Date        | Name          | Description
 ------------+---------------+-------------------------------------------------------------------------------------------------------
-03/06/2020  | D Day         | Change functions with RETURN VOID to procedures allowing support/control of COMMITS during refresh process.
+03/06/2020  | D Day         | Change functions with RETURNS VOID to procedures allowing support/control of COMMITS during refresh process.
 15/01/2020  | M Revitt      | Fixed the bug in mv$removeMaterializedViewLog
 11/03/2018  | M Revitt      | Initial version
 ------------+---------------+-------------------------------------------------------------------------------------------------------
@@ -234,8 +234,7 @@ BEGIN
 
 END;
 $BODY$
-LANGUAGE    plpgsql
-SECURITY    DEFINER;
+LANGUAGE    plpgsql;
 ------------------------------------------------------------------------------------------------------------------------------------
 CREATE OR REPLACE
 PROCEDURE    mv$createMaterializedViewlog
@@ -314,8 +313,7 @@ BEGIN
 
 END;
 $BODY$
-LANGUAGE    plpgsql
-SECURITY    DEFINER;
+LANGUAGE    plpgsql;
 ------------------------------------------------------------------------------------------------------------------------------------
 CREATE OR REPLACE
 FUNCTION    mv$help()
@@ -359,8 +357,7 @@ BEGIN
 
 END;
 $BODY$
-LANGUAGE    plpgsql
-SECURITY    DEFINER;
+LANGUAGE    plpgsql;
 ------------------------------------------------------------------------------------------------------------------------------------
 CREATE OR REPLACE
 PROCEDURE    mv$refreshMaterializedView
@@ -415,8 +412,7 @@ BEGIN
 
 END;
 $BODY$
-LANGUAGE    plpgsql
-SECURITY    DEFINER;
+LANGUAGE    plpgsql;
 ------------------------------------------------------------------------------------------------------------------------------------
 CREATE OR REPLACE
 PROCEDURE    mv$removeMaterializedView
@@ -471,8 +467,7 @@ BEGIN
 
 END;
 $BODY$
-LANGUAGE    plpgsql
-SECURITY    DEFINER;
+LANGUAGE    plpgsql;
 ------------------------------------------------------------------------------------------------------------------------------------
 CREATE OR REPLACE
 PROCEDURE    mv$removeMaterializedViewLog
@@ -545,9 +540,7 @@ BEGIN
 
 END;
 $BODY$
-LANGUAGE    plpgsql
-SECURITY    DEFINER;
-
+LANGUAGE    plpgsql;
 ------------------------------------------------------------------------------------------------------------------------------------
 
 GRANT   EXECUTE ON  PROCEDURE   mv$createMaterializedViewlog    TO  pgmv$_execute;
