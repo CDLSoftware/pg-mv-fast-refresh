@@ -797,8 +797,6 @@ BEGIN
         RAISE EXCEPTION 'DML Type % is unknown', pDmlType;
     END CASE;
 
-    RETURN;
-
     EXCEPTION
     WHEN OTHERS
     THEN

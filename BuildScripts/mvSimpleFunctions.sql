@@ -2064,7 +2064,6 @@ BEGIN
     tSqlStatement := pConst.TRUNCATE_TABLE || pOwner || pConst.DOT_CHARACTER || pViewName;
 
     EXECUTE tSqlStatement;
-    RETURN;
 
     EXCEPTION
     WHEN OTHERS
