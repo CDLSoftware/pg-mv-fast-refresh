@@ -1032,6 +1032,9 @@ Revision History    Push Down List
 ------------------------------------------------------------------------------------------------------------------------------------
 Date        | Name          | Description
 ------------+---------------+-------------------------------------------------------------------------------------------------------
+08/06/2020	| D Day			| Added sub begin and end block to capture EXCEPTION handler as this is not support in procedures using a COMMIT.
+			|				| By adding to an independant block enables exception handling to be coded. Anything outside of this block will
+			|				| be handled as the default Postgres error handler. 
 04/06/2020  | D Day         | Change functions with RETURNS VOID to procedures allowing support/control of COMMITS during refresh process.
 03/03/2020  | D Day         | Defect fix to resolve outer join check function mv$checkIfOuterJoinedTable to handle if the table_array
 			|				| value had both an inner join and outer join condition inside the main sql query. Amended to only pass in
