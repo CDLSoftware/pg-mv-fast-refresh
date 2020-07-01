@@ -1186,7 +1186,7 @@ DECLARE
 	tInnerJoinOtherTableName	TEXT;
 	tInnerJoinOtherTableRowid	TEXT;
 	
-	tInnerJoin					TEXT;
+	tInnerJoin					CHAR(1);
 
 BEGIN
 --  Replacing a single space with a double space is only required on the first pass to ensure that there is padding around all
@@ -1213,7 +1213,6 @@ BEGIN
         tOuterTable := NULL;
         tInnerAlias := NULL;
         tInnerRowid := NULL;
-		tInnerTable := NULL;
 		
 		tInnerLeftAlias  := NULL;
 		tInnerRightAlias := NULL;
