@@ -169,8 +169,10 @@ BEGIN
 			pRightOuterJoinArray,
 			pInnerJoinTableNameArray,
 			pInnerJoinTableAliasArray,
+			pInnerJoinTableRowidArray,
 			pInnerJoinOtherTableNameArray,		
-			pInnerJoinOtherTableAliasArray	
+			pInnerJoinOtherTableAliasArray,
+			pInnerJoinOtherTableRowidArray
 
     FROM
             mv$extractCompoundViewTables( rConst, tTableNames )
