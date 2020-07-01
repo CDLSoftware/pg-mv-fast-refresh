@@ -707,7 +707,7 @@ BEGIN
 			pInnerJoinTableAliasArray,
 			pInnerJoinTableRowidArray,			
 			pInnerJoinOtherTableNameArray,		
-			pInnerJoinOtherTableAliasArray.
+			pInnerJoinOtherTableAliasArray,
 			pInnerJoinOtherTableRowidArray
     );
 
