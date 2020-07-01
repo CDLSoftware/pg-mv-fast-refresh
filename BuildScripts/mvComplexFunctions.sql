@@ -679,7 +679,7 @@ BEGIN
             bit_array,
             outer_table_array,
             inner_alias_array,
-            inner_rowid_array
+            inner_rowid_array,
 			inner_join_table_array,
 			inner_join_alias_array,
 			inner_join_rowid_array,

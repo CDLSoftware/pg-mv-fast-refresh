@@ -724,7 +724,7 @@ BEGIN
 		SELECT 	UNNEST(aPgMview.inner_join_other_rowid_array) AS ijo_rowid
 		,		UNNEST(aPgMview.inner_join_other_alias_array) AS ijo_alias
 		,		UNNEST(aPgMview.inner_join_rowid_array) AS ij_rowid) inline
-	WHERE inline.ij_rowid = pRowidColumn) 
+	WHERE inline.ij_rowid = pRowidColumn 
 	INTO 	tInnerJoinOtherRowidColumn
 	,		tInnerJoinOtherAlias;
 
