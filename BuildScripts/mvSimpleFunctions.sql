@@ -1287,7 +1287,7 @@ BEGIN
 			FROM (
 					SELECT 	UNNEST(pTableArray) AS table_name
 					,		UNNEST(pAliasArray) AS table_alias) inline
-					WHERE inline.table_alias = tInnerJoinOtherTableAlias)
+			WHERE inline.table_alias = tInnerJoinOtherTableAlias
 			INTO tInnerJoinOtherTableName;
 			
 			tInnerJoinTableRowid	:= mv$createRow$Column( pConst, tInnerJoinTableAlias );

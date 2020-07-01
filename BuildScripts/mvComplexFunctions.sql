@@ -542,7 +542,7 @@ PROCEDURE    mv$insertPgMview
 				pInnerJoinTableRowidArray		IN		TEXT[],				
 				pInnerJoinOtherTableNameArray	IN		TEXT[],		
 				pInnerJoinOtherTableAliasArray	IN		TEXT[],
-				pInnerJoinOtherTableRowidArray	IN		TEXT[]
+				pInnerJoinOtherTableRowidArray	IN		TEXT[],
                 pFastRefresh        IN      BOOLEAN
             )
 AS
