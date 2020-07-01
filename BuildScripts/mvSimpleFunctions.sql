@@ -674,6 +674,7 @@ PROCEDURE    mv$deleteMaterializedViewRows
                 pConst          IN      mv$allConstants,
                 pOwner          IN      TEXT,
                 pViewName       IN      TEXT,
+				pDmlType		IN		TEXT,
                 pRowidColumn    IN      TEXT,
                 pRowIDs         IN      UUID[]
             )
@@ -688,6 +689,7 @@ Revision History    Push Down List
 ------------------------------------------------------------------------------------------------------------------------------------
 Date        | Name          | Description
 ------------+---------------+-------------------------------------------------------------------------------------------------------
+29/06/2020	| D Day			| Added new DELETE statement to handle DML Type INSERT when row already exists.
 05/06/2020  | D Day         | Change functions with RETURNS VOID to procedures allowing support/control of COMMITS during refresh process.
 07/05/2019  | M Revitt      | Convert to array processing
 11/03/2018  | M Revitt      | Initial version
@@ -699,6 +701,7 @@ Note:           This function was modified to array processing to address some p
 Arguments:      IN      pConst              The memory structure containing all constants
                 IN      pOwner              The owner of the object
                 IN      pViewName           The name of the underlying table for the materialized view
+				IN 		pDmlType			The DML Type of change i.e. DELETE, UPDATE or INSERT.
                 IN      pRowidColumn        The MV_M_ROW$_COLUMN for this table in the base table
                 IN      pRowIDs             An array holding the unique identifiers to locate the modified row
 
@@ -707,15 +710,48 @@ Copyright 2019 Amazon.com, Inc. or its affiliates. All Rights Reserved. SPDX-Lic
 ***********************************************************************************************************************************/
 DECLARE
 
-    tSqlStatement   TEXT;
-
+    tSqlStatement   			TEXT;
+    aPgMview        			pg$mviews;
+	tInnerJoinOtherRowidColumn	TEXT;
+	tInnerJoinOtherAlias		TEXT;
 BEGIN
 
-    tSqlStatement :=    pConst.DELETE_FROM || pOwner  || pConst.DOT_CHARACTER   || pViewName        ||
-                        pConst.WHERE_COMMAND          || pRowidColumn           || pConst.IN_ROWID_LIST;
+	aPgMview    		 := mv$getPgMviewTableData( pConst, pOwner, pViewName );
+	
+	SELECT inline.ijo_rowid
+	,	   inline.ijo_alias
+	FROM (
+		SELECT 	UNNEST(aPgMview.inner_join_other_rowid_array) AS ijo_rowid
+		,		UNNEST(aPgMview.inner_join_other_alias_array) AS ijo_alias
+		,		UNNEST(aPgMview.inner_join_rowid_array) AS ij_rowid) inline
+	WHERE inline.ij_rowid = pRowidColumn) 
+	INTO 	tInnerJoinOtherRowidColumn
+	,		tInnerJoinOtherAlias;
 
-    EXECUTE tSqlStatement
-    USING   pRowIDs;
+	IF pDmlType IN ('DELETE','UPDATE') THEN
+
+		tSqlStatement :=    pConst.DELETE_FROM || pOwner  || pConst.DOT_CHARACTER   || pViewName        ||
+							pConst.WHERE_COMMAND          || pRowidColumn           || pConst.IN_ROWID_LIST;
+							
+	ELSE
+	
+		tSqlStatement :=    pConst.DELETE_FROM || pOwner  || pConst.DOT_CHARACTER   || pViewName        ||
+							pConst.WHERE_COMMAND          || tInnerJoinOtherRowidColumn || pConst.IN_SELECT_COMMAND	||
+							tInnerJoinOtherAlias || pConst.MV_M_ROW$_COLUMN || pConst.FROM_COMMAND || aPgMview.table_names;
+							
+		IF aPgMview.where_clause != pConst.EMPTY_STRING
+		THEN
+			tSqlStatement := tSqlStatement || pConst.WHERE_COMMAND || aPgMview.where_clause || pConst.AND_COMMAND;
+		ELSE
+			tSqlStatement := tSqlStatement || pConst.WHERE_COMMAND;
+		END IF;
+
+        tSqlStatement :=  tSqlStatement || pRowidColumn || pConst.MV_M_ROW$_SOURCE_COLUMN || pConst.IN_ROWID_LIST ||
+						  pConst.CLOSE_BRACKET;
+	END IF;
+
+	EXECUTE tSqlStatement
+	USING   pRowIDs;
 	
     EXCEPTION
     WHEN OTHERS
@@ -997,7 +1033,13 @@ FUNCTION    mv$extractCompoundViewTables
 				pOuterLeftAliasArray  OUT	TEXT[],
 				pOuterRightAliasArray OUT	TEXT[],
 				pLeftOuterJoinArray   OUT	TEXT[],
-				pRightOuterJoinArray  OUT	TEXT[]
+				pRightOuterJoinArray  OUT	TEXT[],
+				pInnerJoinTableNameArray	OUT	TEXT[],
+				pInnerJoinTableAliasArray	OUT	TEXT[],
+				pInnerJoinTableRowidArray		OUT TEXT[],
+				pInnerJoinOtherTableNameArray	OUT	TEXT[],		
+				pInnerJoinOtherTableAliasArray	OUT	TEXT[],
+				pInnerJoinOtherTableRowidArray	OUT TEXT[]
             )
     RETURNS RECORD
 AS
@@ -1011,6 +1053,8 @@ Revision History    Push Down List
 ------------------------------------------------------------------------------------------------------------------------------------
 Date        | Name          | Description
 ------------+---------------+-------------------------------------------------------------------------------------------------------
+29/06/2020	| D Day			| Defect fix - added inner joinings details to resolve duplicate issue when row already exists for
+			|				| DML change type INSERT.
 12/02/2020	| D Day 		| Defect fix - changed logic to populate OUT parameters pInnerAliasArray and pInnerRowidArray correctly 
 			|				| with the parent alias and rowid for the corresponding LEFT and RIGHT outer table joining conditions. This
 			|				| is then populated in the data dictionary table pg$mviews columns inner_alias_array and inner_rowid_array
@@ -1107,6 +1151,12 @@ Arguments:      IN      pConst              	The memory structure containing all
 				OUT		pOuterRightAliasArray	An array containing the right outer join column name joining condition aliases  
 				OUT		pLeftOuterJoinArray		An array confirming whether the source table is from a left outer join condition
 				OUT		pRightOuterJoinArray	An array confirming whether the source table is from a right outer join condition
+				OUT		pInnerJoinTableNameArray	An array confirming the INNER JOIN table names
+				OUT		pInnerJoinTableAliasArray	An array confirming the INNER JOIN table aliases
+				OUT		pInnerJoinTableRowidArray	An array confirming the INNER JOIN table rowid column names
+				OUT		pInnerJoinOtherTableNameArray	An array confirming the INNER JOIN other joining table names		
+				OUT		pInnerJoinOtherTableAliasArray	An array confirming the INNER JOIN other joining table aliases 
+				OUT		pInnerJoinOtherTableRowidArray	An array confirming the INNER JOIN other joining table rowid column names
 					
 Returns:                RECORD              The ten out parameters
 ************************************************************************************************************************************
@@ -1122,10 +1172,21 @@ DECLARE
     tTableAlias     TEXT;
     iTableArryPos   INTEGER := pConst.ARRAY_LOWER_VALUE;
 	
-	tOuterLeftAlias TEXT;
+	tOuterLeftAlias  TEXT;
 	tOuterRightAlias TEXT;
-	tLeftOuterJoin TEXT;
-	tRightOuterJoin TEXT;
+	tLeftOuterJoin 	 TEXT;
+	tRightOuterJoin  TEXT;
+	
+	tInnerLeftAlias  			TEXT;
+	tInnerRightAlias 			TEXT;
+	tInnerJoinTableAlias		TEXT;
+	tInnerJoinTableName			TEXT;
+	tInnerJoinTableRowid		TEXT;
+	tInnerJoinOtherTableAlias	TEXT;
+	tInnerJoinOtherTableName	TEXT;
+	tInnerJoinOtherTableRowid	TEXT;
+	
+	tInnerJoin					TEXT;
 
 BEGIN
 --  Replacing a single space with a double space is only required on the first pass to ensure that there is padding around all
@@ -1145,13 +1206,24 @@ BEGIN
     WHILE POSITION( pConst.COMMA_CHARACTER IN tTableNames ) > 0
     LOOP
 		
-		tOuterLeftAlias := NULL;
+		tOuterLeftAlias  := NULL;
 		tOuterRightAlias := NULL;
-		tLeftOuterJoin := NULL;
-		tRightOuterJoin := NULL;
+		tLeftOuterJoin 	 := NULL;
+		tRightOuterJoin  := NULL;
         tOuterTable := NULL;
         tInnerAlias := NULL;
         tInnerRowid := NULL;
+		tInnerTable := NULL;
+		
+		tInnerLeftAlias  := NULL;
+		tInnerRightAlias := NULL;
+		tInnerJoinTableName	 := NULL;
+		tInnerJoinTableAlias := NULL;
+		tInnerJoinOtherTableName  := NULL;
+		tInnerJoinOtherTableAlias := NULL;
+		tInnerJoinTableRowid 	  := NULL;
+		tInnerJoinOtherTableRowid := NULL;
+		tInnerJoin	:= 'N';
 
         tTableName := LTRIM( SPLIT_PART( tTableNames, pConst.COMMA_CHARACTER, 1 ));
 
@@ -1181,7 +1253,13 @@ BEGIN
             tInnerAlias := tOuterLeftAlias;
 			tInnerRowid := TRIM(REPLACE(REPLACE(tOuterLeftAlias,'.','')||pConst.UNDERSCORE_CHARACTER||pConst.MV_M_ROW$_SOURCE_COLUMN,'"',''));
 			
-        END IF;
+		ELSIF POSITION( pConst.INNER_TOKEN IN tTableName ) > 0
+			
+			tInnerLeftAlias		:= TRIM(SUBSTRING(tTableName,POSITION( pConst.ON_TOKEN IN tTableName)+2,(mv$regExpInstr(tTableName,'\.',1,1))-(POSITION( pConst.ON_TOKEN IN tTableName)+2)));	
+			tInnerRightAlias 	:= TRIM(SUBSTRING(tTableName,POSITION( TRIM(pConst.EQUALS_COMMAND) IN tTableName)+1,(mv$regExpInstr(tTableName,'\.',1,2))-(POSITION( TRIM(pConst.EQUALS_COMMAND) IN tTableName)+1)));
+			tInnerJoin			:= 'Y';
+			
+		END IF;
 
         -- The LEFT, RIGHT and JOIN tokens are only required for outer join pattern matching
         tTableName  := REPLACE( tTableName, pConst.JOIN_TOKEN,  pConst.EMPTY_STRING );
@@ -1195,6 +1273,28 @@ BEGIN
         pAliasArray[iTableArryPos]  :=  COALESCE( NULLIF( NULLIF( tTableAlias, pConst.EMPTY_STRING), pConst.ON_TOKEN),
                                                                   pTableArray[iTableArryPos] ) || pConst.DOT_CHARACTER;
 		pRowidArray[iTableArryPos]  :=  mv$createRow$Column( pConst, pAliasArray[iTableArryPos] );
+		
+		IF tInnerJoin = 'Y' THEN
+		
+			tInnerJoinTableName		:= (REGEXP_SPLIT_TO_ARRAY( tTableName,  pConst.REGEX_MULTIPLE_SPACES ))[1];
+			tInnerJoinTableAlias    := (REGEXP_SPLIT_TO_ARRAY( tTableName,  pConst.REGEX_MULTIPLE_SPACES ))[2];
+			tInnerJoinTableAlias  	:=  COALESCE( NULLIF( NULLIF( tInnerJoinTableAlias, pConst.EMPTY_STRING), pConst.ON_TOKEN),
+																	  pTableArray[iTableArryPos] ) || pConst.DOT_CHARACTER;
+																	  
+			SELECT (CASE WHEN tInnerJoinTableAlias = tInnerLeftAlias THEN tInnerRightAlias
+					ELSE tInnerLeftAlias END) INTO tInnerJoinOtherTableAlias;
+					
+			SELECT inline.table_name
+			FROM (
+					SELECT 	UNNEST(pTableArray) AS table_name
+					,		UNNEST(pAliasArray) AS table_alias) inline
+					WHERE inline.table_alias = tInnerJoinOtherTableAlias)
+			INTO tInnerJoinOtherTableName;
+			
+			tInnerJoinTableRowid	:= mv$createRow$Column( pConst, tInnerJoinTableAlias );
+			tInnerJoinOtherTableRowid	:= mv$createRow$Column( pConst, tInnerJoinOtherTableAlias );
+					
+		END IF;
 
         pOuterTableArray[iTableArryPos]  :=(REGEXP_SPLIT_TO_ARRAY( tOuterTable, pConst.REGEX_MULTIPLE_SPACES ))[1];
 
@@ -1209,9 +1309,18 @@ BEGIN
 		pLeftOuterJoinArray[iTableArryPos] 		:= tLeftOuterJoin;
 		pRightOuterJoinArray[iTableArryPos] 	:= tRightOuterJoin;
 		
+		pInnerJoinTableNameArray[iTableArryPos]  := tInnerJoinTableName;
+		pInnerJoinTableAliasArray[iTableArryPos] := tInnerJoinTableAlias;
+		pInnerJoinTableRowidArray[iTableArryPos] := tInnerJoinTableRowid;	
+		pInnerJoinOtherTableNameArray[iTableArryPos] := tInnerJoinOtherTableName;		
+		pInnerJoinOtherTableAliasArray[iTableArryPos] := tInnerJoinOtherTableAlias;
+		pInnerJoinOtherTableRowidArray[iTableArryPos] := tInnerJoinOtherTableRowid;			
+		
         iTableArryPos   := iTableArryPos + 1;
 
     END LOOP;
+	
+	
 
     RETURN;
 

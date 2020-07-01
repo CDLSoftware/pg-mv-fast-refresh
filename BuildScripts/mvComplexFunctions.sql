@@ -490,7 +490,7 @@ BEGIN
                      pConst.SELECT_COMMAND || aPgMview.select_columns           ||
                      pConst.FROM_COMMAND   || aPgMview.table_names;
 
-    IF aPgMview.where_clause != pConst.EMPTY_STRING
+     IF aPgMview.where_clause != pConst.EMPTY_STRING
     THEN
         tSqlStatement := tSqlStatement || pConst.WHERE_COMMAND || aPgMview.where_clause ;
     END IF;
@@ -537,6 +537,12 @@ PROCEDURE    mv$insertPgMview
                 pOuterTableArray    IN      TEXT[],
                 pInnerAliasArray    IN      TEXT[],
                 pInnerRowidArray    IN      TEXT[],
+				pInnerJoinTableNameArray		IN		TEXT[],
+				pInnerJoinTableAliasArray		IN		TEXT[],
+				pInnerJoinTableRowidArray		IN		TEXT[],				
+				pInnerJoinOtherTableNameArray	IN		TEXT[],		
+				pInnerJoinOtherTableAliasArray	IN		TEXT[],
+				pInnerJoinOtherTableRowidArray	IN		TEXT[]
                 pFastRefresh        IN      BOOLEAN
             )
 AS
@@ -550,6 +556,8 @@ Revision History    Push Down List
 ------------------------------------------------------------------------------------------------------------------------------------
 Date        | Name          | Description
 ------------+---------------+-------------------------------------------------------------------------------------------------------
+29/06/2020	| D Day			| Defect fix - Added new columns to INSERT statement INTO pg$mviews table to support DML type change INSERTS for
+							| the DELETE part as this was not removing rows for certain scenarios.
 04/06/2020  | D Day         | Change functions with RETURNS VOID to procedures allowing support/control of COMMITS during refresh process.
 17/09/2019  | D Day         | Bug fix - Added logic to ignore log table name if it already exists as this was causing the bit value being set incorrectly
 			|				| in the data dictionary table bit_array column in pg$mviews table.
@@ -574,6 +582,12 @@ Arguments:
                 IN      pAliasArray         An array that holds the list of table alias that make up the pgmv$ table
                 IN      pRowidArray         An array that holds the list of rowid columns in the pgmv$ table
                 IN      pFastRefresh        TRUE or FALSE, does this materialized view support fast refreshes
+				IN		pInnerJoinTableNameArray		An array that holds the list of INNER JOIN tables
+				IN		pInnerJoinTableAliasArray		An array that holds the list of INNER JOIN aliases
+				IN		pInnerJoinTableRowidArray		An array that holds the list of INNER JOIN rowid column names
+				IN		pInnerJoinOtherTableNameArray	An array that holds the list of INNER JOIN other joining tables
+				IN		pInnerJoinOtherTableAliasArray	An array that holds the list of INNER JOIN other joining aliases
+				IN		pInnerJoinOtherTableRowidArray	An array that holds the list of INNER JOIN other joining rowid column names
 
 ************************************************************************************************************************************
 Copyright 2018 Amazon.com, Inc. or its affiliates. All Rights Reserved. SPDX-License-Identifier: MIT-0
@@ -666,6 +680,12 @@ BEGIN
             outer_table_array,
             inner_alias_array,
             inner_rowid_array
+			inner_join_table_array,
+			inner_join_alias_array,
+			inner_join_rowid_array,
+			inner_join_other_table_array,
+			inner_join_other_alias_array,
+			inner_join_other_rowid_array
     )
     VALUES
     (
@@ -682,7 +702,13 @@ BEGIN
             iBitArray,
             pOuterTableArray,
             pInnerAliasArray,
-            pInnerRowidArray
+            pInnerRowidArray,
+			pInnerJoinTableNameArray,
+			pInnerJoinTableAliasArray,
+			pInnerJoinTableRowidArray,			
+			pInnerJoinOtherTableNameArray,		
+			pInnerJoinOtherTableAliasArray.
+			pInnerJoinOtherTableRowidArray
     );
 
     EXCEPTION
@@ -767,7 +793,7 @@ BEGIN
 							);
 		
 		ELSE
-			CALL mv$deleteMaterializedViewRows( pConst, pOwner, pViewName, pRowidColumn, pRowIDArray );
+			CALL mv$deleteMaterializedViewRows( pConst, pOwner, pViewName, pConst.DELETE_DML_TYPE, pRowidColumn, pRowIDArray );
 		END IF;
 			
     WHEN pConst.INSERT_DML_TYPE
@@ -785,13 +811,13 @@ BEGIN
                             pRowIDArray
                         );
         ELSE
-            CALL mv$deleteMaterializedViewRows( pConst, pOwner, pViewName, pRowidColumn, pRowIDArray );
+            CALL mv$deleteMaterializedViewRows( pConst, pOwner, pViewName, pConst.INSERT_DML_TYPE, pRowidColumn, pRowIDArray );
             CALL mv$insertMaterializedViewRows( pConst, pOwner, pViewName, pTableAlias,  pRowIDArray );
         END IF;
 
     WHEN pConst.UPDATE_DML_TYPE
     THEN
-        CALL mv$deleteMaterializedViewRows( pConst, pOwner, pViewName, pRowidColumn, pRowIDArray );
+        CALL mv$deleteMaterializedViewRows( pConst, pOwner, pViewName, pConst.UPDATE_DML_TYPE, pRowidColumn, pRowIDArray );
         CALL mv$updateMaterializedViewRows( pConst, pOwner, pViewName, pTableAlias,  pRowIDArray );
     ELSE
         RAISE EXCEPTION 'DML Type % is unknown', pDmlType;
@@ -1151,7 +1177,8 @@ Copyright 2018 Amazon.com, Inc. or its affiliates. All Rights Reserved. SPDX-Lic
 ***********************************************************************************************************************************/
 DECLARE
 
-    tFromClause     	TEXT;
+    tDeleteFromClause   TEXT;
+    tInsertFromClause   TEXT;
     tSqlStatement   	TEXT;
     aPgMview        	pg$mviews;
 	aPgMviewOjDetails	pg$mviews_oj_details;
@@ -1161,20 +1188,23 @@ BEGIN
     aPgMview    		 := mv$getPgMviewTableData( pConst, pOwner, pViewName );
     aPgMviewOjDetails    := mv$getPgMviewOjDetailsTableData( pConst, pOwner, pViewName, pTableAlias);
 	
-	tFromClause := pConst.FROM_COMMAND  || aPgMviewOjDetails.join_replacement_from_sql     || pConst.WHERE_COMMAND;
+	tDeleteFromClause := pConst.FROM_COMMAND  || aPgMview.table_names    || pConst.WHERE_COMMAND;
+	tInsertFromClause := pConst.FROM_COMMAND  || aPgMviewOjDetails.join_replacement_from_sql    || pConst.WHERE_COMMAND;
 
     IF LENGTH( aPgMview.where_clause ) > 0
     THEN
-        tFromClause := tFromClause      || aPgMview.where_clause    || pConst.AND_COMMAND;
+        tDeleteFromClause := tDeleteFromClause      || aPgMview.where_clause    || pConst.AND_COMMAND;
+		tInsertFromClause := tInsertFromClause      || aPgMview.where_clause    || pConst.AND_COMMAND;
     END IF;
 
-    tFromClause := tFromClause  || pTableAlias   || pConst.MV_M_ROW$_SOURCE_COLUMN   || pConst.IN_ROWID_LIST;
+    tDeleteFromClause := tDeleteFromClause  || pTableAlias   || pConst.MV_M_ROW$_SOURCE_COLUMN   || pConst.IN_ROWID_LIST;
+    tInsertFromClause := tInsertFromClause  || pTableAlias   || pConst.MV_M_ROW$_SOURCE_COLUMN   || pConst.IN_ROWID_LIST;
 
     tSqlStatement   :=  pConst.DELETE_FROM       		||
                         aPgMview.owner           		|| pConst.DOT_CHARACTER    || aPgMview.view_name			||
                         pConst.WHERE_COMMAND     		|| pInnerRowid             ||
                         pConst.IN_SELECT_COMMAND 		|| pInnerAlias             || pConst.DOT_CHARACTER    		|| 
-						pConst.MV_M_ROW$_SOURCE_COLUMN	|| tFromClause     		   || pConst.CLOSE_BRACKET;
+						pConst.MV_M_ROW$_SOURCE_COLUMN	|| tDeleteFromClause       || pConst.CLOSE_BRACKET;
 
 
     EXECUTE tSqlStatement
@@ -1184,7 +1214,7 @@ BEGIN
                         aPgMview.owner           || pConst.DOT_CHARACTER    || aPgMview.view_name   ||
                         pConst.OPEN_BRACKET      || aPgMview.pgmv_columns   || pConst.CLOSE_BRACKET ||
                         pConst.SELECT_COMMAND    || aPgMview.select_columns ||
-                        tFromClause;
+                        tInsertFromClause;
 
     EXECUTE tSqlStatement
     USING   pRowIDs;

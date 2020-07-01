@@ -87,6 +87,8 @@ Revision History    Push Down List
 ------------------------------------------------------------------------------------------------------------------------------------
 Date        | Name          | Description
 ------------+---------------+-------------------------------------------------------------------------------------------------------
+29/06/2020	| D Day			| Defect fix - added new procedural variables to support DELETE statements for DML Type INSERT to resolve
+			|				| duplicate rows issue.
 03/06/2020	| D Day			| Changed function to procedure to allow support/control of COMMITS within the refresh process.
 28/04/2020	| D Day			| Added tTableNames input value parameter to mv$insertPgMviewOuterJoinDetails function call
 23/07/2019  | D Day			| Added function mv$insertPgMviewOuterJoinDetails to handle Outer Join table DELETE
@@ -132,6 +134,12 @@ DECLARE
 	tOuterRightAliasArray 	TEXT[];
 	tLeftOuterJoinArray 	TEXT[];
 	tRightOuterJoinArray 	TEXT[];
+	tInnerJoinTableNameArray	TEXT[];
+	tInnerJoinTableAliasArray	TEXT[];
+	tInnerJoinTableRowidArray	TEXT[];
+	tInnerJoinOtherTableNameArray	TEXT[];
+	tInnerJoinOtherTableAliasArray	TEXT[];
+	tInnerJoinOtherTableRowidArray	TEXT[];
 
 BEGIN
 
@@ -158,7 +166,11 @@ BEGIN
 			pOuterLeftAliasArray,
 			pOuterRightAliasArray,
 			pLeftOuterJoinArray,
-			pRightOuterJoinArray
+			pRightOuterJoinArray,
+			pInnerJoinTableNameArray,
+			pInnerJoinTableAliasArray,
+			pInnerJoinOtherTableNameArray,		
+			pInnerJoinOtherTableAliasArray	
 
     FROM
             mv$extractCompoundViewTables( rConst, tTableNames )
@@ -172,7 +184,13 @@ BEGIN
 			tOuterLeftAliasArray,
 			tOuterRightAliasArray,
 			tLeftOuterJoinArray,
-			tRightOuterJoinArray;
+			tRightOuterJoinArray,
+			tInnerJoinTableNameArray,
+			tInnerJoinTableAliasArray,
+			tInnerJoinTableRowidArray,
+			tInnerJoinOtherTableNameArray,		
+			tInnerJoinOtherTableAliasArray,
+			tInnerJoinOtherTableRowidArray;	
 
     CALL mv$createPgMv$Table
                         (
@@ -212,6 +230,12 @@ BEGIN
                     tOuterTableArray,
                     tInnerAliasArray,
                     tInnerRowidArray,
+					tInnerJoinTableNameArray,
+					tInnerJoinTableAliasArray,
+					tInnerJoinTableRowidArray,
+					tInnerJoinOtherTableNameArray,		
+					tInnerJoinOtherTableAliasArray,
+					tInnerJoinOtherTableRowidArray,
                     pFastRefresh
                 );
 				

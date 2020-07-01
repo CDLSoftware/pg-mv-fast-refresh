@@ -172,8 +172,14 @@ CREATE TABLE IF NOT EXISTS :MODULEOWNER.pg$mviews
     bit_array           SMALLINT[],
     outer_table_array   TEXT[],
     inner_alias_array   TEXT[],
-    inner_rowid_array   TEXT[],
-        CONSTRAINT
+    inner_rowid_array   TEXT[],	
+	inner_join_table_array	TEXT[],
+	inner_join_alias_array	TEXT[],
+	inner_join_rowid_array	TEXT[],
+	inner_join_other_table_array	TEXT[],
+	inner_join_other_alias_array	TEXT[],
+	inner_join_other_rowid_array	TEXT[]
+    CONSTRAINT
             pk_pg$mviews
             PRIMARY KEY
             (
