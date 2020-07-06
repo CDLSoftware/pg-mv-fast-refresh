@@ -1300,7 +1300,7 @@ BEGIN
 					
 		END IF;
 		
-		SELECT count(1) INTO iJoinCount FROM regexp_matches(tTablesSQL,pConst.JOIN_TOKEN,'g');
+		SELECT count(1) INTO iJoinCount FROM regexp_matches(pTableNames,pConst.JOIN_TOKEN,'g');
 		
 		IF iLoopCounter = 1 AND iJoinCount = 0 THEN
 		
