@@ -713,7 +713,7 @@ DECLARE
     tSqlStatement   			TEXT;
     aPgMview        			pg$mviews;
 	tInnerJoinOtherRowidColumn	TEXT;
-	tInnerJoinOtherAlias		TEXT;
+	tInnerJoinOtherAlias		TEXT	:= 'none';
 BEGIN
 
 	aPgMview    		 := mv$getPgMviewTableData( pConst, pOwner, pViewName );
@@ -728,7 +728,7 @@ BEGIN
 	INTO 	tInnerJoinOtherRowidColumn
 	,		tInnerJoinOtherAlias;
 
-	IF pDmlType IN ('DELETE','UPDATE') THEN
+	IF (pDmlType IN ('DELETE','UPDATE') OR (pDmlType IN ('INSERT') AND tInnerJoinOtherAlias = 'none')) THEN
 
 		tSqlStatement :=    pConst.DELETE_FROM || pOwner  || pConst.DOT_CHARACTER   || pViewName        ||
 							pConst.WHERE_COMMAND          || pRowidColumn           || pConst.IN_ROWID_LIST;
@@ -1187,6 +1187,9 @@ DECLARE
 	tInnerJoinOtherTableRowid	TEXT;
 	
 	tInnerJoin					CHAR(1);
+	
+	iLoopCounter				INTEGER := 0;
+	iJoinCount					INTEGER := 0;
 
 BEGIN
 --  Replacing a single space with a double space is only required on the first pass to ensure that there is padding around all
@@ -1205,6 +1208,8 @@ BEGIN
 
     WHILE POSITION( pConst.COMMA_CHARACTER IN tTableNames ) > 0
     LOOP
+	
+		iLoopCounter := iLoopCounter + 1;
 		
 		tOuterLeftAlias  := NULL;
 		tOuterRightAlias := NULL;
@@ -1294,6 +1299,22 @@ BEGIN
 			tInnerJoinOtherTableRowid	:= mv$createRow$Column( pConst, tInnerJoinOtherTableAlias );
 					
 		END IF;
+		
+		SELECT count(1) INTO iJoinCount FROM regexp_matches(tTablesSQL,pConst.JOIN_TOKEN,'g');
+		
+		IF iLoopCounter = 1 AND iJoinCount = 0 THEN
+		
+			tInnerJoinTableName			:= (REGEXP_SPLIT_TO_ARRAY( tTableName,  pConst.REGEX_MULTIPLE_SPACES ))[1];
+			tInnerJoinTableAlias    	:= (REGEXP_SPLIT_TO_ARRAY( tTableName,  pConst.REGEX_MULTIPLE_SPACES ))[2];
+			tInnerJoinTableAlias  		:=  COALESCE( NULLIF( NULLIF( tInnerJoinTableAlias, pConst.EMPTY_STRING), pConst.ON_TOKEN),
+																	  pTableArray[iTableArryPos] ) || pConst.DOT_CHARACTER;
+			tInnerJoinTableRowid		:= mv$createRow$Column( pConst, tInnerJoinTableAlias );
+			
+			tInnerJoinOtherTableName 	:= 'none';
+			tInnerJoinOtherTableRowid	:= 'none';
+
+		END IF;
+			
 
         pOuterTableArray[iTableArryPos]  :=(REGEXP_SPLIT_TO_ARRAY( tOuterTable, pConst.REGEX_MULTIPLE_SPACES ))[1];
 
