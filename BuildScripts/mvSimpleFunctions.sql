@@ -1259,8 +1259,8 @@ BEGIN
 			
 		ELSIF POSITION( pConst.JOIN_TOKEN IN tTableName ) > 0
 		THEN	
-			tInnerLeftAlias		:= TRIM(SUBSTRING(tTableName,POSITION( pConst.ON_TOKEN IN tTableName)+2,(mv$regExpInstr(tTableName,'\.',1,1))-(POSITION( pConst.ON_TOKEN IN tTableName)+2)));	
-			tInnerRightAlias 	:= TRIM(SUBSTRING(tTableName,POSITION( TRIM(pConst.EQUALS_COMMAND) IN tTableName)+1,(mv$regExpInstr(tTableName,'\.',1,2))-(POSITION( TRIM(pConst.EQUALS_COMMAND) IN tTableName)+1)));
+			tInnerLeftAlias		:= TRIM(SUBSTRING(tTableName,POSITION( pConst.ON_TOKEN IN tTableName)+2,(mv$regExpInstr(tTableName,'\.',1,1))-(POSITION( pConst.ON_TOKEN IN tTableName)+2))) || pConst.DOT_CHARACTER;	
+			tInnerRightAlias 	:= TRIM(SUBSTRING(tTableName,POSITION( TRIM(pConst.EQUALS_COMMAND) IN tTableName)+1,(mv$regExpInstr(tTableName,'\.',1,2))-(POSITION( TRIM(pConst.EQUALS_COMMAND) IN tTableName)+1))) || pConst.DOT_CHARACTER;
 			tInnerJoin			:= 'Y';
 			
 		END IF;
@@ -1312,6 +1312,7 @@ BEGIN
 			
 			tInnerJoinOtherTableName 	:= 'none';
 			tInnerJoinOtherTableRowid	:= 'none';
+			tInnerJoinOtherTableAlias	:= 'none';
 
 		END IF;
 			
