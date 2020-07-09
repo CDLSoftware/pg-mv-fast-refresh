@@ -51,6 +51,12 @@ AND column_name='inner_join_table_array';
 IF iColumnCnt = 0 THEN
 
 	ALTER TABLE pg$mviews
+	ADD COLUMN inner_join_table_array text[];
+	
+	ALTER TABLE pg$mviews
+	ADD COLUMN inner_join_alias_array text[];
+
+	ALTER TABLE pg$mviews
 	ADD COLUMN inner_join_rowid_array text[];
 	
 	ALTER TABLE pg$mviews
