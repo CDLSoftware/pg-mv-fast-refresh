@@ -236,7 +236,7 @@ BEGIN
 	,	inner_join_rowid_array = aInnerJoinTableRowidArray
 	,	inner_join_other_table_array = aInnerJoinOtherTableNameArray
 	,	inner_join_other_alias_array = aInnerJoinOtherTableAliasArray
-	,	inner_join_other_rowid_array = paInnerJoinOtherTableRowidArray
+	,	inner_join_other_rowid_array = aInnerJoinOtherTableRowidArray
 	WHERE view_name = pViewName
 	AND	  owner = pOwner;
 
