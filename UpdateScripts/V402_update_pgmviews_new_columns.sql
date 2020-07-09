@@ -71,6 +71,14 @@ DECLARE
 	aInnerJoinOtherTableNameArray			TEXT[];	
 	aInnerJoinOtherTableAliasArray			TEXT[];
 	aInnerJoinOtherTableRowidArray			TEXT[];
+	
+	aOuterTableArray						TEXT[];
+	
+	aTableArray								TEXT[];
+	aAliasArray								TEXT[];
+	aRowidArray								TEXT[];
+	
+	
 
 BEGIN
 --  Replacing a single space with a double space is only required on the first pass to ensure that there is padding around all
@@ -153,26 +161,26 @@ BEGIN
         tTableName  := REPLACE( tTableName, pConst.OUTER_TOKEN, pConst.EMPTY_STRING );
         tTableName  := LTRIM(   tTableName );
 
-        pTableArray[iTableArryPos]  := (REGEXP_SPLIT_TO_ARRAY( tTableName,  pConst.REGEX_MULTIPLE_SPACES ))[1];
+        aTableArray[iTableArryPos]  := (REGEXP_SPLIT_TO_ARRAY( tTableName,  pConst.REGEX_MULTIPLE_SPACES ))[1];
         tTableAlias                 := (REGEXP_SPLIT_TO_ARRAY( tTableName,  pConst.REGEX_MULTIPLE_SPACES ))[2];
-        pAliasArray[iTableArryPos]  :=  COALESCE( NULLIF( NULLIF( tTableAlias, pConst.EMPTY_STRING), pConst.ON_TOKEN),
-                                                                  pTableArray[iTableArryPos] ) || pConst.DOT_CHARACTER;
-		pRowidArray[iTableArryPos]  :=  mv$createRow$Column( pConst, pAliasArray[iTableArryPos] );
+        aAliasArray[iTableArryPos]  :=  COALESCE( NULLIF( NULLIF( tTableAlias, pConst.EMPTY_STRING), pConst.ON_TOKEN),
+                                                                  aTableArray[iTableArryPos] ) || pConst.DOT_CHARACTER;
+		aRowidArray[iTableArryPos]  :=  mv$createRow$Column( pConst, aAliasArray[iTableArryPos] );
 		
 		IF tInnerJoin = 'Y' THEN
 		
 			tInnerJoinTableName		:= (REGEXP_SPLIT_TO_ARRAY( tTableName,  pConst.REGEX_MULTIPLE_SPACES ))[1];
 			tInnerJoinTableAlias    := (REGEXP_SPLIT_TO_ARRAY( tTableName,  pConst.REGEX_MULTIPLE_SPACES ))[2];
 			tInnerJoinTableAlias  	:=  COALESCE( NULLIF( NULLIF( tInnerJoinTableAlias, pConst.EMPTY_STRING), pConst.ON_TOKEN),
-																	  pTableArray[iTableArryPos] ) || pConst.DOT_CHARACTER;
+																	  aTableArray[iTableArryPos] ) || pConst.DOT_CHARACTER;
 																	  
 			SELECT (CASE WHEN tInnerJoinTableAlias = tInnerLeftAlias THEN tInnerRightAlias
 					ELSE tInnerLeftAlias END) INTO tInnerJoinOtherTableAlias;
 					
 			SELECT inline.table_name
 			FROM (
-					SELECT 	UNNEST(pTableArray) AS table_name
-					,		UNNEST(pAliasArray) AS table_alias) inline
+					SELECT 	UNNEST(aTableArray) AS table_name
+					,		UNNEST(aAliasArray) AS table_alias) inline
 			WHERE inline.table_alias = tInnerJoinOtherTableAlias
 			INTO tInnerJoinOtherTableName;
 			
@@ -188,7 +196,7 @@ BEGIN
 			tInnerJoinTableName			:= (REGEXP_SPLIT_TO_ARRAY( tTableName,  pConst.REGEX_MULTIPLE_SPACES ))[1];
 			tInnerJoinTableAlias    	:= (REGEXP_SPLIT_TO_ARRAY( tTableName,  pConst.REGEX_MULTIPLE_SPACES ))[2];
 			tInnerJoinTableAlias  		:=  COALESCE( NULLIF( NULLIF( tInnerJoinTableAlias, pConst.EMPTY_STRING), pConst.ON_TOKEN),
-																	  pTableArray[iTableArryPos] ) || pConst.DOT_CHARACTER;
+																	  aTableArray[iTableArryPos] ) || pConst.DOT_CHARACTER;
 			tInnerJoinTableRowid		:= mv$createRow$Column( pConst, tInnerJoinTableAlias );
 			
 			tInnerJoinOtherTableName 	:= 'none';
@@ -198,7 +206,7 @@ BEGIN
 		END IF;
 			
 
-        pOuterTableArray[iTableArryPos]  :=(REGEXP_SPLIT_TO_ARRAY( tOuterTable, pConst.REGEX_MULTIPLE_SPACES ))[1];
+        aOuterTableArray[iTableArryPos]  :=(REGEXP_SPLIT_TO_ARRAY( tOuterTable, pConst.REGEX_MULTIPLE_SPACES ))[1];
 
         tTableNames     := TRIM( SUBSTRING( tTableNames,
                                  POSITION( pConst.COMMA_CHARACTER IN tTableNames ) + LENGTH( pConst.COMMA_CHARACTER )));
@@ -245,7 +253,6 @@ LANGUAGE    plpgsql
 SECURITY    DEFINER;
 
 CREATE OR REPLACE PROCEDURE v402_actionUpdateMviewInnerJoinValues()
-    RETURNS VOID
 AS
 $BODY$
 

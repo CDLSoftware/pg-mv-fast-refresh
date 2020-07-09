@@ -69,6 +69,6 @@ $BODY$
 LANGUAGE    plpgsql
 SECURITY    DEFINER;
 
-SELECT v401_addColumnsToPg$mviews();
+CALL v401_addColumnsToPg$mviews();
 
 DROP PROCEDURE v401_addColumnsToPg$mviews;
