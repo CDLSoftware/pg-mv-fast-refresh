@@ -714,19 +714,23 @@ DECLARE
     aPgMview        			pg$mviews;
 	tInnerJoinOtherRowidColumn	TEXT;
 	tInnerJoinOtherAlias		TEXT	:= 'none';
+	tInnerJoinAlias				TEXT;
 BEGIN
 
 	aPgMview    		 := mv$getPgMviewTableData( pConst, pOwner, pViewName );
 	
 	SELECT inline.ijo_rowid
 	,	   inline.ijo_alias
+	,      inline.ij_alias
 	FROM (
 		SELECT 	UNNEST(aPgMview.inner_join_other_rowid_array) AS ijo_rowid
 		,		UNNEST(aPgMview.inner_join_other_alias_array) AS ijo_alias
+		,		UNNEST(aPgMview.inner_join_alias_array) AS ij_alias
 		,		UNNEST(aPgMview.inner_join_rowid_array) AS ij_rowid) inline
 	WHERE inline.ij_rowid = pRowidColumn 
 	INTO 	tInnerJoinOtherRowidColumn
-	,		tInnerJoinOtherAlias;
+	,		tInnerJoinOtherAlias
+	,		tInnerJoinAlias;
 
 	IF (pDmlType IN ('DELETE','UPDATE') OR (pDmlType IN ('INSERT') AND tInnerJoinOtherAlias = 'none')) THEN
 
@@ -746,7 +750,7 @@ BEGIN
 			tSqlStatement := tSqlStatement || pConst.WHERE_COMMAND;
 		END IF;
 
-        tSqlStatement :=  tSqlStatement || pRowidColumn || pConst.MV_M_ROW$_SOURCE_COLUMN || pConst.IN_ROWID_LIST ||
+        tSqlStatement :=  tSqlStatement || tInnerJoinAlias || pConst.MV_M_ROW$_SOURCE_COLUMN || pConst.IN_ROWID_LIST ||
 						  pConst.CLOSE_BRACKET;
 	END IF;
 
