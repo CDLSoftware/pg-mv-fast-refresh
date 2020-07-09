@@ -230,7 +230,7 @@ BEGIN
 
     END LOOP;
 	
-	UPDATE pg$mviews_oj_details
+	UPDATE pg$mviews
 	SET inner_join_table_array = aInnerJoinTableNameArray
 	,	inner_join_alias_array = aInnerJoinTableAliasArray
 	,	inner_join_rowid_array = aInnerJoinTableRowidArray
