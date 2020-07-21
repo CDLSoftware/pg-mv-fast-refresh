@@ -858,6 +858,8 @@ Revision History    Push Down List
 ------------------------------------------------------------------------------------------------------------------------------------
 Date        | Name          | Description
 ------------+---------------+-------------------------------------------------------------------------------------------------------
+21/07/2020	|				| Defect fix to clear rowid array uRowIDArray when DML Type last type value has changed as this was
+			|				| causing rowids from previous DML Types to not be cleared correctly causing incorrect routines to be actioned.
 04/06/2020  | D Day         | Change functions with RETURNS VOID to procedures allowing support/control of COMMITS during refresh process.
 11/03/2018  | M Revitt      | Initial version
 ------------+---------------+-------------------------------------------------------------------------------------------------------
@@ -936,7 +938,9 @@ BEGIN
 
             tLastType               := tDmlType;
             iArraySeq               := 1;
-            uRowIDArray[iArraySeq]  := uRowID;
+			uRowIDArray 			:= '{}';
+			uRowIDArray[iArraySeq]  := uRowID;
+
         END IF;
 		
     END LOOP;
