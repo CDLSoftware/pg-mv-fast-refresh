@@ -972,6 +972,8 @@ BEGIN
 
         CALL mv$clearSpentPgMviewLogs( pConst, aViewLog.owner, aViewLog.pglog$_name );
 		
+		uRowIDArray := '{}';
+		
     END IF;
 
     EXCEPTION
