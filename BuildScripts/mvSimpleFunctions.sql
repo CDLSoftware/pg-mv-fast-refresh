@@ -689,6 +689,7 @@ Revision History    Push Down List
 ------------------------------------------------------------------------------------------------------------------------------------
 Date        | Name          | Description
 ------------+---------------+-------------------------------------------------------------------------------------------------------
+12/08/2020	| D Day			| Workaround fix to support CDL materialized views with more than one column primary keys
 29/06/2020	| D Day			| Added new DELETE statement to handle DML Type INSERT when row already exists.
 05/06/2020  | D Day         | Change functions with RETURNS VOID to procedures allowing support/control of COMMITS during refresh process.
 07/05/2019  | M Revitt      | Convert to array processing
@@ -715,6 +716,7 @@ DECLARE
 	tInnerJoinOtherRowidColumn	TEXT;
 	tInnerJoinOtherAlias		TEXT	:= 'none';
 	tInnerJoinAlias				TEXT;
+	tMultiPrimaryKeyMview		CHAR(1)	:= 'N';
 BEGIN
 
 	aPgMview    		 := mv$getPgMviewTableData( pConst, pOwner, pViewName );
@@ -731,8 +733,28 @@ BEGIN
 	INTO 	tInnerJoinOtherRowidColumn
 	,		tInnerJoinOtherAlias
 	,		tInnerJoinAlias;
-
-	IF (pDmlType IN ('DELETE','UPDATE') OR (pDmlType IN ('INSERT') AND tInnerJoinOtherAlias = 'none')) THEN
+	
+	IF (pDmlType = 'INSERT' AND pViewName = 'mv_instalments_ref' AND tInnerJoinAlias = 'idref.') THEN	
+		tMultiPrimaryKeyMview := 'Y';
+	ELSIF (pDmlType = 'INSERT' AND pViewName = 'mv_mta' AND tInnerJoinAlias = 'be.') THEN
+		tMultiPrimaryKeyMview := 'Y';
+	ELSIF ((pDmlType = 'INSERT' AND pViewName = 'mv_named_driver' AND tInnerJoinAlias = 'lcncctgy.') OR (pDmlType = 'INSERT' AND pViewName = 'mv_named_driver' AND tInnerJoinAlias = 'dvnglcnc.')) THEN
+		tMultiPrimaryKeyMview := 'Y';
+	ELSIF (pDmlType = 'INSERT' AND pViewName = 'mv_vehicle_modification' AND tInnerJoinAlias = 'mr.') THEN
+		tMultiPrimaryKeyMview := 'Y';
+	ELSIF (pDmlType = 'INSERT' AND pViewName = 'mv_imtm_employment_activity' AND tInnerJoinAlias = 'a.') THEN
+		tMultiPrimaryKeyMview := 'Y';
+	ELSIF (pDmlType = 'INSERT' AND pViewName = 'mv_imtm_professional_indemn' AND tInnerJoinAlias = 'q.') THEN
+		tMultiPrimaryKeyMview := 'Y';
+	ELSIF (pDmlType = 'INSERT' AND pViewName = 'mv_imtm_prsnal_accident_cover' AND tInnerJoinAlias = 'm.') THEN
+		tMultiPrimaryKeyMview := 'Y';
+	ELSIF (pDmlType = 'INSERT' AND pViewName = 'mv_imtm_travel_addtional_cover' AND tInnerJoinAlias = 'a.') THEN
+		tMultiPrimaryKeyMview := 'Y';
+	ELSIF (pDmlType = 'INSERT' AND pViewName = 'mv_bstr_addl_cover_options' AND tInnerJoinAlias = 'o.') THEN
+		tMultiPrimaryKeyMview := 'Y';		
+	END IF;
+	
+	IF (pDmlType IN ('DELETE','UPDATE') OR (pDmlType IN ('INSERT') AND tInnerJoinOtherAlias = 'none') OR tMultiPrimaryKeyMview = 'Y') THEN
 
 		tSqlStatement :=    pConst.DELETE_FROM || pOwner  || pConst.DOT_CHARACTER   || pViewName        ||
 							pConst.WHERE_COMMAND          || pRowidColumn           || pConst.IN_ROWID_LIST;
