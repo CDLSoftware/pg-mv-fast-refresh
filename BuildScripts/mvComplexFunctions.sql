@@ -1189,6 +1189,7 @@ DECLARE
     tSqlStatement   	TEXT;
     aPgMview        	pg$mviews;
 	aPgMviewOjDetails	pg$mviews_oj_details;
+	tFromClause			TEXT;
 
 BEGIN
 
