@@ -1201,7 +1201,7 @@ BEGIN
 
     IF LENGTH( aPgMview.where_clause ) > 0
     THEN
-		tFromClause := tDeleteFromClause      || aPgMview.where_clause    || pConst.AND_COMMAND;
+		tFromClause := tFromClause      || aPgMview.where_clause    || pConst.AND_COMMAND;
         --tDeleteFromClause := tDeleteFromClause      || aPgMview.where_clause    || pConst.AND_COMMAND;
 		--tInsertFromClause := tInsertFromClause      || aPgMview.where_clause    || pConst.AND_COMMAND;
     END IF;
