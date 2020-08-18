@@ -1154,6 +1154,7 @@ Revision History    Push Down List
 ------------------------------------------------------------------------------------------------------------------------------------
 Date        | Name          | Description
 ------------+---------------+-------------------------------------------------------------------------------------------------------
+18/08/2020	| D Day			| Removed outer to inner join logic as this is under further review.
 04/06/2020  | D Day         | Change functions with RETURNS VOID to procedures allowing support/control of COMMITS during refresh process.
 28/04/2020	| D Day			| Added join_replacement_from_sql value from pg$mview_oj_details data dictionary table to use in DELETE 
 			|				| and INSERT statements to help performance.
@@ -1188,29 +1189,34 @@ DECLARE
     tSqlStatement   	TEXT;
     aPgMview        	pg$mviews;
 	aPgMviewOjDetails	pg$mviews_oj_details;
+	tFromClause			TEXT;
 
 BEGIN
 
     aPgMview    		 := mv$getPgMviewTableData( pConst, pOwner, pViewName );
     aPgMviewOjDetails    := mv$getPgMviewOjDetailsTableData( pConst, pOwner, pViewName, pTableAlias);
 	
-	tDeleteFromClause := pConst.FROM_COMMAND  || aPgMview.table_names    || pConst.WHERE_COMMAND;
-	tInsertFromClause := pConst.FROM_COMMAND  || aPgMviewOjDetails.join_replacement_from_sql    || pConst.WHERE_COMMAND;
+	tFromClause		  	 := pConst.FROM_COMMAND  || aPgMview.table_names    || pConst.WHERE_COMMAND;
+	--tDeleteFromClause := pConst.FROM_COMMAND  || aPgMview.table_names    || pConst.WHERE_COMMAND;
+	--tInsertFromClause := pConst.FROM_COMMAND  || aPgMviewOjDetails.join_replacement_from_sql    || pConst.WHERE_COMMAND;
 
     IF LENGTH( aPgMview.where_clause ) > 0
     THEN
-        tDeleteFromClause := tDeleteFromClause      || aPgMview.where_clause    || pConst.AND_COMMAND;
-		tInsertFromClause := tInsertFromClause      || aPgMview.where_clause    || pConst.AND_COMMAND;
+		tFromClause := tFromClause      || aPgMview.where_clause    || pConst.AND_COMMAND;
+        --tDeleteFromClause := tDeleteFromClause      || aPgMview.where_clause    || pConst.AND_COMMAND;
+		--tInsertFromClause := tInsertFromClause      || aPgMview.where_clause    || pConst.AND_COMMAND;
     END IF;
+	
+    tFromClause := tFromClause  || pTableAlias   || pConst.MV_M_ROW$_SOURCE_COLUMN   || pConst.IN_ROWID_LIST;
 
-    tDeleteFromClause := tDeleteFromClause  || pTableAlias   || pConst.MV_M_ROW$_SOURCE_COLUMN   || pConst.IN_ROWID_LIST;
-    tInsertFromClause := tInsertFromClause  || pTableAlias   || pConst.MV_M_ROW$_SOURCE_COLUMN   || pConst.IN_ROWID_LIST;
+    --tDeleteFromClause := tDeleteFromClause  || pTableAlias   || pConst.MV_M_ROW$_SOURCE_COLUMN   || pConst.IN_ROWID_LIST;
+    --tInsertFromClause := tInsertFromClause  || pTableAlias   || pConst.MV_M_ROW$_SOURCE_COLUMN   || pConst.IN_ROWID_LIST;
 
     tSqlStatement   :=  pConst.DELETE_FROM       		||
                         aPgMview.owner           		|| pConst.DOT_CHARACTER    || aPgMview.view_name			||
                         pConst.WHERE_COMMAND     		|| pInnerRowid             ||
                         pConst.IN_SELECT_COMMAND 		|| pInnerAlias             || pConst.DOT_CHARACTER    		|| 
-						pConst.MV_M_ROW$_SOURCE_COLUMN	|| tDeleteFromClause       || pConst.CLOSE_BRACKET;
+						pConst.MV_M_ROW$_SOURCE_COLUMN	|| tFromClause       || pConst.CLOSE_BRACKET;
 
 
     EXECUTE tSqlStatement
@@ -1220,7 +1226,7 @@ BEGIN
                         aPgMview.owner           || pConst.DOT_CHARACTER    || aPgMview.view_name   ||
                         pConst.OPEN_BRACKET      || aPgMview.pgmv_columns   || pConst.CLOSE_BRACKET ||
                         pConst.SELECT_COMMAND    || aPgMview.select_columns ||
-                        tInsertFromClause;
+                        tFromClause;
 
     EXECUTE tSqlStatement
     USING   pRowIDs;
