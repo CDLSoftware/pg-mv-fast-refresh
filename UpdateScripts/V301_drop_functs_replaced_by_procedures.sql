@@ -30,6 +30,7 @@ DROP FUNCTION IF EXISTS mv$refreshMaterializedViewFull;
 DROP FUNCTION IF EXISTS mv$setPgMviewLogBit;
 DROP FUNCTION IF EXISTS mv$updateMaterializedViewRows;
 DROP FUNCTION IF EXISTS mv$updateOuterJoinColumnsNull;
+DROP FUNCTION IF EXISTS mv$refreshMaterializedViewInitial;
 -- Application Functions
 DROP FUNCTION IF EXISTS mv$createMaterializedView;
 DROP FUNCTION IF EXISTS mv$createMaterializedViewlog;
