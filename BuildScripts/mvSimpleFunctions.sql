@@ -2238,6 +2238,16 @@ END;
 $BODY$
 LANGUAGE    plpgsql;
 
+------------------------------------------------------------------------------------------------------------------------------------
+CREATE OR REPLACE
+PROCEDURE    mv$createindexestemptable
+            (
+                pOwner      IN      TEXT,
+                pViewName   IN      TEXT
+            )
+AS
+$BODY$
+
 /* ---------------------------------------------------------------------------------------------------------------------------------
 Routine Name: mv$createindexestemptable
 Author:       Jack Bills
@@ -2282,6 +2292,19 @@ and tablename = '|| ''''|| i.tablename ||''''||' and schemaname =  '||''''||  i.
         RAISE INFO      'Error %:- %:',     SQLSTATE, SQLERRM;
         RAISE EXCEPTION '%',                SQLSTATE;
 END;
+$BODY$
+LANGUAGE    plpgsql;
+
+
+------------------------------------------------------------------------------------------------------------------------------------
+CREATE OR REPLACE
+PROCEDURE    mv$dropmvindexes
+            (
+                pOwner      IN      TEXT,
+                pViewName   IN      TEXT
+            )
+AS
+$BODY$
 
 /* ---------------------------------------------------------------------------------------------------------------------------------
 Routine Name: mv$dropmvindexes
@@ -2326,8 +2349,18 @@ and indexname  NOT LIKE '%pk%'
         RAISE INFO      'Error %:- %:',     SQLSTATE, SQLERRM;
         RAISE EXCEPTION '%',                SQLSTATE;
 END;
+$BODY$
+LANGUAGE    plpgsql;
 
 
+------------------------------------------------------------------------------------------------------------------------------------
+CREATE OR REPLACE
+PROCEDURE    mv$readdmvindexes
+            (
+                pViewName   IN      TEXT
+            )
+AS
+$BODY$
 
 /* ---------------------------------------------------------------------------------------------------------------------------------
 Routine Name: mv$readdmvindexes
@@ -2361,6 +2394,19 @@ EXECUTE rec.indexdef;
 END LOOP;
         RAISE INFO      'Exception in procedure mv$readdindexes';
 END;
+$BODY$
+LANGUAGE    plpgsql;
+
+
+------------------------------------------------------------------------------------------------------------------------------------
+CREATE OR REPLACE
+PROCEDURE    mv$dropindexestemptable
+            (
+                pViewName   IN      TEXT
+            )
+AS
+$BODY$
+
 
 /* ---------------------------------------------------------------------------------------------------------------------------------
 Routine Name: mv$dropindexestemptable
@@ -2396,4 +2442,7 @@ BEGIN
         RAISE INFO      'Error Context:% %',CHR(10),  tSqlStatement;
         RAISE EXCEPTION '%',                SQLSTATE;
 END ;
+$BODY$
+LANGUAGE    plpgsql;
+
 
