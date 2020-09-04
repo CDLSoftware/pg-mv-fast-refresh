@@ -15,10 +15,6 @@ DROP FUNCTION IF EXISTS mv$grantSelectPrivileges;
 DROP FUNCTION IF EXISTS mv$insertPgMviewLogs;
 DROP FUNCTION IF EXISTS mv$removeRow$FromSourceTable;
 DROP FUNCTION IF EXISTS mv$truncateMaterializedView;
-DROP PROCEDURE IF EXISTS mv$createindexestemptable;
-DROP PROCEDURE IF EXISTS mv$dropmvindexes;
-DROP PROCEDURE IF EXISTS mv$readdmvindexes;
-DROP PROCEDURE IF EXISTS mv$dropindexestemptable;
 --Complex Functions
 DROP FUNCTION IF EXISTS mv$clearAllPgMvLogTableBits;
 DROP FUNCTION IF EXISTS mv$clearPgMvLogTableBits;
@@ -34,7 +30,6 @@ DROP FUNCTION IF EXISTS mv$refreshMaterializedViewFull;
 DROP FUNCTION IF EXISTS mv$setPgMviewLogBit;
 DROP FUNCTION IF EXISTS mv$updateMaterializedViewRows;
 DROP FUNCTION IF EXISTS mv$updateOuterJoinColumnsNull;
-DROP FUNCTION IF EXISTS mv$refreshMaterializedViewInitial;
 -- Application Functions
 DROP FUNCTION IF EXISTS mv$createMaterializedView;
 DROP FUNCTION IF EXISTS mv$createMaterializedViewlog;
