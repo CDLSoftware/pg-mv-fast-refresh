@@ -1,4 +1,4 @@
-/* ---------------------------------------------------------------------------------------------------------------------------------
+﻿/* ---------------------------------------------------------------------------------------------------------------------------------
 Routine Name: mvSimpleFunctions.sql
 Author:       Mike Revitt
 Date:         11/03/2018
@@ -2281,7 +2281,24 @@ and schemaname = pOwner
 	)
   LOOP
 
-EXECUTE 'CREATE TEMP TABLE temp' ||'_'|| i.tablename ||' AS select indexdef from pg_indexes where indexname  NOT LIKE ''%pk%'' 
+EXECUTE 'CREATE TEMP TABLE temp' ||'_'|| i.tablename ||' AS select indexdef from pg_indexes 
+where indexname  NOT IN ((SELECT  distinct i.relname
+                      FROM
+                          pg_class t,
+                          pg_class i,
+                          pg_index ix,
+                          pg_attribute a,
+                          pg_namespace s
+                      WHERE
+                          t.oid = ix.indrelid
+                          AND i.oid = ix.indexrelid
+                          AND t.relnamespace = s.oid
+                          AND a.attrelid = t.oid
+                          AND a.attnum = ANY(ix.indkey)
+                          AND t.relkind = ''r''
+                          AND s.nspname =  '|| ''''|| i.schemaname ||''''||'
+                          AND t.relname =  '||''''||  i.tablename ||''''||' 
+                          AND    ix.indisprimary))  
 and tablename = '|| ''''|| i.tablename ||''''||' and schemaname =  '||''''||  i.schemaname ||''''||' 	
  ';
   END LOOP;
@@ -2336,7 +2353,24 @@ BEGIN
 from pg_indexes 
 where tablename = pViewName
 and schemaname = pOwner
-and indexname  NOT LIKE '%pk%' 	
+and indexname  NOT IN
+(SELECT  distinct c.relname
+                      FROM
+                          pg_class t,
+                          pg_class c,
+                          pg_index ix,
+                          pg_attribute a,
+                          pg_namespace s
+                      WHERE
+                          t.oid = ix.indrelid
+                          AND c.oid = ix.indexrelid
+                          AND t.relnamespace = s.oid
+                          AND a.attrelid = t.oid
+                          AND a.attnum = ANY(ix.indkey)
+                          AND t.relkind = 'r'
+                          AND s.nspname = pOwner
+                          AND t.relname = pViewName
+                          AND    ix.indisprimary)	
 	)
   LOOP
 
