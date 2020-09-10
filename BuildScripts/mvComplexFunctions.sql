@@ -76,6 +76,7 @@ DROP FUNCTION IF EXISTS mv$regExpInstr;
 DROP FUNCTION IF EXISTS mv$regExpReplace;
 DROP FUNCTION IF EXISTS mv$regExpSubstr;
 DROP FUNCTION IF EXISTS mv$outerJoinToInnerJoinReplacement;
+DROP FUNCTION IF EXISTS mv$refreshMaterializedViewInitial;
 
 SET CLIENT_MIN_MESSAGES = NOTICE;
 
@@ -1005,6 +1006,8 @@ Revision History    Push Down List
 ------------------------------------------------------------------------------------------------------------------------------------
 Date        | Name          | Description
 ------------+---------------+-------------------------------------------------------------------------------------------------------
+18/08/2020	| J Bills		| Added process to drop and re-index MVs to prevent the refresh from hanging. Also changed the order of 
+			|				| clearing the logs to prevent missing data when base table replication process is running.
 04/06/2020  | D Day         | Change functions with RETURNS VOID to procedures allowing support/control of COMMITS during refresh process.
 11/03/2018  | M Revitt      | Initial version
 ------------+---------------+-------------------------------------------------------------------------------------------------------
@@ -1032,9 +1035,13 @@ DECLARE
 BEGIN
 
     aPgMview    := mv$getPgMviewTableData(        pConst, pOwner, pViewName );
-    CALL mv$truncateMaterializedView(   pConst, pOwner, aPgMview.view_name );
-    CALL mv$insertMaterializedViewRows( pConst, pOwner, pViewName );
+    CALL mv$createindexestemptable(pOwner, pViewName);
+	CALL mv$dropmvindexes(pOwner, pViewName);
+	CALL mv$truncateMaterializedView(   pConst, pOwner, aPgMview.view_name );
     CALL mv$clearAllPgMvLogTableBits(   pConst, pOwner, pViewName );
+	CALL mv$insertMaterializedViewRows( pConst, pOwner, pViewName );
+    CALL mv$readdmvindexes (pViewName);
+	CALL mv$dropindexestemptable (pViewName);
 
     EXCEPTION
     WHEN OTHERS
@@ -2747,6 +2754,65 @@ END IF;
 
 RETURN tSQL;
 
+END;
+$BODY$
+LANGUAGE    plpgsql;
+------------------------------------------------------------------------------------------------------------------------------------
+CREATE OR REPLACE
+PROCEDURE    mv$refreshMaterializedViewInitial
+            (
+                pConst      IN      mv$allConstants,
+                pOwner      IN      TEXT,
+                pViewName   IN      TEXT
+            )
+AS
+$BODY$
+/* ---------------------------------------------------------------------------------------------------------------------------------
+Routine Name: mv$refreshMaterializedViewInitial
+Author:       Jack Bills
+Date:         19/08/2020
+------------------------------------------------------------------------------------------------------------------------------------
+Revision History    Push Down List
+------------------------------------------------------------------------------------------------------------------------------------
+Date        | Name          | Description
+------------+---------------+-------------------------------------------------------------------------------------------------------
+19/08/2020  | J Bills      | Initial version
+------------+---------------+-------------------------------------------------------------------------------------------------------
+Description:    Performs a full refresh of the materialized view, which consists of truncating the table and then re-populating it.
+
+                This activity also requires that every row in the materialized view log is updated to remove the interest from this
+                materialized view, then as with the fast refresh once all the rows have been processed the materialized view log is
+                cleaned up, in that all rows with a bitmap of zero are deleted as they are then no longer required.
+
+Note:           This procedure requires the SEARCH_PATH to be set to the current value so that the select statement can find the
+                source tables.
+                The default for PostGres procedures is to not use the search path when executing with the privileges of the creator.
+				This is a revised version of the orignial will refresh to be used when the materialized view is being created.
+
+Arguments:      IN      pConst              The memory structure containing all constants
+				IN      pOwner              The owner of the object
+                IN      pViewName           The name of the materialized view
+
+************************************************************************************************************************************
+Copyright 2018 Amazon.com, Inc. or its affiliates. All Rights Reserved. SPDX-License-Identifier: MIT-0
+***********************************************************************************************************************************/
+DECLARE
+
+    aPgMview    pg$mviews;
+
+BEGIN
+
+    aPgMview    := mv$getPgMviewTableData(        pConst, pOwner, pViewName );
+    CALL mv$truncateMaterializedView(   pConst, pOwner, aPgMview.view_name );
+    CALL mv$insertMaterializedViewRows( pConst, pOwner, pViewName );
+    CALL mv$clearAllPgMvLogTableBits(   pConst, pOwner, pViewName );
+
+    EXCEPTION
+    WHEN OTHERS
+    THEN
+        RAISE INFO      'Exception in procedure mv$refreshMaterializedViewInitial';
+        RAISE INFO      'Error %:- %:',     SQLSTATE, SQLERRM;
+        RAISE EXCEPTION '%',                SQLSTATE;
 END;
 $BODY$
 LANGUAGE    plpgsql;

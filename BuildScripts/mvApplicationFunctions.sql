@@ -256,7 +256,7 @@ BEGIN
 				tRightOuterJoinArray
 			 );
 
-    CALL mv$refreshMaterializedView( pViewName, pOwner, FALSE );
+    CALL mv$refreshMaterializedViewInitial( rConst , pOwner, pViewName );
 
 END;
 $BODY$

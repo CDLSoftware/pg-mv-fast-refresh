@@ -1,4 +1,4 @@
-/* ---------------------------------------------------------------------------------------------------------------------------------
+﻿/* ---------------------------------------------------------------------------------------------------------------------------------
 Routine Name: mvSimpleFunctions.sql
 Author:       Mike Revitt
 Date:         11/03/2018
@@ -81,6 +81,12 @@ DROP PROCEDURE IF EXISTS mv$insertPgMviewLogs;
 DROP PROCEDURE IF EXISTS mv$removeRow$FromSourceTable;
 DROP FUNCTION IF EXISTS mv$replaceCommandWithToken;
 DROP PROCEDURE IF EXISTS mv$truncateMaterializedView;
+DROP PROCEDURE IF EXISTS mv$createindexestemptable;
+DROP PROCEDURE IF EXISTS mv$dropmvindexes;
+DROP PROCEDURE IF EXISTS mv$readdmvindexes;
+DROP PROCEDURE IF EXISTS mv$dropindexestemptable;
+
+
 
 ----------------------- Write CREATE-FUNCTION-stage scripts --------------------
 SET CLIENT_MIN_MESSAGES = NOTICE;
@@ -2231,3 +2237,245 @@ BEGIN
 END;
 $BODY$
 LANGUAGE    plpgsql;
+
+------------------------------------------------------------------------------------------------------------------------------------
+CREATE OR REPLACE
+PROCEDURE    mv$createindexestemptable
+            (
+                pOwner      IN      TEXT,
+                pViewName   IN      TEXT
+            )
+AS
+$BODY$
+
+/* ---------------------------------------------------------------------------------------------------------------------------------
+Routine Name: mv$createindexestemptable
+Author:       Jack Bills
+Date:         13/08/2020
+------------------------------------------------------------------------------------------------------------------------------------
+Revision History    Push Down List
+------------------------------------------------------------------------------------------------------------------------------------
+Date        | Name          | Description
+------------+---------------+-------------------------------------------------------------------------------------------------------
+13/08/2020  | J Bills      | Initial version
+------------+---------------+-------------------------------------------------------------------------------------------------------
+Description:    This will store the create indexes SQL in a temporary table for when its removed from the pg_indexes database table
+
+Arguments:      IN      pOwner             The owner of the object
+                IN      pViewName          The name of the materialized view base table
+Returns:                VOID
+
+************************************************************************************************************************************
+Copyright 2019 Amazon.com, Inc. or its affiliates. All Rights Reserved. SPDX-License-Identifier: MIT-0
+***********************************************************************************************************************************/
+
+DECLARE
+  i RECORD;
+BEGIN
+  FOR i IN 
+    (
+		select distinct tablename , schemaname
+from pg_indexes 
+where tablename = pViewName
+and schemaname = pOwner
+	)
+  LOOP
+
+EXECUTE 'CREATE TEMP TABLE temp' ||'_'|| i.tablename ||' AS select indexdef from pg_indexes 
+where indexname  NOT IN ((SELECT  distinct i.relname
+                      FROM
+                          pg_class t,
+                          pg_class i,
+                          pg_index ix,
+                          pg_attribute a,
+                          pg_namespace s
+                      WHERE
+                          t.oid = ix.indrelid
+                          AND i.oid = ix.indexrelid
+                          AND t.relnamespace = s.oid
+                          AND a.attrelid = t.oid
+                          AND a.attnum = ANY(ix.indkey)
+                          AND t.relkind = ''r''
+                          AND s.nspname =  '|| ''''|| i.schemaname ||''''||'
+                          AND t.relname =  '||''''||  i.tablename ||''''||' 
+                          AND    ix.indisprimary))  
+and tablename = '|| ''''|| i.tablename ||''''||' and schemaname =  '||''''||  i.schemaname ||''''||' 	
+ ';
+  END LOOP;
+   EXCEPTION
+    WHEN OTHERS
+    THEN
+        RAISE INFO      'Exception in function mv$createindexestemptable';
+        RAISE INFO      'Error %:- %:',     SQLSTATE, SQLERRM;
+        RAISE EXCEPTION '%',                SQLSTATE;
+END;
+$BODY$
+LANGUAGE    plpgsql;
+
+
+------------------------------------------------------------------------------------------------------------------------------------
+CREATE OR REPLACE
+PROCEDURE    mv$dropmvindexes
+            (
+                pOwner      IN      TEXT,
+                pViewName   IN      TEXT
+            )
+AS
+$BODY$
+
+/* ---------------------------------------------------------------------------------------------------------------------------------
+Routine Name: mv$dropmvindexes
+Author:       Jack Bills
+Date:         13/08/2020
+------------------------------------------------------------------------------------------------------------------------------------
+Revision History    Push Down List
+------------------------------------------------------------------------------------------------------------------------------------
+Date        | Name          | Description
+------------+---------------+-------------------------------------------------------------------------------------------------------
+13/08/2020  | J Bills      | Initial version
+------------+---------------+-------------------------------------------------------------------------------------------------------
+Description:    This will drop the indexes from the materialised view
+
+Arguments:      IN      pOwner             The owner of the object
+                IN      pViewName          The name of the materialized view base table
+Returns:                VOID
+
+************************************************************************************************************************************
+Copyright 2019 Amazon.com, Inc. or its affiliates. All Rights Reserved. SPDX-License-Identifier: MIT-0
+***********************************************************************************************************************************/
+
+DECLARE
+  i RECORD;
+BEGIN
+  FOR i IN 
+    (
+		select schemaname || '.' || indexname as relname
+from pg_indexes 
+where tablename = pViewName
+and schemaname = pOwner
+and indexname  NOT IN
+(SELECT  distinct c.relname
+                      FROM
+                          pg_class t,
+                          pg_class c,
+                          pg_index ix,
+                          pg_attribute a,
+                          pg_namespace s
+                      WHERE
+                          t.oid = ix.indrelid
+                          AND c.oid = ix.indexrelid
+                          AND t.relnamespace = s.oid
+                          AND a.attrelid = t.oid
+                          AND a.attnum = ANY(ix.indkey)
+                          AND t.relkind = 'r'
+                          AND s.nspname = pOwner
+                          AND t.relname = pViewName
+                          AND    ix.indisprimary)	
+	)
+  LOOP
+
+    EXECUTE 'DROP INDEX ' || i.relname;
+  END LOOP;
+  EXCEPTION
+    WHEN OTHERS
+    THEN
+        RAISE INFO      'Exception in procedure mv$dropmvindexes';
+        RAISE INFO      'Error %:- %:',     SQLSTATE, SQLERRM;
+        RAISE EXCEPTION '%',                SQLSTATE;
+END;
+$BODY$
+LANGUAGE    plpgsql;
+
+
+------------------------------------------------------------------------------------------------------------------------------------
+CREATE OR REPLACE
+PROCEDURE    mv$readdmvindexes
+            (
+                pViewName   IN      TEXT
+            )
+AS
+$BODY$
+
+/* ---------------------------------------------------------------------------------------------------------------------------------
+Routine Name: mv$readdmvindexes
+Author:       Jack Bills
+Date:         13/08/2020
+------------------------------------------------------------------------------------------------------------------------------------
+Revision History    Push Down List
+------------------------------------------------------------------------------------------------------------------------------------
+Date        | Name          | Description
+------------+---------------+-------------------------------------------------------------------------------------------------------
+13/08/2020  | J Bills      | Initial version
+------------+---------------+-------------------------------------------------------------------------------------------------------
+Description:    This will re-add the indexes on the materialised view following the insert of the rows
+
+Arguments:      IN      pViewName          The name of the materialized view base table
+                
+Returns:                VOID
+
+************************************************************************************************************************************
+Copyright 2019 Amazon.com, Inc. or its affiliates. All Rights Reserved. SPDX-License-Identifier: MIT-0
+***********************************************************************************************************************************/
+
+
+DECLARE
+rec RECORD;
+table_name TEXT;
+BEGIN
+table_name := pViewName ;
+FOR rec IN EXECUTE format('SELECT indexdef FROM temp_%I', table_name) LOOP
+EXECUTE rec.indexdef;
+END LOOP;
+END;
+$BODY$
+LANGUAGE    plpgsql;
+
+
+------------------------------------------------------------------------------------------------------------------------------------
+CREATE OR REPLACE
+PROCEDURE    mv$dropindexestemptable
+            (
+                pViewName   IN      TEXT
+            )
+AS
+$BODY$
+
+
+/* ---------------------------------------------------------------------------------------------------------------------------------
+Routine Name: mv$dropindexestemptable
+Author:       Jack Bills
+Date:         13/08/2020
+------------------------------------------------------------------------------------------------------------------------------------
+Revision History    Push Down List
+------------------------------------------------------------------------------------------------------------------------------------
+Date        | Name          | Description
+------------+---------------+-------------------------------------------------------------------------------------------------------
+13/08/2020  | J Bills      | Initial version
+------------+---------------+-------------------------------------------------------------------------------------------------------
+Description:    This will drop the temporary table created holding indexes scripts
+
+Arguments:      IN      pViewName          The name of the materialized view base table
+                
+Returns:                VOID
+
+************************************************************************************************************************************
+Copyright 2019 Amazon.com, Inc. or its affiliates. All Rights Reserved. SPDX-License-Identifier: MIT-0
+***********************************************************************************************************************************/
+
+DECLARE
+    tSqlStatement   TEXT    := NULL;
+BEGIN
+    tSqlStatement   :=  'DROP TABLE IF EXISTS temp' || '_' || pViewName;
+    EXECUTE tSqlStatement;
+    EXCEPTION
+    WHEN OTHERS
+    THEN
+        RAISE INFO      'Exception in procedure mv$dropindexestemptable';
+        RAISE INFO      'Error %:- %:',     SQLSTATE, SQLERRM;
+        RAISE INFO      'Error Context:% %',CHR(10),  tSqlStatement;
+        RAISE EXCEPTION '%',                SQLSTATE;
+END ;
+$BODY$
+LANGUAGE    plpgsql;
+
+
