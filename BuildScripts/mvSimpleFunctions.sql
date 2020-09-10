@@ -695,6 +695,8 @@ Revision History    Push Down List
 ------------------------------------------------------------------------------------------------------------------------------------
 Date        | Name          | Description
 ------------+---------------+-------------------------------------------------------------------------------------------------------
+10/09/2020  | D Day         | Removed Parent to Child delete relationship for inner joins to support CDL specific materialized view
+            |               | primary key violation error(s).
 12/08/2020	| D Day			| Workaround fix to support CDL materialized views with more than one column primary keys
 29/06/2020	| D Day			| Added new DELETE statement to handle DML Type INSERT when row already exists.
 05/06/2020  | D Day         | Change functions with RETURNS VOID to procedures allowing support/control of COMMITS during refresh process.
@@ -760,7 +762,7 @@ BEGIN
 		tMultiPrimaryKeyMview := 'Y';		
 	END IF;
 	
-	IF (pDmlType IN ('DELETE','UPDATE') OR (pDmlType IN ('INSERT') AND tInnerJoinOtherAlias = 'none') OR tMultiPrimaryKeyMview = 'Y') THEN
+	IF (pDmlType IN ('DELETE','UPDATE') OR (pDmlType IN ('INSERT') AND tInnerJoinOtherAlias = 'none') OR tMultiPrimaryKeyMview = 'Y' OR pViewName = 'mv_policy') THEN
 
 		tSqlStatement :=    pConst.DELETE_FROM || pOwner  || pConst.DOT_CHARACTER   || pViewName        ||
 							pConst.WHERE_COMMAND          || pRowidColumn           || pConst.IN_ROWID_LIST;
