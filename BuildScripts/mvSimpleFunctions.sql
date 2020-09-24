@@ -695,6 +695,7 @@ Revision History    Push Down List
 ------------------------------------------------------------------------------------------------------------------------------------
 Date        | Name          | Description
 ------------+---------------+-------------------------------------------------------------------------------------------------------
+24/09/2020  | D Day			| Removed previous change done on the 10/09/2020 as still getting this error.
 10/09/2020  | D Day         | Removed Parent to Child delete relationship for inner joins to support CDL specific materialized view
             |               | primary key violation error(s).
 12/08/2020	| D Day			| Workaround fix to support CDL materialized views with more than one column primary keys
@@ -762,7 +763,7 @@ BEGIN
 		tMultiPrimaryKeyMview := 'Y';		
 	END IF;
 	
-	IF (pDmlType IN ('DELETE','UPDATE') OR (pDmlType IN ('INSERT') AND tInnerJoinOtherAlias = 'none') OR tMultiPrimaryKeyMview = 'Y' OR pViewName = 'mv_policy') THEN
+	IF (pDmlType IN ('DELETE','UPDATE') OR (pDmlType IN ('INSERT') AND tInnerJoinOtherAlias = 'none') OR tMultiPrimaryKeyMview = 'Y') THEN
 
 		tSqlStatement :=    pConst.DELETE_FROM || pOwner  || pConst.DOT_CHARACTER   || pViewName        ||
 							pConst.WHERE_COMMAND          || pRowidColumn           || pConst.IN_ROWID_LIST;
