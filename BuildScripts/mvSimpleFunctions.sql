@@ -1380,8 +1380,8 @@ BEGIN
 
     END LOOP;
 	
-	CALL mv$setQueryJoinsMultiTablePosition(pConst,pTableArray,pInnerAliasArray,pQueryJoinsMultiTabPosArray);
-	CALL mv$setQueryJoinsMultiTableCount(pConst,pTableArray,pInnerAliasArray,pQueryJoinsMultiTabCntArray);	
+	CALL mv$setQueryJoinsMultiTablePosition(pTableArray,pInnerAliasArray,pQueryJoinsMultiTabPosArray);
+	CALL mv$setQueryJoinsMultiTableCount(pTableArray,pInnerAliasArray,pQueryJoinsMultiTabCntArray);	
 
     RETURN;
 
@@ -2489,7 +2489,6 @@ LANGUAGE    plpgsql;
 CREATE OR REPLACE
 PROCEDURE    mv$setQueryJoinsMultiTablePosition
             (
-                pConst          			IN   mv$allConstants,
                 pTableNames         		IN   TEXT[],
                 pAliasArray         		IN   TEXT[],
 				pQueryJoinsMultiTabPosArray INOUT  SMALLINT[]		
@@ -2509,8 +2508,7 @@ Date        | Name          | Description
 ------------+---------------+-------------------------------------------------------------------------------------------------------
 Description:    Procedure to generate the query joins multi table position array for when the same table name is used more than once.
 
-Arguments:      IN      pConst              		The memory structure containing all constants
-                IN      pTableNames         
+Arguments:      IN      pTableNames         
                 IN      pAliasArray
                 INOUT     pQueryJoinsMultiTabPosArray
 				
@@ -2571,7 +2569,6 @@ LANGUAGE    plpgsql;
 CREATE OR REPLACE
 PROCEDURE    mv$setQueryJoinsMultiTableCount
             (
-                pConst          			IN   mv$allConstants,
                 pTableNames         		IN   TEXT[],
                 pAliasArray         		IN   TEXT[],
 				pQueryJoinsMultiTabCntArray			INOUT  SMALLINT[]		
@@ -2591,8 +2588,7 @@ Date        | Name          | Description
 ------------+---------------+-------------------------------------------------------------------------------------------------------
 Description:    Procedure to generate the query joins multi table total count array for when the same table name is used more than once.
 
-Arguments:      IN      pConst              		The memory structure containing all constants
-                IN      pTableNames         
+Arguments:      IN      pTableNames         
                 IN      pAliasArray
                 INOUT   pQueryJoinsMultiTabPosArray
 				
