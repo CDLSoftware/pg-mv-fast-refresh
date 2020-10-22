@@ -949,7 +949,7 @@ BEGIN
 		
 			IF pQueryJoinsMultiTabPosArray > 1 THEN
 
-				FOR i IN ARRAY_LOWER( aMultiTablePgMview.table_array, 1 ) .. ARRAY_UPPER( aMultiTablePgMview.table_array, 1 )
+				FOR i IN ARRAY_LOWER( aMultiTablePgMview.table_array, 1 ) .. ARRAY_UPPER( aMultiTablePgMview.table_array, 1 ) LOOP
 
 					IF aMultiTablePgMview.table_array[i] = pTableName THEN
 					
@@ -1007,7 +1007,7 @@ BEGIN
 		
 			aMultiTablePgMview   := mv$getPgMviewTableData( pConst, pOwner, pViewName );
 
-			FOR i IN ARRAY_LOWER( aMultiTablePgMview.table_array, 1 ) .. ARRAY_UPPER( aMultiTablePgMview.table_array, 1 )
+			FOR i IN ARRAY_LOWER( aMultiTablePgMview.table_array, 1 ) .. ARRAY_UPPER( aMultiTablePgMview.table_array, 1 ) LOOP
 				
 				IF aMultiTablePgMview.table_array[i] = pTableName THEN
 									
