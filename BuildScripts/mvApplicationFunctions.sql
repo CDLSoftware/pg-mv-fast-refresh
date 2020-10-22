@@ -87,6 +87,9 @@ Revision History    Push Down List
 ------------------------------------------------------------------------------------------------------------------------------------
 Date        | Name          | Description
 ------------+---------------+-------------------------------------------------------------------------------------------------------
+22/10/2020	| D Day			| Defect fix - added two variables tQueryJoinsMultiTabCntArray and tQueryJoinsMultiTabPosArray to OUT
+							| array to handle DML changes being applied from materialized view log that get used more than once by
+							| the same stored query.
 29/06/2020	| D Day			| Defect fix - added new procedural variables to support DELETE statements for DML Type INSERT to resolve
 			|				| duplicate rows issue.
 03/06/2020	| D Day			| Changed function to procedure to allow support/control of COMMITS within the refresh process.
@@ -140,6 +143,8 @@ DECLARE
 	tInnerJoinOtherTableNameArray	TEXT[];
 	tInnerJoinOtherTableAliasArray	TEXT[];
 	tInnerJoinOtherTableRowidArray	TEXT[];
+	tQueryJoinsMultiTabCntArray		SMALLINT[];
+	tQueryJoinsMultiTabPosArray     SMALLINT[];
 
 BEGIN
 
@@ -172,7 +177,9 @@ BEGIN
 			pInnerJoinTableRowidArray,
 			pInnerJoinOtherTableNameArray,		
 			pInnerJoinOtherTableAliasArray,
-			pInnerJoinOtherTableRowidArray
+			pInnerJoinOtherTableRowidArray,
+			pQueryJoinsMultiTabCntArray,
+			pQueryJoinsMultiTabPosArray
 
     FROM
             mv$extractCompoundViewTables( rConst, tTableNames )
@@ -192,7 +199,9 @@ BEGIN
 			tInnerJoinTableRowidArray,
 			tInnerJoinOtherTableNameArray,		
 			tInnerJoinOtherTableAliasArray,
-			tInnerJoinOtherTableRowidArray;	
+			tInnerJoinOtherTableRowidArray,
+			tQueryJoinsMultiTabCntArray,
+			tQueryJoinsMultiTabPosArray;
 
     CALL mv$createPgMv$Table
                         (
@@ -238,6 +247,8 @@ BEGIN
 					tInnerJoinOtherTableNameArray,		
 					tInnerJoinOtherTableAliasArray,
 					tInnerJoinOtherTableRowidArray,
+					tQueryJoinsMultiTabCntArray,
+					tQueryJoinsMultiTabPosArray,
                     pFastRefresh
                 );
 				
