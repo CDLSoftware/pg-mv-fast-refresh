@@ -2492,7 +2492,7 @@ PROCEDURE    mv$setQueryJoinsMultiTablePosition
                 pConst          			IN   mv$allConstants,
                 pTableNames         		IN   TEXT[],
                 pAliasArray         		IN   TEXT[],
-				pQueryJoinsMultiTabPosArray			INOUT  SMALLINT[]		
+				pQueryJoinsMultiTabPosArray INOUT  SMALLINT[]		
             )
 AS
 $BODY$
@@ -2520,8 +2520,6 @@ Copyright 2019 Amazon.com, Inc. or its affiliates. All Rights Reserved. SPDX-Lic
 DECLARE
 
     rTableNames       RECORD;
-
-    tSqlStatement 	  TEXT;
 	
 	iTableCount		  INTEGER;
 	
@@ -2591,12 +2589,12 @@ Date        | Name          | Description
 ------------+---------------+-------------------------------------------------------------------------------------------------------
 21/10/2020  | D Day         | Initial version
 ------------+---------------+-------------------------------------------------------------------------------------------------------
-Description:    Procedure to generate the query joins multi table position array for when the same table name is used more than once.
+Description:    Procedure to generate the query joins multi table total count array for when the same table name is used more than once.
 
 Arguments:      IN      pConst              		The memory structure containing all constants
                 IN      pTableNames         
                 IN      pAliasArray
-                INOUT     pQueryJoinsMultiTabPosArray
+                INOUT   pQueryJoinsMultiTabPosArray
 				
 ************************************************************************************************************************************
 Copyright 2019 Amazon.com, Inc. or its affiliates. All Rights Reserved. SPDX-License-Identifier: MIT-0
@@ -2604,16 +2602,12 @@ Copyright 2019 Amazon.com, Inc. or its affiliates. All Rights Reserved. SPDX-Lic
 DECLARE
 
     rTableNames       RECORD;
-
-    tSqlStatement 	  TEXT;
 	
 	iTableCount		  INTEGER;
 	
 	iCounter		  INTEGER := 0;
 	
 	tTableArray  TEXT[] := '{}';
-	
-	iMultiTableCount INTEGER := 0;
 	
 
 BEGIN

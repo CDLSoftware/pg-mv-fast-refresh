@@ -544,8 +544,8 @@ PROCEDURE    mv$insertPgMview
 				pInnerJoinOtherTableNameArray	IN		TEXT[],		
 				pInnerJoinOtherTableAliasArray	IN		TEXT[],
 				pInnerJoinOtherTableRowidArray	IN		TEXT[],
-				pQueryJoinsMultiTabCntArray IN SMALLINT[],
-				pQueryJoinsMultiTabPosArray IN SMALLINT[],
+				pQueryJoinsMultiTabCntArray 	IN SMALLINT[],
+				pQueryJoinsMultiTabPosArray 	IN SMALLINT[],
                 pFastRefresh        IN      BOOLEAN
             )
 AS
