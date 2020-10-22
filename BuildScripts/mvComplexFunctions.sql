@@ -1013,7 +1013,7 @@ BEGIN
 									
 					bOuterJoined := mv$checkIfOuterJoinedTable( pConst, aMultiTablePgMview.table_array[i], aMultiTablePgMview.outer_table_array[i] );
 								
-								cResult :=  mv$executeMVFastRefresh
+								CALL  mv$executeMVFastRefresh
 								(
 									pConst,
 									tLastType,
