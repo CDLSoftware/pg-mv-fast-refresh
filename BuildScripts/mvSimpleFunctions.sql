@@ -2517,15 +2517,15 @@ Copyright 2019 Amazon.com, Inc. or its affiliates. All Rights Reserved. SPDX-Lic
 ***********************************************************************************************************************************/
 DECLARE
 
-    rTableNames       RECORD;
+    rTableNames       	RECORD;
 	
-	iTableCount		  INTEGER;
+	iTableCount		  	INTEGER;
 	
-	iCounter		  INTEGER := 0;
+	iCounter		  	INTEGER := 0;
 	
-	tTableArray  TEXT[] := '{}';
+	tTableArray  		TEXT[] := '{}';
 	
-	iMultiTableCount INTEGER := 0;
+	iMultiTableCount 	INTEGER := 0;
 	
 
 BEGIN
@@ -2538,7 +2538,7 @@ FOR rTableNames IN (SELECT UNNEST(pTableNames) AS table_name, UNNEST(pAliasArray
 	FROM (SELECT UNNEST(pTableNames) AS table_name) inline
 	WHERE inline.table_name = rTableNames.table_name;
 	
-	tTableArray := rTableNames.table_name;
+	tTableArray[iCounter] := rTableNames.table_name;
 	
 	IF iTableCount = 1 THEN
 	
@@ -2547,7 +2547,7 @@ FOR rTableNames IN (SELECT UNNEST(pTableNames) AS table_name, UNNEST(pAliasArray
 	ELSE
 	
 		SELECT count(1) INTO iMultiTableCount
-		FROM (SELECT UNNEST(tTableArray)) inline
+		FROM (SELECT UNNEST(tTableArray) AS table_name) inline
 		WHERE inline.table_name = rTableNames.table_name;
 	
 		pQueryJoinsMultiTabPosArray[iCounter] := iMultiTableCount;		
