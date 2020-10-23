@@ -857,7 +857,7 @@ PROCEDURE    mv$refreshMaterializedViewFast
                 pOuterTable     IN      BOOLEAN,
                 pInnerAlias     IN      TEXT,
                 pInnerRowid     IN      TEXT,
-				pQueryJoinsMultiTabPos	IN SMALLINT
+				pQueryJoinsMultiTabCnt	IN SMALLINT
             )
 AS
 $BODY$
@@ -896,7 +896,7 @@ Arguments:      IN      pConst              The memory structure containing all 
                 IN		pOuterTable
                 IN		pInnerAlias
                 IN		pInnerRowid
-				IN      pQueryJoinsMultiTabPos
+				IN      pQueryJoinsMultiTabCnt
 ************************************************************************************************************************************
 Copyright 2018 Amazon.com, Inc. or its affiliates. All Rights Reserved. SPDX-License-Identifier: MIT-0
 ***********************************************************************************************************************************/
@@ -921,7 +921,7 @@ BEGIN
     aViewLog    := mv$getPgMviewLogTableData( pConst, pTableName );
     tBitValue   := mv$getBitValue( pConst, pPgMviewBit );
 	
-	IF pQueryJoinsMultiTabPos > 1 THEN
+	IF pQueryJoinsMultiTabCnt > 1 THEN
 		aMultiTablePgMview   := mv$getPgMviewTableData( pConst, pOwner, pViewName );
 	END IF;
 
@@ -947,7 +947,7 @@ BEGIN
             uRowIDArray[iArraySeq]  := uRowID;
         ELSE
 		
-			IF pQueryJoinsMultiTabPosArray > 1 THEN
+			IF pQueryJoinsMultiTabCnt > 1 THEN
 
 				FOR i IN ARRAY_LOWER( aMultiTablePgMview.table_array, 1 ) .. ARRAY_UPPER( aMultiTablePgMview.table_array, 1 ) LOOP
 
@@ -1003,7 +1003,7 @@ BEGIN
     IF biMaxSequence > 0
     THEN
 
-		IF pQueryJoinsMultiTabPosArray > 1 THEN
+		IF pQueryJoinsMultiTabCnt > 1 THEN
 		
 			aMultiTablePgMview   := mv$getPgMviewTableData( pConst, pOwner, pViewName );
 
@@ -1196,7 +1196,7 @@ BEGIN
 	
 		BEGIN
 		
-			IF aPgMview.query_multi_table_position_array[i] = 1 THEN
+			IF aPgMview.query_joins_multi_table_pos_array[i] = 1 THEN
 		
 				bOuterJoined := mv$checkIfOuterJoinedTable( pConst, aPgMview.table_array[i], aPgMview.outer_table_array[i] );
 				CALL mv$refreshMaterializedViewFast
@@ -1370,6 +1370,8 @@ Revision History    Push Down List
 ------------------------------------------------------------------------------------------------------------------------------------
 Date        | Name          | Description
 ------------+---------------+-------------------------------------------------------------------------------------------------------
+23/10/2020  | D Day			| Defect fix - added REGEXP_REPLACE to remove any spaces or tabs at the end of the line for variable 
+			|				| tColumnNameSql. This was causing columns to be not added to the UPDATE statement.
 04/06/2020  | D Day         | Change functions with RETURNS VOID to procedures allowing support/control of COMMITS during refresh process.
 28/04/2020	| D Day			| Added mv$OuterJoinToInnerJoinReplacement function call to replace alias matching outer join conditions
 			|				| with inner join conditions and new IN parameter pTableNames.
@@ -1714,7 +1716,7 @@ BEGIN
 							 1,
 							 i)-1);
 					tColumnNameSql := mv$regExpReplace(tColumnNameSql,'(^[[:space:]]+)',null);
-					tColumnNameSql := mv$regExpSubstr(tColumnNameSql,'(.*'||tRegExpColumnNameAlias||'+[[:alnum:]]+(.*?[^,|$]))',1,1,'i');
+					tColumnNameSql := mv$regExpSubstr(REGEXP_REPLACE(tColumnNameSql),'\s+$', ''),'(.*'||tRegExpColumnNameAlias||'+[[:alnum:]]+(.*?[^,|$]))',1,1,'i');
 					tMvColumnName  := TRIM(REPLACE(mv$regExpSubstr(tColumnNameSql, '\S+$'),',',''));
 					tMvColumnName  := LOWER(TRIM(REPLACE(tMvColumnName,tAlias,'')));
 					
