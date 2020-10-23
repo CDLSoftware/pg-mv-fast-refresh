@@ -1716,7 +1716,7 @@ BEGIN
 							 1,
 							 i)-1);
 					tColumnNameSql := mv$regExpReplace(tColumnNameSql,'(^[[:space:]]+)',null);
-					tColumnNameSql := mv$regExpSubstr(REGEXP_REPLACE(tColumnNameSql),'\s+$', ''),'(.*'||tRegExpColumnNameAlias||'+[[:alnum:]]+(.*?[^,|$]))',1,1,'i');
+					tColumnNameSql := mv$regExpSubstr(REGEXP_REPLACE((tColumnNameSql),'\s+$', ''),'(.*'||tRegExpColumnNameAlias||'+[[:alnum:]]+(.*?[^,|$]))',1,1,'i');
 					tMvColumnName  := TRIM(REPLACE(mv$regExpSubstr(tColumnNameSql, '\S+$'),',',''));
 					tMvColumnName  := LOWER(TRIM(REPLACE(tMvColumnName,tAlias,'')));
 					
