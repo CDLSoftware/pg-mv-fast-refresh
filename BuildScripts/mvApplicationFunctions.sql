@@ -87,9 +87,10 @@ Revision History    Push Down List
 ------------------------------------------------------------------------------------------------------------------------------------
 Date        | Name          | Description
 ------------+---------------+-------------------------------------------------------------------------------------------------------
-22/10/2020	| D Day			| Defect fix - added two variables tQueryJoinsMultiTabCntArray and tQueryJoinsMultiTabPosArray to OUT
-							| array to handle DML changes being applied from materialized view log that get used more than once by
-							| the same stored query.
+22/10/2020	| D Day			| Defect fix - added two variables tQueryJoinsMultiTabCntArray and tQueryJoinsMultiTabPosArray to out in
+			|				| arrays to handle DML changes being applied from materialized view log table that gets used more than once by
+			|				| the same stored query. This procedure calls mv$insertPgMview to insert these new arrays into pg$mviews
+			|				| data dictionary table to support the refresh process.
 29/06/2020	| D Day			| Defect fix - added new procedural variables to support DELETE statements for DML Type INSERT to resolve
 			|				| duplicate rows issue.
 03/06/2020	| D Day			| Changed function to procedure to allow support/control of COMMITS within the refresh process.

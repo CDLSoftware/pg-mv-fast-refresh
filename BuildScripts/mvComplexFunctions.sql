@@ -544,8 +544,8 @@ PROCEDURE    mv$insertPgMview
 				pInnerJoinOtherTableNameArray	IN		TEXT[],		
 				pInnerJoinOtherTableAliasArray	IN		TEXT[],
 				pInnerJoinOtherTableRowidArray	IN		TEXT[],
-				pQueryJoinsMultiTabCntArray 	IN SMALLINT[],
-				pQueryJoinsMultiTabPosArray 	IN SMALLINT[],
+				pQueryJoinsMultiTabCntArray 	IN 		SMALLINT[],
+				pQueryJoinsMultiTabPosArray 	IN 		SMALLINT[],
                 pFastRefresh        IN      BOOLEAN
             )
 AS
@@ -1159,7 +1159,8 @@ Revision History    Push Down List
 Date        | Name          | Description
 ------------+---------------+-------------------------------------------------------------------------------------------------------
 22/10/2020  | D Day			| Defect fix - Added logic to handle processing table_array DML changes that link to the same materialized view
-			|				| log.
+			|				| log. The refresh will ONLY be executed when the query joins multi table position is equal to 1 - otherwise it
+			|				| will ignore as this is now handled in the calling procedure.
 08/06/2020	| D Day			| Added sub begin and end block to capture EXCEPTION handler as this is not support in procedures using a COMMIT.
 			|				| By adding to an independant block enables exception handling to be coded. Anything outside of this block will
 			|				| be handled as the default Postgres error handler. 

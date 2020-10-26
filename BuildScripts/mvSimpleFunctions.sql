@@ -1090,6 +1090,10 @@ Revision History    Push Down List
 ------------------------------------------------------------------------------------------------------------------------------------
 Date        | Name          | Description
 ------------+---------------+-------------------------------------------------------------------------------------------------------
+23/10/2020	| D Day			| Defect fix - added OUT parameters pQueryJoinsMultiTabCntArray and pQueryJoinsMultiTabPosArray
+			|				| populated by calling procedures mv$setQueryJoinsMultiTablePosition and mv$setQueryJoinsMultiTableCount.
+			|				| Used to populated data dictionary table pg$mviews to resolve handling clearing mview log bitmap values
+			|				| for mview logs being processed more than once within the mview stored query.
 29/06/2020	| D Day			| Defect fix - added inner joinings details to resolve duplicate issue when row already exists for
 			|				| DML change type INSERT.
 12/02/2020	| D Day 		| Defect fix - changed logic to populate OUT parameters pInnerAliasArray and pInnerRowidArray correctly 

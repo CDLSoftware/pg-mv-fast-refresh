@@ -10,6 +10,7 @@ Date        | Name          | Description
             |               |
 12/11/2018  | M Revitt      | Initial version
 05/11/2019  | T Mullen      | Reflecting the changes of table names
+23/10/2020	| D Day			| Added new columns to pg$mviews table query_joins_multi_table_cnt_array and query_joins_multi_table_pos_array
 ------------+---------------+-------------------------------------------------------------------------------------------------------
 Background:     PostGre does not support Materialized View Fast Refreshes, this suite of scripts is a PL/SQL coded mechanism to
                 provide that functionality, the next phase of this projecdt is to fold these changes into the PostGre kernel.
