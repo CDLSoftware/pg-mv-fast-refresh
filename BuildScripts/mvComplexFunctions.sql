@@ -1372,7 +1372,9 @@ Revision History    Push Down List
 Date        | Name          | Description
 ------------+---------------+-------------------------------------------------------------------------------------------------------
 23/10/2020  | D Day			| Defect fix - added REGEXP_REPLACE to remove any spaces or tabs at the end of the line for variable 
-			|				| tColumnNameSql. This was causing columns to be not added to the UPDATE statement.
+			|				| tColumnNameSql. This was causing columns to be not added to the UPDATE statement. Added logic to 
+			|				| ignore rAliasJoinLinks.alias array null values and check for characters before alias matches in select column
+			|				| string.
 04/06/2020  | D Day         | Change functions with RETURNS VOID to procedures allowing support/control of COMMITS during refresh process.
 28/04/2020	| D Day			| Added mv$OuterJoinToInnerJoinReplacement function call to replace alias matching outer join conditions
 			|				| with inner join conditions and new IN parameter pTableNames.
@@ -1700,78 +1702,82 @@ BEGIN
 		-- Building the UPDATE statement including any child relationship columns and m_row$ based on these aliases
 		FOR rAliasJoinLinks IN (SELECT UNNEST(tParentToChildAliasArray) AS alias) LOOP
 		
-			iAliasJoinLinksCounter 	:= iAliasJoinLinksCounter +1;
-			tAlias 					:= rAliasJoinLinks.alias||'.';
-			tSelectColumns 			:= SUBSTRING(pSelectColumns,1,mv$regExpInstr(pSelectColumns,'[,]+[[:alnum:]]+[.]+'||'m_row\$'||''));
-			tRegExpColumnNameAlias 	:= REPLACE(tAlias,'.','\.');
-			iColumnNameAliasCnt 	:= mv$regExpCount(tSelectColumns, '[A-Za-z0-9]+('||tRegExpColumnNameAlias||')', 1);
-			iColumnNameAliasCnt 	:= mv$regExpCount(tSelectColumns, '('||tRegExpColumnNameAlias||')', 1) - iColumnNameAliasCnt;
+			IF rAliasJoinLinks.alias IS NOT NULL THEN
 		
-			IF iColumnNameAliasCnt > 0 THEN
-		
-				FOR i IN 1..iColumnNameAliasCnt 
-				LOOP
-				
-					tColumnNameSql := SUBSTRING(tSelectColumns,mv$regExpInstr(tSelectColumns,
-							 tRegExpColumnNameAlias,
-							 1,
-							 i)-1);
-					tColumnNameSql := mv$regExpReplace(tColumnNameSql,'(^[[:space:]]+)',null);
-					tColumnNameSql := mv$regExpSubstr((tColumnNameSql),'(.*'||tRegExpColumnNameAlias||'+[[:alnum:]]+(.*?[^,|$]))',1,1,'i');
-					tColumnNameSql := mv$regExpReplace(tColumnNameSql,'\s+$','');
-					tMvColumnName  := TRIM(REPLACE(mv$regExpSubstr(tColumnNameSql, '\S+$'),',',''));
-					tMvColumnName  := LOWER(TRIM(REPLACE(tMvColumnName,tAlias,'')));
-					
-					FOR rPgMviewColumnNames IN (SELECT column_name
-												FROM   information_schema.columns
-												WHERE  table_schema    = LOWER( pOwner )
-												AND    table_name      = LOWER( pViewName ) )
+				iAliasJoinLinksCounter 	:= iAliasJoinLinksCounter +1;
+				tAlias 					:= rAliasJoinLinks.alias||'.';
+				tSelectColumns 			:= SUBSTRING(pSelectColumns,1,mv$regExpInstr(pSelectColumns,'[,]+[[:alnum:]]+[.]+'||'m_row\$'||''));
+				tRegExpColumnNameAlias 	:= REPLACE(tAlias,'.','\.');
+				iColumnNameAliasCnt 	:= mv$regExpCount(tSelectColumns, '[A-Za-z0-9]+('||tRegExpColumnNameAlias||')', 1);
+				iColumnNameAliasCnt 	:= mv$regExpCount(tSelectColumns, '('||tRegExpColumnNameAlias||')', 1) - iColumnNameAliasCnt;
+			
+				IF iColumnNameAliasCnt > 0 THEN
+			
+					FOR i IN 1..iColumnNameAliasCnt 
 					LOOP
 					
-						IF rPgMviewColumnNames.column_name = tMvColumnName THEN
-										
-							iMvColumnNameLoopCnt := iMvColumnNameLoopCnt + 1;	
+						tColumnNameSql := SUBSTRING(tSelectColumns,mv$regExpInstr(tSelectColumns,
+								 '([^A-Za-z0-9]+('||tRegExpColumnNameAlias||'))',
+								 1,
+								 i)-1);
+						tColumnNameSql := mv$regExpReplace(tColumnNameSql,'(^[[:space:]]+)',null);
+						tColumnNameSql := mv$regExpSubstr((tColumnNameSql),'(.*'||tRegExpColumnNameAlias||'+[[:alnum:]]+(.*?[^,|$]))',1,1,'i');
+						tColumnNameSql := mv$regExpReplace(tColumnNameSql,'\s+$','');
+						tMvColumnName  := TRIM(REPLACE(mv$regExpSubstr(tColumnNameSql, '\S+$'),',',''));
+						tMvColumnName  := LOWER(TRIM(REPLACE(tMvColumnName,tAlias,'')));
+						
+						FOR rPgMviewColumnNames IN (SELECT column_name
+													FROM   information_schema.columns
+													WHERE  table_schema    = LOWER( pOwner )
+													AND    table_name      = LOWER( pViewName ) )
+						LOOP
+						
+							IF rPgMviewColumnNames.column_name = tMvColumnName THEN
+											
+								iMvColumnNameLoopCnt := iMvColumnNameLoopCnt + 1;	
 
-							-- Check for duplicates
-							SELECT tMvColumnName = ANY (tColumnNameArray) INTO tIsTrueOrFalse;	
-							
-							IF tIsTrueOrFalse = 'false' THEN
+								-- Check for duplicates
+								SELECT tMvColumnName = ANY (tColumnNameArray) INTO tIsTrueOrFalse;	
+								
+								IF tIsTrueOrFalse = 'false' THEN
 
-								iColumnNameAliasLoopCnt := iColumnNameAliasLoopCnt + 1;	
-								
-								tColumnNameArray[iColumnNameAliasLoopCnt] := tMvColumnName;
-								
-								IF iMvColumnNameLoopCnt = 1 THEN 	
-									tUpdateSetSql := pConst.SET_COMMAND || tMvColumnName || pConst.EQUALS_NULL || pConst.COMMA_CHARACTER;
-								ELSE	
-									tUpdateSetSql := tUpdateSetSql || tMvColumnName || pConst.EQUALS_NULL || pConst.COMMA_CHARACTER ;
+									iColumnNameAliasLoopCnt := iColumnNameAliasLoopCnt + 1;	
+									
+									tColumnNameArray[iColumnNameAliasLoopCnt] := tMvColumnName;
+									
+									IF iMvColumnNameLoopCnt = 1 THEN 	
+										tUpdateSetSql := pConst.SET_COMMAND || tMvColumnName || pConst.EQUALS_NULL || pConst.COMMA_CHARACTER;
+									ELSE	
+										tUpdateSetSql := tUpdateSetSql || tMvColumnName || pConst.EQUALS_NULL || pConst.COMMA_CHARACTER ;
+									END IF;
+									
 								END IF;
+							
+								EXIT WHEN iMvColumnNameLoopCnt > 0;
 								
 							END IF;
-						
-							EXIT WHEN iMvColumnNameLoopCnt > 0;
-							
-						END IF;
 
+						END LOOP;
+						
 					END LOOP;
 					
-				END LOOP;
-				
-				iColumnNameAliasLoopCnt := iColumnNameAliasLoopCnt + 1;
-				tColumnNameArray[iColumnNameAliasLoopCnt] := rAliasJoinLinks.alias|| pConst.UNDERSCORE_CHARACTER || pConst.MV_M_ROW$_COLUMN;
-				tUpdateSetSql := tUpdateSetSql || rAliasJoinLinks.alias|| pConst.UNDERSCORE_CHARACTER || pConst.MV_M_ROW$_COLUMN || pConst.EQUALS_NULL || pConst.COMMA_CHARACTER;
-				
-			ELSE
-				IF iAliasJoinLinksCounter = 1 THEN
 					iColumnNameAliasLoopCnt := iColumnNameAliasLoopCnt + 1;
 					tColumnNameArray[iColumnNameAliasLoopCnt] := rAliasJoinLinks.alias|| pConst.UNDERSCORE_CHARACTER || pConst.MV_M_ROW$_COLUMN;
-					tUpdateSetSql := pConst.SET_COMMAND || rAliasJoinLinks.alias|| pConst.UNDERSCORE_CHARACTER || pConst.MV_M_ROW$_COLUMN || pConst.EQUALS_NULL || pConst.COMMA_CHARACTER;			
-				ELSE
-					iColumnNameAliasLoopCnt := iColumnNameAliasLoopCnt + 1;
-					tColumnNameArray[iColumnNameAliasLoopCnt] := rAliasJoinLinks.alias|| pConst.UNDERSCORE_CHARACTER || pConst.MV_M_ROW$_COLUMN;
-					tUpdateSetSql := tUpdateSetSql || rAliasJoinLinks.alias || pConst.UNDERSCORE_CHARACTER || pConst.MV_M_ROW$_COLUMN || pConst.EQUALS_NULL || pConst.COMMA_CHARACTER;		
-				END IF;
+					tUpdateSetSql := tUpdateSetSql || rAliasJoinLinks.alias|| pConst.UNDERSCORE_CHARACTER || pConst.MV_M_ROW$_COLUMN || pConst.EQUALS_NULL || pConst.COMMA_CHARACTER;
 					
+				ELSE
+					IF iAliasJoinLinksCounter = 1 THEN
+						iColumnNameAliasLoopCnt := iColumnNameAliasLoopCnt + 1;
+						tColumnNameArray[iColumnNameAliasLoopCnt] := rAliasJoinLinks.alias|| pConst.UNDERSCORE_CHARACTER || pConst.MV_M_ROW$_COLUMN;
+						tUpdateSetSql := pConst.SET_COMMAND || rAliasJoinLinks.alias|| pConst.UNDERSCORE_CHARACTER || pConst.MV_M_ROW$_COLUMN || pConst.EQUALS_NULL || pConst.COMMA_CHARACTER;			
+					ELSE
+						iColumnNameAliasLoopCnt := iColumnNameAliasLoopCnt + 1;
+						tColumnNameArray[iColumnNameAliasLoopCnt] := rAliasJoinLinks.alias|| pConst.UNDERSCORE_CHARACTER || pConst.MV_M_ROW$_COLUMN;
+						tUpdateSetSql := tUpdateSetSql || rAliasJoinLinks.alias || pConst.UNDERSCORE_CHARACTER || pConst.MV_M_ROW$_COLUMN || pConst.EQUALS_NULL || pConst.COMMA_CHARACTER;		
+					END IF;
+						
+				END IF;
+			
 			END IF;
 		
 		END LOOP;

@@ -2606,9 +2606,6 @@ DECLARE
 	iTableCount		  INTEGER;
 	
 	iCounter		  INTEGER := 0;
-	
-	tTableArray  TEXT[] := '{}';
-	
 
 BEGIN
 
