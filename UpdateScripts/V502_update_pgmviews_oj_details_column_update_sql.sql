@@ -1,5 +1,5 @@
 CREATE OR REPLACE
-FUNCTION    V502_mv$extractCompoundViewTables
+FUNCTION    pgrs_mview.V502_mv$extractCompoundViewTables
             (
                 rConst              IN      mv$allConstants,
                 pTableNames         IN      TEXT,
@@ -209,7 +209,7 @@ $BODY$
 LANGUAGE    plpgsql;
 
 CREATE OR REPLACE
-PROCEDURE    v502_update_pgmviews_oj_details_column_update_sql()
+PROCEDURE    pgrs_mview.v502_update_pgmviews_oj_details_column_update_sql()
 AS
 $BODY$
 /* ---------------------------------------------------------------------------------------------------------------------------------
@@ -296,7 +296,7 @@ DECLARE
 
     tRowidArray         	TEXT[];
     tTableArray         	TEXT[];
-    tAliasArray         	TEXT[];
+    xtAliasArray         	TEXT[];
     tOuterTableArray    	TEXT[];
     tInnerAliasArray    	TEXT[];
     tInnerRowidArray    	TEXT[];
@@ -342,7 +342,7 @@ BEGIN
 				V501_mv$extractCompoundViewTables( rConst, rMain.table_names )
 		INTO
 				tTableArray,
-				tAliasArray,
+				xtAliasArray,
 				tRowidArray,
 				tOuterTableArray,
 				tInnerAliasArray,
@@ -367,7 +367,7 @@ BEGIN
 								,      inline.oj_right_outer_join AS right_outer_join
 								FROM (
 									SELECT 	UNNEST(tOuterTableArray) AS oj_table
-									, 		UNNEST(tAliasArray) AS oj_table_alias
+									, 		UNNEST(xtAliasArray) AS oj_table_alias
 									, 		UNNEST(tRowidArray) AS oj_rowid
 								    ,       UNNEST(tOuterLeftAliasArray) AS oj_outer_left_alias
 									,		UNNEST(tOuterRightAliasArray) AS oj_outer_right_alias

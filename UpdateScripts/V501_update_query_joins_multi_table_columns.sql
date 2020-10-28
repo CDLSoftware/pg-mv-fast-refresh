@@ -1,5 +1,5 @@
 CREATE OR REPLACE
-PROCEDURE    V501_update_query_joins_multi_table_columns()
+PROCEDURE    pgrs_mview.V501_update_query_joins_multi_table_columns()
 AS
 $BODY$
 /* ---------------------------------------------------------------------------------------------------------------------------------
@@ -110,6 +110,8 @@ FOR rPgMviews IN (SELECT owner, view_name, table_array, alias_array
 	iCounter := 0;
 	
 END LOOP;
+
+END IF;
 
 EXCEPTION
 WHEN OTHERS
