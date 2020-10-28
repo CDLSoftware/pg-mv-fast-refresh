@@ -687,6 +687,7 @@ BEGIN
 			
 			UPDATE pg$mviews_oj_details
 			SET update_sql = tSqlStatement
+			,   column_name_array = tColumnNameArray
 			WHERE view_name = rMain.view_name
 			AND   owner		= rMain.owner
 			AND   table_alias = tColumnNameAlias;
