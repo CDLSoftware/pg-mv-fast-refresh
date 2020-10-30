@@ -1,7 +1,7 @@
 CREATE OR REPLACE
 FUNCTION    pgrs_mview.V502_mv$extractCompoundViewTables
             (
-                rConst              IN      mv$allConstants,
+                pConst              IN      mv$allConstants,
                 pTableNames         IN      TEXT,
                 pTableArray           OUT   TEXT[],
                 pAliasArray           OUT   TEXT[],
@@ -9,10 +9,10 @@ FUNCTION    pgrs_mview.V502_mv$extractCompoundViewTables
                 pOuterTableArray      OUT   TEXT[],
                 pInnerAliasArray      OUT   TEXT[],
                 pInnerRowidArray      OUT   TEXT[],
-				rOuterLeftAliasArray  OUT	TEXT[],
-				tOuterLeftAliasArray OUT	TEXT[],
-				rLeftOuterJoinArray   OUT	TEXT[],
-				tRightOuterJoinArray  OUT	TEXT[],
+				pOuterLeftAliasArray  OUT	TEXT[],
+				pOuterRightAliasArray OUT	TEXT[],
+				pLeftOuterJoinArray   OUT	TEXT[],
+				pRightOuterJoinArray  OUT	TEXT[],
 				pInnerJoinTableNameArray	OUT	TEXT[],
 				pInnerJoinTableAliasArray	OUT	TEXT[],
 				pInnerJoinTableRowidArray		OUT TEXT[],
@@ -26,12 +26,12 @@ $BODY$
 DECLARE
 
     tOuterTable     TEXT    := NULL;
-    tInnerAlias     TEXT    := rConst.NO_INNER_TOKEN;
-    tInnerRowid     TEXT    := rConst.NO_INNER_TOKEN;
+    tInnerAlias     TEXT    := pConst.NO_INNER_TOKEN;
+    tInnerRowid     TEXT    := pConst.NO_INNER_TOKEN;
     tTableName      TEXT;
     tTableNames     TEXT;
     tTableAlias     TEXT;
-    iTableArryPos   INTEGER := rConst.ARRAY_LOWER_VALUE;
+    iTableArryPos   INTEGER := pConst.ARRAY_LOWER_VALUE;
 	
 	tOuterLeftAlias  TEXT;
 	tOuterRightAlias TEXT;
@@ -55,19 +55,19 @@ DECLARE
 BEGIN
 --  Replacing a single space with a double space is only required on the first pass to ensure that there is padding around all
 --  special commands so we can find then in the future replace statments
-    tTableNames :=  REPLACE(                            pTableNames, rConst.SPACE_CHARACTER,  rConst.DOUBLE_SPACE_CHARACTERS );
-    tTableNames :=  mv$replaceCommandWithToken( rConst, tTableNames, rConst.JOIN_DML_TYPE,    rConst.JOIN_TOKEN );
-    tTableNames :=  mv$replaceCommandWithToken( rConst, tTableNames, rConst.ON_DML_TYPE,      rConst.ON_TOKEN );
-    tTableNames :=  mv$replaceCommandWithToken( rConst, tTableNames, rConst.OUTER_DML_TYPE,   rConst.OUTER_TOKEN );
-    tTableNames :=  mv$replaceCommandWithToken( rConst, tTableNames, rConst.INNER_DML_TYPE,   rConst.COMMA_CHARACTER );
-    tTableNames :=  mv$replaceCommandWithToken( rConst, tTableNames, rConst.LEFT_DML_TYPE,    rConst.COMMA_LEFT_TOKEN );
-    tTableNames :=  mv$replaceCommandWithToken( rConst, tTableNames, rConst.RIGHT_DML_TYPE,   rConst.COMMA_RIGHT_TOKEN );
-    tTableNames :=  REPLACE( REPLACE(                   tTableNames, rConst.NEW_LINE,         rConst.EMPTY_STRING ),
-                                                                     rConst.CARRIAGE_RETURN,  rConst.EMPTY_STRING );
+    tTableNames :=  REPLACE(                            pTableNames, pConst.SPACE_CHARACTER,  pConst.DOUBLE_SPACE_CHARACTERS );
+    tTableNames :=  mv$replaceCommandWithToken( pConst, tTableNames, pConst.JOIN_DML_TYPE,    pConst.JOIN_TOKEN );
+    tTableNames :=  mv$replaceCommandWithToken( pConst, tTableNames, pConst.ON_DML_TYPE,      pConst.ON_TOKEN );
+    tTableNames :=  mv$replaceCommandWithToken( pConst, tTableNames, pConst.OUTER_DML_TYPE,   pConst.OUTER_TOKEN );
+    tTableNames :=  mv$replaceCommandWithToken( pConst, tTableNames, pConst.INNER_DML_TYPE,   pConst.COMMA_CHARACTER );
+    tTableNames :=  mv$replaceCommandWithToken( pConst, tTableNames, pConst.LEFT_DML_TYPE,    pConst.COMMA_LEFT_TOKEN );
+    tTableNames :=  mv$replaceCommandWithToken( pConst, tTableNames, pConst.RIGHT_DML_TYPE,   pConst.COMMA_RIGHT_TOKEN );
+    tTableNames :=  REPLACE( REPLACE(                   tTableNames, pConst.NEW_LINE,         pConst.EMPTY_STRING ),
+                                                                     pConst.CARRIAGE_RETURN,  pConst.EMPTY_STRING );
 
-    tTableNames :=  tTableNames || rConst.COMMA_CHARACTER; -- A trailling comma is required so we can detect the final table
+    tTableNames :=  tTableNames || pConst.COMMA_CHARACTER; -- A trailling comma is required so we can detect the final table
 
-    WHILE POSITION( rConst.COMMA_CHARACTER IN tTableNames ) > 0
+    WHILE POSITION( pConst.COMMA_CHARACTER IN tTableNames ) > 0
     LOOP
 	
 		iLoopCounter := iLoopCounter + 1;
@@ -90,61 +90,61 @@ BEGIN
 		tInnerJoinOtherTableRowid := NULL;
 		tInnerJoin	:= 'N';
 
-        tTableName := LTRIM( SPLIT_PART( tTableNames, rConst.COMMA_CHARACTER, 1 ));
+        tTableName := LTRIM( SPLIT_PART( tTableNames, pConst.COMMA_CHARACTER, 1 ));
 
-        IF POSITION( rConst.RIGHT_TOKEN IN tTableName ) > 0
+        IF POSITION( pConst.RIGHT_TOKEN IN tTableName ) > 0
         THEN
             tOuterTable := pAliasArray[iTableArryPos - 1];  -- There has to be a table preceeding a right outer join
 			
-			tOuterLeftAlias := TRIM(SUBSTRING(tTableName,POSITION( rConst.ON_TOKEN IN tTableName)+2,(mv$regExpInstr(tTableName,'\.',1,1))-(POSITION( rConst.ON_TOKEN IN tTableName)+2)));
-			tOuterRightAlias := TRIM(SUBSTRING(tTableName,POSITION( TRIM(rConst.EQUALS_COMMAND) IN tTableName)+1,(mv$regExpInstr(tTableName,'\.',1,2))-(POSITION( TRIM(rConst.EQUALS_COMMAND) IN tTableName)+1)));
-			tRightOuterJoin := rConst.RIGHT_OUTER_JOIN;
+			tOuterLeftAlias := TRIM(SUBSTRING(tTableName,POSITION( pConst.ON_TOKEN IN tTableName)+2,(mv$regExpInstr(tTableName,'\.',1,1))-(POSITION( pConst.ON_TOKEN IN tTableName)+2)));
+			tOuterRightAlias := TRIM(SUBSTRING(tTableName,POSITION( TRIM(pConst.EQUALS_COMMAND) IN tTableName)+1,(mv$regExpInstr(tTableName,'\.',1,2))-(POSITION( TRIM(pConst.EQUALS_COMMAND) IN tTableName)+1)));
+			tRightOuterJoin := pConst.RIGHT_OUTER_JOIN;
 			
 			tInnerAlias := tOuterRightAlias;
-			tInnerRowid := TRIM(REPLACE(REPLACE(tOuterRightAlias,'.','')||rConst.UNDERSCORE_CHARACTER||rConst.MV_M_ROW$_SOURCE_COLUMN,'"',''));
+			tInnerRowid := TRIM(REPLACE(REPLACE(tOuterRightAlias,'.','')||pConst.UNDERSCORE_CHARACTER||pConst.MV_M_ROW$_SOURCE_COLUMN,'"',''));
 			
 
-        ELSIF POSITION( rConst.LEFT_TOKEN IN tTableName ) > 0   -- There has to be a table preceeding a left outer join
+        ELSIF POSITION( pConst.LEFT_TOKEN IN tTableName ) > 0   -- There has to be a table preceeding a left outer join
         THEN
             tOuterTable := TRIM( SUBSTRING( tTableName,
-                                            POSITION( rConst.JOIN_TOKEN   IN tTableName ) + LENGTH( rConst.JOIN_TOKEN),
-                                            POSITION( rConst.ON_TOKEN     IN tTableName ) - LENGTH( rConst.ON_TOKEN)
-                                            - POSITION( rConst.JOIN_TOKEN IN tTableName )));	
+                                            POSITION( pConst.JOIN_TOKEN   IN tTableName ) + LENGTH( pConst.JOIN_TOKEN),
+                                            POSITION( pConst.ON_TOKEN     IN tTableName ) - LENGTH( pConst.ON_TOKEN)
+                                            - POSITION( pConst.JOIN_TOKEN IN tTableName )));	
 			
-			tOuterLeftAlias := TRIM(SUBSTRING(tTableName,POSITION( rConst.ON_TOKEN IN tTableName)+2,(mv$regExpInstr(tTableName,'\.',1,1))-(POSITION( rConst.ON_TOKEN IN tTableName)+2)));	
-			tOuterRightAlias := TRIM(SUBSTRING(tTableName,POSITION( TRIM(rConst.EQUALS_COMMAND) IN tTableName)+1,(mv$regExpInstr(tTableName,'\.',1,2))-(POSITION( TRIM(rConst.EQUALS_COMMAND) IN tTableName)+1)));
-			tLeftOuterJoin := rConst.LEFT_OUTER_JOIN;
+			tOuterLeftAlias := TRIM(SUBSTRING(tTableName,POSITION( pConst.ON_TOKEN IN tTableName)+2,(mv$regExpInstr(tTableName,'\.',1,1))-(POSITION( pConst.ON_TOKEN IN tTableName)+2)));	
+			tOuterRightAlias := TRIM(SUBSTRING(tTableName,POSITION( TRIM(pConst.EQUALS_COMMAND) IN tTableName)+1,(mv$regExpInstr(tTableName,'\.',1,2))-(POSITION( TRIM(pConst.EQUALS_COMMAND) IN tTableName)+1)));
+			tLeftOuterJoin := pConst.LEFT_OUTER_JOIN;
 			
             tInnerAlias := tOuterLeftAlias;
-			tInnerRowid := TRIM(REPLACE(REPLACE(tOuterLeftAlias,'.','')||rConst.UNDERSCORE_CHARACTER||rConst.MV_M_ROW$_SOURCE_COLUMN,'"',''));
+			tInnerRowid := TRIM(REPLACE(REPLACE(tOuterLeftAlias,'.','')||pConst.UNDERSCORE_CHARACTER||pConst.MV_M_ROW$_SOURCE_COLUMN,'"',''));
 			
-		ELSIF POSITION( rConst.JOIN_TOKEN IN tTableName ) > 0
+		ELSIF POSITION( pConst.JOIN_TOKEN IN tTableName ) > 0
 		THEN	
-			tInnerLeftAlias		:= TRIM(SUBSTRING(tTableName,POSITION( rConst.ON_TOKEN IN tTableName)+2,(mv$regExpInstr(tTableName,'\.',1,1))-(POSITION( rConst.ON_TOKEN IN tTableName)+2))) || rConst.DOT_CHARACTER;	
-			tInnerRightAlias 	:= TRIM(SUBSTRING(tTableName,POSITION( TRIM(rConst.EQUALS_COMMAND) IN tTableName)+1,(mv$regExpInstr(tTableName,'\.',1,2))-(POSITION( TRIM(rConst.EQUALS_COMMAND) IN tTableName)+1))) || rConst.DOT_CHARACTER;
+			tInnerLeftAlias		:= TRIM(SUBSTRING(tTableName,POSITION( pConst.ON_TOKEN IN tTableName)+2,(mv$regExpInstr(tTableName,'\.',1,1))-(POSITION( pConst.ON_TOKEN IN tTableName)+2))) || pConst.DOT_CHARACTER;	
+			tInnerRightAlias 	:= TRIM(SUBSTRING(tTableName,POSITION( TRIM(pConst.EQUALS_COMMAND) IN tTableName)+1,(mv$regExpInstr(tTableName,'\.',1,2))-(POSITION( TRIM(pConst.EQUALS_COMMAND) IN tTableName)+1))) || pConst.DOT_CHARACTER;
 			tInnerJoin			:= 'Y';
 			
 		END IF;
 
         -- The LEFT, RIGHT and JOIN tokens are only required for outer join pattern matching
-        tTableName  := REPLACE( tTableName, rConst.JOIN_TOKEN,  rConst.EMPTY_STRING );
-        tTableName  := REPLACE( tTableName, rConst.LEFT_TOKEN,  rConst.EMPTY_STRING );
-        tTableName  := REPLACE( tTableName, rConst.RIGHT_TOKEN, rConst.EMPTY_STRING );
-        tTableName  := REPLACE( tTableName, rConst.OUTER_TOKEN, rConst.EMPTY_STRING );
+        tTableName  := REPLACE( tTableName, pConst.JOIN_TOKEN,  pConst.EMPTY_STRING );
+        tTableName  := REPLACE( tTableName, pConst.LEFT_TOKEN,  pConst.EMPTY_STRING );
+        tTableName  := REPLACE( tTableName, pConst.RIGHT_TOKEN, pConst.EMPTY_STRING );
+        tTableName  := REPLACE( tTableName, pConst.OUTER_TOKEN, pConst.EMPTY_STRING );
         tTableName  := LTRIM(   tTableName );
 
-        pTableArray[iTableArryPos]  := (REGEXP_SPLIT_TO_ARRAY( tTableName,  rConst.REGEX_MULTIPLE_SPACES ))[1];
-        tTableAlias                 := (REGEXP_SPLIT_TO_ARRAY( tTableName,  rConst.REGEX_MULTIPLE_SPACES ))[2];
-        pAliasArray[iTableArryPos]  :=  COALESCE( NULLIF( NULLIF( tTableAlias, rConst.EMPTY_STRING), rConst.ON_TOKEN),
-                                                                  pTableArray[iTableArryPos] ) || rConst.DOT_CHARACTER;
-		pRowidArray[iTableArryPos]  :=  mv$createRow$Column( rConst, pAliasArray[iTableArryPos] );
+        pTableArray[iTableArryPos]  := (REGEXP_SPLIT_TO_ARRAY( tTableName,  pConst.REGEX_MULTIPLE_SPACES ))[1];
+        tTableAlias                 := (REGEXP_SPLIT_TO_ARRAY( tTableName,  pConst.REGEX_MULTIPLE_SPACES ))[2];
+        pAliasArray[iTableArryPos]  :=  COALESCE( NULLIF( NULLIF( tTableAlias, pConst.EMPTY_STRING), pConst.ON_TOKEN),
+                                                                  pTableArray[iTableArryPos] ) || pConst.DOT_CHARACTER;
+		pRowidArray[iTableArryPos]  :=  mv$createRow$Column( pConst, pAliasArray[iTableArryPos] );
 		
 		IF tInnerJoin = 'Y' THEN
 		
-			tInnerJoinTableName		:= (REGEXP_SPLIT_TO_ARRAY( tTableName,  rConst.REGEX_MULTIPLE_SPACES ))[1];
-			tInnerJoinTableAlias    := (REGEXP_SPLIT_TO_ARRAY( tTableName,  rConst.REGEX_MULTIPLE_SPACES ))[2];
-			tInnerJoinTableAlias  	:=  COALESCE( NULLIF( NULLIF( tInnerJoinTableAlias, rConst.EMPTY_STRING), rConst.ON_TOKEN),
-																	  pTableArray[iTableArryPos] ) || rConst.DOT_CHARACTER;
+			tInnerJoinTableName		:= (REGEXP_SPLIT_TO_ARRAY( tTableName,  pConst.REGEX_MULTIPLE_SPACES ))[1];
+			tInnerJoinTableAlias    := (REGEXP_SPLIT_TO_ARRAY( tTableName,  pConst.REGEX_MULTIPLE_SPACES ))[2];
+			tInnerJoinTableAlias  	:=  COALESCE( NULLIF( NULLIF( tInnerJoinTableAlias, pConst.EMPTY_STRING), pConst.ON_TOKEN),
+																	  pTableArray[iTableArryPos] ) || pConst.DOT_CHARACTER;
 																	  
 			SELECT (CASE WHEN tInnerJoinTableAlias = tInnerLeftAlias THEN tInnerRightAlias
 					ELSE tInnerLeftAlias END) INTO tInnerJoinOtherTableAlias;
@@ -156,20 +156,20 @@ BEGIN
 			WHERE inline.table_alias = tInnerJoinOtherTableAlias
 			INTO tInnerJoinOtherTableName;
 			
-			tInnerJoinTableRowid	:= mv$createRow$Column( rConst, tInnerJoinTableAlias );
-			tInnerJoinOtherTableRowid	:= mv$createRow$Column( rConst, tInnerJoinOtherTableAlias );
+			tInnerJoinTableRowid	:= mv$createRow$Column( pConst, tInnerJoinTableAlias );
+			tInnerJoinOtherTableRowid	:= mv$createRow$Column( pConst, tInnerJoinOtherTableAlias );
 					
 		END IF;
 		
-		SELECT count(1) INTO iJoinCount FROM regexp_matches(pTableNames,rConst.JOIN_TOKEN,'g');
+		SELECT count(1) INTO iJoinCount FROM regexp_matches(pTableNames,pConst.JOIN_TOKEN,'g');
 		
 		IF iLoopCounter = 1 AND iJoinCount = 0 THEN
 		
-			tInnerJoinTableName			:= (REGEXP_SPLIT_TO_ARRAY( tTableName,  rConst.REGEX_MULTIPLE_SPACES ))[1];
-			tInnerJoinTableAlias    	:= (REGEXP_SPLIT_TO_ARRAY( tTableName,  rConst.REGEX_MULTIPLE_SPACES ))[2];
-			tInnerJoinTableAlias  		:=  COALESCE( NULLIF( NULLIF( tInnerJoinTableAlias, rConst.EMPTY_STRING), rConst.ON_TOKEN),
-																	  pTableArray[iTableArryPos] ) || rConst.DOT_CHARACTER;
-			tInnerJoinTableRowid		:= mv$createRow$Column( rConst, tInnerJoinTableAlias );
+			tInnerJoinTableName			:= (REGEXP_SPLIT_TO_ARRAY( tTableName,  pConst.REGEX_MULTIPLE_SPACES ))[1];
+			tInnerJoinTableAlias    	:= (REGEXP_SPLIT_TO_ARRAY( tTableName,  pConst.REGEX_MULTIPLE_SPACES ))[2];
+			tInnerJoinTableAlias  		:=  COALESCE( NULLIF( NULLIF( tInnerJoinTableAlias, pConst.EMPTY_STRING), pConst.ON_TOKEN),
+																	  pTableArray[iTableArryPos] ) || pConst.DOT_CHARACTER;
+			tInnerJoinTableRowid		:= mv$createRow$Column( pConst, tInnerJoinTableAlias );
 			
 			tInnerJoinOtherTableName 	:= 'none';
 			tInnerJoinOtherTableRowid	:= 'none';
@@ -178,29 +178,39 @@ BEGIN
 		END IF;
 			
 
-        pOuterTableArray[iTableArryPos]  :=(REGEXP_SPLIT_TO_ARRAY( tOuterTable, rConst.REGEX_MULTIPLE_SPACES ))[1];
+        pOuterTableArray[iTableArryPos]  :=(REGEXP_SPLIT_TO_ARRAY( tOuterTable, pConst.REGEX_MULTIPLE_SPACES ))[1];
 
         tTableNames     := TRIM( SUBSTRING( tTableNames,
-                                 POSITION( rConst.COMMA_CHARACTER IN tTableNames ) + LENGTH( rConst.COMMA_CHARACTER )));
+                                 POSITION( pConst.COMMA_CHARACTER IN tTableNames ) + LENGTH( pConst.COMMA_CHARACTER )));
 								 
 		pInnerAliasArray[iTableArryPos] 		:= tInnerAlias;
 		pInnerRowidArray[iTableArryPos]			:= tInnerRowid;
 		
-		rOuterLeftAliasArray[iTableArryPos] 	:= tOuterLeftAlias;
-		tOuterLeftAliasArray[iTableArryPos] 	:= tOuterRightAlias;
-		rLeftOuterJoinArray[iTableArryPos] 		:= tLeftOuterJoin;
-		tRightOuterJoinArray[iTableArryPos] 	:= tRightOuterJoin;
+		pOuterLeftAliasArray[iTableArryPos] 	:= tOuterLeftAlias;
+		pOuterRightAliasArray[iTableArryPos] 	:= tOuterRightAlias;
+		pLeftOuterJoinArray[iTableArryPos] 		:= tLeftOuterJoin;
+		pRightOuterJoinArray[iTableArryPos] 	:= tRightOuterJoin;
+		
+		pInnerJoinTableNameArray[iTableArryPos]  := tInnerJoinTableName;
+		pInnerJoinTableAliasArray[iTableArryPos] := tInnerJoinTableAlias;
+		pInnerJoinTableRowidArray[iTableArryPos] := tInnerJoinTableRowid;	
+		pInnerJoinOtherTableNameArray[iTableArryPos] := tInnerJoinOtherTableName;		
+		pInnerJoinOtherTableAliasArray[iTableArryPos] := tInnerJoinOtherTableAlias;
+		pInnerJoinOtherTableRowidArray[iTableArryPos] := tInnerJoinOtherTableRowid;			
 		
         iTableArryPos   := iTableArryPos + 1;
 
     END LOOP;
+	
+	--CALL mv$setQueryJoinsMultiTablePosition(pTableArray,pInnerAliasArray,pQueryJoinsMultiTabPosArray);
+	--CALL mv$setQueryJoinsMultiTableCount(pTableArray,pInnerAliasArray,pQueryJoinsMultiTabCntArray);	
 
     RETURN;
 
     EXCEPTION
     WHEN OTHERS
     THEN
-        RAISE INFO      'Exception in function v502_mv$extractCompoundViewTables';
+        RAISE INFO      'Exception in function V502_mv$extractCompoundViewTables';
         RAISE INFO      'Error %:- %:',     SQLSTATE, SQLERRM;
         RAISE INFO      'Error Context:% %',CHR(10),  tTableNames;
         RAISE EXCEPTION '%',                SQLSTATE;
@@ -328,7 +338,7 @@ BEGIN
 				pInnerAliasArray,
 				pInnerRowidArray,
 				pOuterLeftAliasArray,
-				pOuterLeftAliasArray,
+				pOuterRightAliasArray,
 				pLeftOuterJoinArray,
 				pRightOuterJoinArray,
 				pInnerJoinTableNameArray,
@@ -339,7 +349,7 @@ BEGIN
 				pInnerJoinOtherTableRowidArray
 
 		FROM
-				V501_mv$extractCompoundViewTables( rConst, rMain.table_names )
+				pgrs_mview.V502_mv$extractCompoundViewTables( rConst, rMain.table_names )
 		INTO
 				tTableArray,
 				xtAliasArray,
@@ -373,7 +383,7 @@ BEGIN
 									,		UNNEST(tOuterRightAliasArray) AS oj_outer_right_alias
 									,		UNNEST(tLeftOuterJoinArray) AS oj_left_outer_join
 									,		UNNEST(tRightOuterJoinArray) AS oj_right_outer_join) inline
-								WHERE inline.oj_table IS NOT NULL) LOOP
+								WHERE inline.oj_table IS NOT NULL) LOOP	
 	
 			iMainLoopCounter := iMainLoopCounter +1;		
 			tOuterJoinAlias := TRIM(REPLACE(rMvOuterJoinDetails.table_name_alias,'.',''));
@@ -399,7 +409,7 @@ BEGIN
 							tOuterJoinAlias := TRIM(REPLACE(tOuterJoinAlias,'}',''));
 							iLeftAliasLoopCounter := 0;
 						
-							FOR rLeftOuterJoinAliasArray IN (SELECT UNNEST(rOuterLeftAliasArray) as left_alias) LOOP
+							FOR rLeftOuterJoinAliasArray IN (SELECT UNNEST(tOuterLeftAliasArray) as left_alias) LOOP
 					
 								IF rLeftOuterJoinAliasArray.left_alias = tOuterJoinAlias THEN
 									iLeftAliasLoopCounter := iLeftAliasLoopCounter +1;
@@ -414,9 +424,9 @@ BEGIN
 																	rConst
 															,		tOuterJoinAlias
 															,		rMvOuterJoinDetails.left_outer_join
-															,		rOuterLeftAliasArray
 															,		tOuterLeftAliasArray
-															,		rLeftOuterJoinArray) 
+															,		tOuterRightAliasArray
+															,		tLeftOuterJoinArray) 
 								INTO	tRightJoinAliasArray;
 
 								IF tRightJoinAliasArray = '{}' THEN
@@ -445,7 +455,7 @@ BEGIN
 										iLoopCounter = iLoopCounter +1;
 										iLeftAliasLoopCounter := 0;
 
-										FOR rLeftOuterJoinAliasArray IN (SELECT UNNEST(rOuterLeftAliasArray) AS left_alias) LOOP
+										FOR rLeftOuterJoinAliasArray IN (SELECT UNNEST(tOuterLeftAliasArray) AS left_alias) LOOP
 
 											IF rMainAliasArray.left_alias = rBuildAliasArray.right_join_alias THEN
 												iLeftAliasLoopCounter := iLeftAliasLoopCounter +1;
@@ -496,7 +506,7 @@ BEGIN
 							tOuterJoinAlias := TRIM(REPLACE(tOuterJoinAlias,'}',''));
 							iRightAliasLoopCounter := 0;
 						
-							FOR rRightOuterJoinAliasArray IN (SELECT UNNEST(tOuterLeftAliasArray) as right_alias) LOOP
+							FOR rRightOuterJoinAliasArray IN (SELECT UNNEST(tOuterRightAliasArray) as right_alias) LOOP
 					
 								IF rRightOuterJoinAliasArray.right_alias = tOuterJoinAlias THEN
 									iRightAliasLoopCounter := iRightAliasLoopCounter +1;
@@ -511,8 +521,8 @@ BEGIN
 																	rConst
 															,		tOuterJoinAlias
 															,		rMvOuterJoinDetails.right_outer_join
-															,		rOuterLeftAliasArray
 															,		tOuterLeftAliasArray
+															,		tOuterRightAliasArray
 															,		tRightOuterJoinArray) 
 								INTO	tLeftJoinAliasArray;
 
@@ -542,7 +552,7 @@ BEGIN
 										iLoopCounter = iLoopCounter +1;
 										iRightAliasLoopCounter := 0;
 
-										FOR rRightOuterJoinAliasArray IN (SELECT UNNEST(tOuterLeftAliasArray) AS right_alias) LOOP
+										FOR rRightOuterJoinAliasArray IN (SELECT UNNEST(tOuterRightAliasArray) AS right_alias) LOOP
 
 											IF rMainAliasArray.right_alias = rBuildAliasArray.left_join_alias THEN
 												iRightAliasLoopCounter := iRightAliasLoopCounter +1;
@@ -682,15 +692,14 @@ BEGIN
 							 rMain.owner		|| rConst.DOT_CHARACTER		|| rMain.view_name	|| rConst.NEW_LINE		||
 							 tUpdateSetSql || rConst.NEW_LINE ||
 							 tWhereClause;
-							 
-			--tClauseJoinReplacement := mv$OuterJoinToInnerJoinReplacement(rConst, pTableNames, tColumnNameAlias);
 			
 			UPDATE pg$mviews_oj_details
 			SET update_sql = tSqlStatement
 			,   column_name_array = tColumnNameArray
 			WHERE view_name = rMain.view_name
 			AND   owner		= rMain.owner
-			AND   table_alias = tColumnNameAlias;
+			AND   table_alias = tColumnNameAlias
+			AND   rowid_column_name = tMvRowidColumnName;
 		
 			iMainLoopCounter := 0;
 			tParentToChildAliasArray := '{}';
@@ -700,8 +709,24 @@ BEGIN
 			iWhileLoopCounter := 0;
 			iLoopCounter := 0;
 		
-		
 	END LOOP;
+	
+    tRowidArray  			:= '{}';
+    tTableArray  			:= '{}';
+    xtAliasArray 			:= '{}';
+    tOuterTableArray    	:= '{}';
+    tInnerAliasArray    	:= '{}';
+    tInnerRowidArray    	:= '{}';
+	tOuterLeftAliasArray 	:= '{}';
+	tOuterRightAliasArray 	:= '{}';
+	tLeftOuterJoinArray 	:= '{}';
+	tRightOuterJoinArray 	:= '{}';
+	tInnerJoinTableNameArray	:= '{}';
+	tInnerJoinTableAliasArray	:= '{}';
+	tInnerJoinTableRowidArray	:= '{}';
+	tInnerJoinOtherTableNameArray	:= '{}';
+	tInnerJoinOtherTableAliasArray	:= '{}';
+	tInnerJoinOtherTableRowidArray	:= '{}';
 	
 END LOOP;
 

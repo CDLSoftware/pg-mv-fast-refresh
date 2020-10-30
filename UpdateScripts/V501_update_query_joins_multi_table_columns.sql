@@ -47,7 +47,7 @@ BEGIN
 SELECT count(1) INTO iColumnCnt
 FROM information_schema.columns 
 WHERE table_name= 'pg$mviews'
-AND column_name='query_joins_multi_table_cnt_array' AND column_name='query_joins_multi_table_pos_array';
+AND column_name='query_joins_multi_table_cnt_array' OR column_name='query_joins_multi_table_pos_array';
 
 IF iColumnCnt = 0 THEN
 
@@ -58,7 +58,7 @@ END IF;
 SELECT count(1) INTO iColumnCnt
 FROM information_schema.columns 
 WHERE table_name= 'pg$mviews'
-AND column_name='query_joins_multi_table_cnt_array' AND column_name='query_joins_multi_table_pos_array';
+AND column_name='query_joins_multi_table_cnt_array' OR column_name='query_joins_multi_table_pos_array';
 
 IF iColumnCnt = 2 THEN
 
@@ -72,7 +72,7 @@ FOR rPgMviews IN (SELECT owner, view_name, table_array, alias_array
 		iCounter 	:= iCounter +1;
 	
 		SELECT count(1) INTO iTableCount
-		FROM (SELECT UNNEST(pTableNames) AS table_name) inline
+		FROM (SELECT UNNEST(rPgMviews.table_array) AS table_name) inline
 		WHERE inline.table_name = rTableNames.table_name;
 		
 		tTableArray[iCounter] := rTableNames.table_name;
@@ -99,10 +99,13 @@ FOR rPgMviews IN (SELECT owner, view_name, table_array, alias_array
 		
 	END LOOP;
 	
-	UPDATE pg$mviews a
-	SET a.query_joins_multi_table_cnt_array = iQueryJoinsMultiTabCntArray
-	,   a.query_joins_multi_table_pos_array = iQueryJoinsMultiTabPosArray
-	WHERE a.view_name = rPgMviews.view_name;
+	--RAISE INFO '%', iQueryJoinsMultiTabCntArray;
+	--RAISE INFO '%', iQueryJoinsMultiTabPosArray;
+	
+	UPDATE pg$mviews
+	SET query_joins_multi_table_cnt_array = iQueryJoinsMultiTabCntArray
+	,   query_joins_multi_table_pos_array = iQueryJoinsMultiTabPosArray
+	WHERE view_name = rPgMviews.view_name;
 	
 	iQueryJoinsMultiTabCntArray := '{}';
 	iQueryJoinsMultiTabPosArray := '{}';
