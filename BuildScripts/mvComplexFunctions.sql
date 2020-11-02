@@ -544,6 +544,8 @@ PROCEDURE    mv$insertPgMview
 				pInnerJoinOtherTableNameArray	IN		TEXT[],		
 				pInnerJoinOtherTableAliasArray	IN		TEXT[],
 				pInnerJoinOtherTableRowidArray	IN		TEXT[],
+				pQueryJoinsMultiTabCntArray 	IN 		SMALLINT[],
+				pQueryJoinsMultiTabPosArray 	IN 		SMALLINT[],
                 pFastRefresh        IN      BOOLEAN
             )
 AS
@@ -557,6 +559,8 @@ Revision History    Push Down List
 ------------------------------------------------------------------------------------------------------------------------------------
 Date        | Name          | Description
 ------------+---------------+-------------------------------------------------------------------------------------------------------
+21/10/2020	| D Day			| Bug fix - Added new columns to support applying DML changes when same table exists in materialized view
+			|				| stored query more than once.
 29/06/2020	| D Day			| Defect fix - Added new columns to INSERT statement INTO pg$mviews table to support DML type change INSERTS for
 							| the DELETE part as this was not removing rows for certain scenarios.
 04/06/2020  | D Day         | Change functions with RETURNS VOID to procedures allowing support/control of COMMITS during refresh process.
@@ -589,6 +593,8 @@ Arguments:
 				IN		pInnerJoinOtherTableNameArray	An array that holds the list of INNER JOIN other joining tables
 				IN		pInnerJoinOtherTableAliasArray	An array that holds the list of INNER JOIN other joining aliases
 				IN		pInnerJoinOtherTableRowidArray	An array that holds the list of INNER JOIN other joining rowid column names
+				IN		pQueryJoinsMultiTabCntArray 	An array that holds the materialized view stored query joins multi table count per table
+				IN		pQueryJoinsMultiTabPosArray 	An array that holds the materialized view stored query joins multi table position
 
 ************************************************************************************************************************************
 Copyright 2018 Amazon.com, Inc. or its affiliates. All Rights Reserved. SPDX-License-Identifier: MIT-0
@@ -686,7 +692,9 @@ BEGIN
 			inner_join_rowid_array,
 			inner_join_other_table_array,
 			inner_join_other_alias_array,
-			inner_join_other_rowid_array
+			inner_join_other_rowid_array,
+			query_joins_multi_table_cnt_array,
+			query_joins_multi_table_pos_array
     )
     VALUES
     (
@@ -709,7 +717,9 @@ BEGIN
 			pInnerJoinTableRowidArray,			
 			pInnerJoinOtherTableNameArray,		
 			pInnerJoinOtherTableAliasArray,
-			pInnerJoinOtherTableRowidArray
+			pInnerJoinOtherTableRowidArray,
+			pQueryJoinsMultiTabCntArray,
+			pQueryJoinsMultiTabPosArray
     );
 
     EXCEPTION
@@ -846,7 +856,8 @@ PROCEDURE    mv$refreshMaterializedViewFast
                 pPgMviewBit     IN      SMALLINT,
                 pOuterTable     IN      BOOLEAN,
                 pInnerAlias     IN      TEXT,
-                pInnerRowid     IN      TEXT
+                pInnerRowid     IN      TEXT,
+				pQueryJoinsMultiTabCnt	IN SMALLINT
             )
 AS
 $BODY$
@@ -859,6 +870,10 @@ Revision History    Push Down List
 ------------------------------------------------------------------------------------------------------------------------------------
 Date        | Name          | Description
 ------------+---------------+-------------------------------------------------------------------------------------------------------
+22/10/2020	| D Day			| Defect fix - Added logic to loop around all join table aliases to allow the DML changes selected to be applied 
+			|				| from the same materialized view log before clearing the bitmap value for all selected rows. Previously the bitmap
+			|				| value selected was being cleared on the first occurrence even though the rowid could have been linked to them
+			|				| second occurrence of that table alias within the materialized view stored query.
 21/07/2020	|				| Defect fix to clear rowid array uRowIDArray when DML Type last type value has changed as this was
 			|				| causing rowids from previous DML Types to not be cleared correctly causing incorrect routines to be actioned.
 04/06/2020  | D Day         | Change functions with RETURNS VOID to procedures allowing support/control of COMMITS during refresh process.
@@ -881,6 +896,7 @@ Arguments:      IN      pConst              The memory structure containing all 
                 IN		pOuterTable
                 IN		pInnerAlias
                 IN		pInnerRowid
+				IN      pQueryJoinsMultiTabCnt
 ************************************************************************************************************************************
 Copyright 2018 Amazon.com, Inc. or its affiliates. All Rights Reserved. SPDX-License-Identifier: MIT-0
 ***********************************************************************************************************************************/
@@ -896,11 +912,18 @@ DECLARE
 
     aViewLog        pg$mview_logs;
     tBitValue       mv$bitValue;
+	
+	aMultiTablePgMview		pg$mviews;
+	bOuterJoined			BOOLEAN;
 
 BEGIN
 
     aViewLog    := mv$getPgMviewLogTableData( pConst, pTableName );
     tBitValue   := mv$getBitValue( pConst, pPgMviewBit );
+	
+	IF pQueryJoinsMultiTabCnt > 1 THEN
+		aMultiTablePgMview   := mv$getPgMviewTableData( pConst, pOwner, pViewName );
+	END IF;
 
     tSqlStatement    := pConst.MV_LOG$_SELECT_M_ROW$    || aViewLog.owner || pConst.DOT_CHARACTER   || aViewLog.pglog$_name     ||
                         pConst.WHERE_COMMAND            || pConst.BITMAP_COLUMN              || '[' || tBitValue.BIT_ROW || ']' ||
@@ -923,19 +946,50 @@ BEGIN
             iArraySeq               := iArraySeq + 1;
             uRowIDArray[iArraySeq]  := uRowID;
         ELSE
-            CALL mv$executeMVFastRefresh
-                        (
-                            pConst,
-                            tLastType,
-                            pOwner,
-                            pViewName,
-                            pRowidColumn,
-                            pTableAlias,
-                            pOuterTable,
-                            pInnerAlias,
-                            pInnerRowid,
-                            uRowIDArray
-                        );
+		
+			IF pQueryJoinsMultiTabCnt > 1 THEN
+
+				FOR i IN ARRAY_LOWER( aMultiTablePgMview.table_array, 1 ) .. ARRAY_UPPER( aMultiTablePgMview.table_array, 1 ) LOOP
+
+					IF aMultiTablePgMview.table_array[i] = pTableName THEN
+					
+						bOuterJoined := mv$checkIfOuterJoinedTable( pConst, aMultiTablePgMview.table_array[i], aMultiTablePgMview.outer_table_array[i] );
+									
+									CALL mv$executeMVFastRefresh
+									(
+										pConst,
+										tLastType,
+										pOwner,
+										pViewName,
+										aMultiTablePgMview.rowid_array[i],
+										aMultiTablePgMview.alias_array[i],
+										bOuterJoined,
+										aMultiTablePgMview.inner_alias_array[i],
+										aMultiTablePgMview.inner_rowid_array[i],
+										uRowIDArray
+									);
+			
+					END IF;
+					
+				END LOOP;
+								
+			ELSE
+					
+				CALL mv$executeMVFastRefresh
+							(
+								pConst,
+								tLastType,
+								pOwner,
+								pViewName,
+								pRowidColumn,
+								pTableAlias,
+								pOuterTable,
+								pInnerAlias,
+								pInnerRowid,
+								uRowIDArray
+							);
+							
+			END IF;
 
             tLastType               := tDmlType;
             iArraySeq               := 1;
@@ -948,19 +1002,52 @@ BEGIN
 
     IF biMaxSequence > 0
     THEN
-        CALL mv$executeMVFastRefresh
-                    (
-                        pConst,
-                        tLastType,
-                        pOwner,
-                        pViewName,
-                        pRowidColumn,
-                        pTableAlias,
-                        pOuterTable,
-                        pInnerAlias,
-                        pInnerRowid,
-                        uRowIDArray
-                    );
+
+		IF pQueryJoinsMultiTabCnt > 1 THEN
+		
+			aMultiTablePgMview   := mv$getPgMviewTableData( pConst, pOwner, pViewName );
+
+			FOR i IN ARRAY_LOWER( aMultiTablePgMview.table_array, 1 ) .. ARRAY_UPPER( aMultiTablePgMview.table_array, 1 ) LOOP
+				
+				IF aMultiTablePgMview.table_array[i] = pTableName THEN
+									
+					bOuterJoined := mv$checkIfOuterJoinedTable( pConst, aMultiTablePgMview.table_array[i], aMultiTablePgMview.outer_table_array[i] );
+								
+								CALL  mv$executeMVFastRefresh
+								(
+									pConst,
+									tLastType,
+									pOwner,
+									pViewName,
+									aMultiTablePgMview.rowid_array[i],
+									aMultiTablePgMview.alias_array[i],
+									bOuterJoined,
+									aMultiTablePgMview.inner_alias_array[i],
+									aMultiTablePgMview.inner_rowid_array[i],
+									uRowIDArray
+								);
+							
+				END IF;
+				
+			END LOOP;
+			
+		ELSE
+	
+			CALL mv$executeMVFastRefresh
+						(
+							pConst,
+							tLastType,
+							pOwner,
+							pViewName,
+							pRowidColumn,
+							pTableAlias,
+							pOuterTable,
+							pInnerAlias,
+							pInnerRowid,
+							uRowIDArray
+						);
+						
+		END IF;
 
         CALL mv$clearPgMvLogTableBits
                     (
@@ -1071,6 +1158,9 @@ Revision History    Push Down List
 ------------------------------------------------------------------------------------------------------------------------------------
 Date        | Name          | Description
 ------------+---------------+-------------------------------------------------------------------------------------------------------
+22/10/2020  | D Day			| Defect fix - Added logic to handle processing table_array DML changes that link to the same materialized view
+			|				| log. The refresh will ONLY be executed when the query joins multi table position is equal to 1 - otherwise it
+			|				| will ignore as this is now handled in the calling procedure.
 08/06/2020	| D Day			| Added sub begin and end block to capture EXCEPTION handler as this is not support in procedures using a COMMIT.
 			|				| By adding to an independant block enables exception handling to be coded. Anything outside of this block will
 			|				| be handled as the default Postgres error handler. 
@@ -1107,20 +1197,25 @@ BEGIN
 	
 		BEGIN
 		
-			bOuterJoined := mv$checkIfOuterJoinedTable( pConst, aPgMview.table_array[i], aPgMview.outer_table_array[i] );
-			CALL mv$refreshMaterializedViewFast
-                    (
-                        pConst,
-                        pOwner,
-                        pViewName,
-                        aPgMview.alias_array[i],
-                        aPgMview.table_array[i],
-                        aPgMview.rowid_array[i],
-                        aPgMview.bit_array[i],
-                        bOuterJoined,
-                        aPgMview.inner_alias_array[i],
-                        aPgMview.inner_rowid_array[i]
-                    );
+			IF aPgMview.query_joins_multi_table_pos_array[i] = 1 THEN
+		
+				bOuterJoined := mv$checkIfOuterJoinedTable( pConst, aPgMview.table_array[i], aPgMview.outer_table_array[i] );
+				CALL mv$refreshMaterializedViewFast
+						(
+							pConst,
+							pOwner,
+							pViewName,
+							aPgMview.alias_array[i],
+							aPgMview.table_array[i],
+							aPgMview.rowid_array[i],
+							aPgMview.bit_array[i],
+							bOuterJoined,
+							aPgMview.inner_alias_array[i],
+							aPgMview.inner_rowid_array[i],
+							aPgMview.query_joins_multi_table_cnt_array[i]
+						);
+						
+			END IF;
 					
 		EXCEPTION
 		WHEN OTHERS
@@ -1276,6 +1371,10 @@ Revision History    Push Down List
 ------------------------------------------------------------------------------------------------------------------------------------
 Date        | Name          | Description
 ------------+---------------+-------------------------------------------------------------------------------------------------------
+23/10/2020  | D Day			| Defect fix - added REGEXP_REPLACE to remove any spaces or tabs at the end of the line for variable 
+			|				| tColumnNameSql. This was causing columns to be not added to the UPDATE statement. Added logic to 
+			|				| ignore rAliasJoinLinks.alias array null values and check for characters before alias matches in select column
+			|				| string.
 04/06/2020  | D Day         | Change functions with RETURNS VOID to procedures allowing support/control of COMMITS during refresh process.
 28/04/2020	| D Day			| Added mv$OuterJoinToInnerJoinReplacement function call to replace alias matching outer join conditions
 			|				| with inner join conditions and new IN parameter pTableNames.
@@ -1603,77 +1702,82 @@ BEGIN
 		-- Building the UPDATE statement including any child relationship columns and m_row$ based on these aliases
 		FOR rAliasJoinLinks IN (SELECT UNNEST(tParentToChildAliasArray) AS alias) LOOP
 		
-			iAliasJoinLinksCounter 	:= iAliasJoinLinksCounter +1;
-			tAlias 					:= rAliasJoinLinks.alias||'.';
-			tSelectColumns 			:= SUBSTRING(pSelectColumns,1,mv$regExpInstr(pSelectColumns,'[,]+[[:alnum:]]+[.]+'||'m_row\$'||''));
-			tRegExpColumnNameAlias 	:= REPLACE(tAlias,'.','\.');
-			iColumnNameAliasCnt 	:= mv$regExpCount(tSelectColumns, '[A-Za-z0-9]+('||tRegExpColumnNameAlias||')', 1);
-			iColumnNameAliasCnt 	:= mv$regExpCount(tSelectColumns, '('||tRegExpColumnNameAlias||')', 1) - iColumnNameAliasCnt;
+			IF rAliasJoinLinks.alias IS NOT NULL THEN
 		
-			IF iColumnNameAliasCnt > 0 THEN
-		
-				FOR i IN 1..iColumnNameAliasCnt 
-				LOOP
-				
-					tColumnNameSql := SUBSTRING(tSelectColumns,mv$regExpInstr(tSelectColumns,
-							 tRegExpColumnNameAlias,
-							 1,
-							 i)-1);
-					tColumnNameSql := mv$regExpReplace(tColumnNameSql,'(^[[:space:]]+)',null);
-					tColumnNameSql := mv$regExpSubstr(tColumnNameSql,'(.*'||tRegExpColumnNameAlias||'+[[:alnum:]]+(.*?[^,|$]))',1,1,'i');
-					tMvColumnName  := TRIM(REPLACE(mv$regExpSubstr(tColumnNameSql, '\S+$'),',',''));
-					tMvColumnName  := LOWER(TRIM(REPLACE(tMvColumnName,tAlias,'')));
-					
-					FOR rPgMviewColumnNames IN (SELECT column_name
-												FROM   information_schema.columns
-												WHERE  table_schema    = LOWER( pOwner )
-												AND    table_name      = LOWER( pViewName ) )
+				iAliasJoinLinksCounter 	:= iAliasJoinLinksCounter +1;
+				tAlias 					:= rAliasJoinLinks.alias||'.';
+				tSelectColumns 			:= SUBSTRING(pSelectColumns,1,mv$regExpInstr(pSelectColumns,'[,]+[[:alnum:]]+[.]+'||'m_row\$'||''));
+				tRegExpColumnNameAlias 	:= REPLACE(tAlias,'.','\.');
+				iColumnNameAliasCnt 	:= mv$regExpCount(tSelectColumns, '[A-Za-z0-9]+('||tRegExpColumnNameAlias||')', 1);
+				iColumnNameAliasCnt 	:= mv$regExpCount(tSelectColumns, '('||tRegExpColumnNameAlias||')', 1) - iColumnNameAliasCnt;
+			
+				IF iColumnNameAliasCnt > 0 THEN
+			
+					FOR i IN 1..iColumnNameAliasCnt 
 					LOOP
 					
-						IF rPgMviewColumnNames.column_name = tMvColumnName THEN
-										
-							iMvColumnNameLoopCnt := iMvColumnNameLoopCnt + 1;	
+						tColumnNameSql := SUBSTRING(tSelectColumns,mv$regExpInstr(tSelectColumns,
+								 '([^A-Za-z0-9]+('||tRegExpColumnNameAlias||'))',
+								 1,
+								 i)-1);
+						tColumnNameSql := mv$regExpReplace(tColumnNameSql,'(^[[:space:]]+)',null);
+						tColumnNameSql := mv$regExpSubstr((tColumnNameSql),'(.*'||tRegExpColumnNameAlias||'+[[:alnum:]]+(.*?[^,|$]))',1,1,'i');
+						tColumnNameSql := mv$regExpReplace(tColumnNameSql,'\s+$','');
+						tMvColumnName  := TRIM(REPLACE(mv$regExpSubstr(tColumnNameSql, '\S+$'),',',''));
+						tMvColumnName  := LOWER(TRIM(REPLACE(tMvColumnName,tAlias,'')));
+						
+						FOR rPgMviewColumnNames IN (SELECT column_name
+													FROM   information_schema.columns
+													WHERE  table_schema    = LOWER( pOwner )
+													AND    table_name      = LOWER( pViewName ) )
+						LOOP
+						
+							IF rPgMviewColumnNames.column_name = tMvColumnName THEN
+											
+								iMvColumnNameLoopCnt := iMvColumnNameLoopCnt + 1;	
 
-							-- Check for duplicates
-							SELECT tMvColumnName = ANY (tColumnNameArray) INTO tIsTrueOrFalse;	
-							
-							IF tIsTrueOrFalse = 'false' THEN
+								-- Check for duplicates
+								SELECT tMvColumnName = ANY (tColumnNameArray) INTO tIsTrueOrFalse;	
+								
+								IF tIsTrueOrFalse = 'false' THEN
 
-								iColumnNameAliasLoopCnt := iColumnNameAliasLoopCnt + 1;	
-								
-								tColumnNameArray[iColumnNameAliasLoopCnt] := tMvColumnName;
-								
-								IF iMvColumnNameLoopCnt = 1 THEN 	
-									tUpdateSetSql := pConst.SET_COMMAND || tMvColumnName || pConst.EQUALS_NULL || pConst.COMMA_CHARACTER;
-								ELSE	
-									tUpdateSetSql := tUpdateSetSql || tMvColumnName || pConst.EQUALS_NULL || pConst.COMMA_CHARACTER ;
+									iColumnNameAliasLoopCnt := iColumnNameAliasLoopCnt + 1;	
+									
+									tColumnNameArray[iColumnNameAliasLoopCnt] := tMvColumnName;
+									
+									IF iMvColumnNameLoopCnt = 1 THEN 	
+										tUpdateSetSql := pConst.SET_COMMAND || tMvColumnName || pConst.EQUALS_NULL || pConst.COMMA_CHARACTER;
+									ELSE	
+										tUpdateSetSql := tUpdateSetSql || tMvColumnName || pConst.EQUALS_NULL || pConst.COMMA_CHARACTER ;
+									END IF;
+									
 								END IF;
+							
+								EXIT WHEN iMvColumnNameLoopCnt > 0;
 								
 							END IF;
-						
-							EXIT WHEN iMvColumnNameLoopCnt > 0;
-							
-						END IF;
 
+						END LOOP;
+						
 					END LOOP;
 					
-				END LOOP;
-				
-				iColumnNameAliasLoopCnt := iColumnNameAliasLoopCnt + 1;
-				tColumnNameArray[iColumnNameAliasLoopCnt] := rAliasJoinLinks.alias|| pConst.UNDERSCORE_CHARACTER || pConst.MV_M_ROW$_COLUMN;
-				tUpdateSetSql := tUpdateSetSql || rAliasJoinLinks.alias|| pConst.UNDERSCORE_CHARACTER || pConst.MV_M_ROW$_COLUMN || pConst.EQUALS_NULL || pConst.COMMA_CHARACTER;
-				
-			ELSE
-				IF iAliasJoinLinksCounter = 1 THEN
 					iColumnNameAliasLoopCnt := iColumnNameAliasLoopCnt + 1;
 					tColumnNameArray[iColumnNameAliasLoopCnt] := rAliasJoinLinks.alias|| pConst.UNDERSCORE_CHARACTER || pConst.MV_M_ROW$_COLUMN;
-					tUpdateSetSql := pConst.SET_COMMAND || rAliasJoinLinks.alias|| pConst.UNDERSCORE_CHARACTER || pConst.MV_M_ROW$_COLUMN || pConst.EQUALS_NULL || pConst.COMMA_CHARACTER;			
-				ELSE
-					iColumnNameAliasLoopCnt := iColumnNameAliasLoopCnt + 1;
-					tColumnNameArray[iColumnNameAliasLoopCnt] := rAliasJoinLinks.alias|| pConst.UNDERSCORE_CHARACTER || pConst.MV_M_ROW$_COLUMN;
-					tUpdateSetSql := tUpdateSetSql || rAliasJoinLinks.alias || pConst.UNDERSCORE_CHARACTER || pConst.MV_M_ROW$_COLUMN || pConst.EQUALS_NULL || pConst.COMMA_CHARACTER;		
-				END IF;
+					tUpdateSetSql := tUpdateSetSql || rAliasJoinLinks.alias|| pConst.UNDERSCORE_CHARACTER || pConst.MV_M_ROW$_COLUMN || pConst.EQUALS_NULL || pConst.COMMA_CHARACTER;
 					
+				ELSE
+					IF iAliasJoinLinksCounter = 1 THEN
+						iColumnNameAliasLoopCnt := iColumnNameAliasLoopCnt + 1;
+						tColumnNameArray[iColumnNameAliasLoopCnt] := rAliasJoinLinks.alias|| pConst.UNDERSCORE_CHARACTER || pConst.MV_M_ROW$_COLUMN;
+						tUpdateSetSql := pConst.SET_COMMAND || rAliasJoinLinks.alias|| pConst.UNDERSCORE_CHARACTER || pConst.MV_M_ROW$_COLUMN || pConst.EQUALS_NULL || pConst.COMMA_CHARACTER;			
+					ELSE
+						iColumnNameAliasLoopCnt := iColumnNameAliasLoopCnt + 1;
+						tColumnNameArray[iColumnNameAliasLoopCnt] := rAliasJoinLinks.alias|| pConst.UNDERSCORE_CHARACTER || pConst.MV_M_ROW$_COLUMN;
+						tUpdateSetSql := tUpdateSetSql || rAliasJoinLinks.alias || pConst.UNDERSCORE_CHARACTER || pConst.MV_M_ROW$_COLUMN || pConst.EQUALS_NULL || pConst.COMMA_CHARACTER;		
+					END IF;
+						
+				END IF;
+			
 			END IF;
 		
 		END LOOP;

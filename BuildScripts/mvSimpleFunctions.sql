@@ -85,8 +85,8 @@ DROP PROCEDURE IF EXISTS mv$createindexestemptable;
 DROP PROCEDURE IF EXISTS mv$dropmvindexes;
 DROP PROCEDURE IF EXISTS mv$readdmvindexes;
 DROP PROCEDURE IF EXISTS mv$dropindexestemptable;
-
-
+DROP PROCEDURE IF EXISTS mv$setQueryJoinsMultiTableCount;
+DROP PROCEDURE IF EXISTS mv$setQueryJoinsMultiTablePosition;
 
 ----------------------- Write CREATE-FUNCTION-stage scripts --------------------
 SET CLIENT_MIN_MESSAGES = NOTICE;
@@ -1074,7 +1074,9 @@ FUNCTION    mv$extractCompoundViewTables
 				pInnerJoinTableRowidArray		OUT TEXT[],
 				pInnerJoinOtherTableNameArray	OUT	TEXT[],		
 				pInnerJoinOtherTableAliasArray	OUT	TEXT[],
-				pInnerJoinOtherTableRowidArray	OUT TEXT[]
+				pInnerJoinOtherTableRowidArray	OUT TEXT[],
+				pQueryJoinsMultiTabCntArray		OUT SMALLINT[],
+				pQueryJoinsMultiTabPosArray		OUT SMALLINT[]
             )
     RETURNS RECORD
 AS
@@ -1088,6 +1090,10 @@ Revision History    Push Down List
 ------------------------------------------------------------------------------------------------------------------------------------
 Date        | Name          | Description
 ------------+---------------+-------------------------------------------------------------------------------------------------------
+23/10/2020	| D Day			| Defect fix - added OUT parameters pQueryJoinsMultiTabCntArray and pQueryJoinsMultiTabPosArray
+			|				| populated by calling procedures mv$setQueryJoinsMultiTablePosition and mv$setQueryJoinsMultiTableCount.
+			|				| Used to populated data dictionary table pg$mviews to resolve handling clearing mview log bitmap values
+			|				| for mview logs being processed more than once within the mview stored query.
 29/06/2020	| D Day			| Defect fix - added inner joinings details to resolve duplicate issue when row already exists for
 			|				| DML change type INSERT.
 12/02/2020	| D Day 		| Defect fix - changed logic to populate OUT parameters pInnerAliasArray and pInnerRowidArray correctly 
@@ -1192,6 +1198,8 @@ Arguments:      IN      pConst              	The memory structure containing all
 				OUT		pInnerJoinOtherTableNameArray	An array confirming the INNER JOIN other joining table names		
 				OUT		pInnerJoinOtherTableAliasArray	An array confirming the INNER JOIN other joining table aliases 
 				OUT		pInnerJoinOtherTableRowidArray	An array confirming the INNER JOIN other joining table rowid column names
+				OUT     pQueryJoinsMultiTabCntArray		An array containing the materialized view query joins multi table counts for each table alias if the table exists once or more
+				OUT     pQueryJoinsMultiTabPosArray		An array containing the materialized view query joins multi table position when table occurs once or more linked to each table alias
 					
 Returns:                RECORD              The ten out parameters
 ************************************************************************************************************************************
@@ -1376,7 +1384,8 @@ BEGIN
 
     END LOOP;
 	
-	
+	CALL mv$setQueryJoinsMultiTablePosition(pTableArray,pInnerAliasArray,pQueryJoinsMultiTabPosArray);
+	CALL mv$setQueryJoinsMultiTableCount(pTableArray,pInnerAliasArray,pQueryJoinsMultiTabCntArray);	
 
     RETURN;
 
@@ -2480,5 +2489,145 @@ BEGIN
 END ;
 $BODY$
 LANGUAGE    plpgsql;
+------------------------------------------------------------------------------------------------------------------------------------
+CREATE OR REPLACE
+PROCEDURE    mv$setQueryJoinsMultiTablePosition
+            (
+                pTableNames         		IN   TEXT[],
+                pAliasArray         		IN   TEXT[],
+				pQueryJoinsMultiTabPosArray INOUT  SMALLINT[]		
+            )
+AS
+$BODY$
+/* ---------------------------------------------------------------------------------------------------------------------------------
+Routine Name: mv$setQueryJoinsMultiTablePosition
+Author:       David Day
+Date:         21/10/2020
+------------------------------------------------------------------------------------------------------------------------------------
+Revision History    Push Down List
+------------------------------------------------------------------------------------------------------------------------------------
+Date        | Name          | Description
+------------+---------------+-------------------------------------------------------------------------------------------------------
+21/10/2020  | D Day         | Initial version
+------------+---------------+-------------------------------------------------------------------------------------------------------
+Description:    Procedure to generate the query joins multi table position array for when the same table name is used more than once.
 
+Arguments:      IN      pTableNames         
+                IN      pAliasArray
+                INOUT     pQueryJoinsMultiTabPosArray
+				
+************************************************************************************************************************************
+Copyright 2019 Amazon.com, Inc. or its affiliates. All Rights Reserved. SPDX-License-Identifier: MIT-0
+***********************************************************************************************************************************/
+DECLARE
 
+    rTableNames       	RECORD;
+	
+	iTableCount		  	INTEGER;
+	
+	iCounter		  	INTEGER := 0;
+	
+	tTableArray  		TEXT[] := '{}';
+	
+	iMultiTableCount 	INTEGER := 0;
+	
+
+BEGIN
+
+FOR rTableNames IN (SELECT UNNEST(pTableNames) AS table_name, UNNEST(pAliasArray) AS alias_name) LOOP
+
+	iCounter 	:= iCounter +1;
+	
+	SELECT count(1) INTO iTableCount
+	FROM (SELECT UNNEST(pTableNames) AS table_name) inline
+	WHERE inline.table_name = rTableNames.table_name;
+	
+	tTableArray[iCounter] := rTableNames.table_name;
+	
+	IF iTableCount = 1 THEN
+	
+		pQueryJoinsMultiTabPosArray[iCounter] := 1;
+		
+	ELSE
+	
+		SELECT count(1) INTO iMultiTableCount
+		FROM (SELECT UNNEST(tTableArray) AS table_name) inline
+		WHERE inline.table_name = rTableNames.table_name;
+	
+		pQueryJoinsMultiTabPosArray[iCounter] := iMultiTableCount;		
+	
+	END IF;
+
+END LOOP;
+
+EXCEPTION
+WHEN OTHERS
+THEN
+	RAISE INFO      'Exception in procedure mv$setQueryJoinsMultiTablePosition';
+	RAISE INFO      'Error %:- %:',     SQLSTATE, SQLERRM;
+	RAISE EXCEPTION '%',                SQLSTATE;
+END;
+$BODY$
+LANGUAGE    plpgsql;
+------------------------------------------------------------------------------------------------------------------------------------
+CREATE OR REPLACE
+PROCEDURE    mv$setQueryJoinsMultiTableCount
+            (
+                pTableNames         		IN   TEXT[],
+                pAliasArray         		IN   TEXT[],
+				pQueryJoinsMultiTabCntArray			INOUT  SMALLINT[]		
+            )
+AS
+$BODY$
+/* ---------------------------------------------------------------------------------------------------------------------------------
+Routine Name: mv$setQueryJoinsMultiTableCount
+Author:       David Day
+Date:         21/10/2020
+------------------------------------------------------------------------------------------------------------------------------------
+Revision History    Push Down List
+------------------------------------------------------------------------------------------------------------------------------------
+Date        | Name          | Description
+------------+---------------+-------------------------------------------------------------------------------------------------------
+21/10/2020  | D Day         | Initial version
+------------+---------------+-------------------------------------------------------------------------------------------------------
+Description:    Procedure to generate the query joins multi table total count array for when the same table name is used more than once.
+
+Arguments:      IN      pTableNames         
+                IN      pAliasArray
+                INOUT   pQueryJoinsMultiTabPosArray
+				
+************************************************************************************************************************************
+Copyright 2019 Amazon.com, Inc. or its affiliates. All Rights Reserved. SPDX-License-Identifier: MIT-0
+***********************************************************************************************************************************/
+DECLARE
+
+    rTableNames       RECORD;
+	
+	iTableCount		  INTEGER;
+	
+	iCounter		  INTEGER := 0;
+
+BEGIN
+
+FOR rTableNames IN (SELECT UNNEST(pTableNames) AS table_name, UNNEST(pAliasArray) AS alias_name) LOOP
+
+	iCounter 	:= iCounter +1;
+	
+	SELECT count(1) INTO iTableCount
+	FROM (SELECT UNNEST(pTableNames) AS table_name) inline
+	WHERE inline.table_name = rTableNames.table_name;
+	
+	pQueryJoinsMultiTabCntArray[iCounter] := iTableCount;
+
+END LOOP;
+
+EXCEPTION
+WHEN OTHERS
+THEN
+	RAISE INFO      'Exception in procedure mv$setQueryJoinsMultiTableCount';
+	RAISE INFO      'Error %:- %:',     SQLSTATE, SQLERRM;
+	RAISE EXCEPTION '%',                SQLSTATE;
+END;
+$BODY$
+LANGUAGE    plpgsql;
+------------------------------------------------------------------------------------------------------------------------------------
