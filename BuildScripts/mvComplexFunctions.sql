@@ -870,6 +870,11 @@ Revision History    Push Down List
 ------------------------------------------------------------------------------------------------------------------------------------
 Date        | Name          | Description
 ------------+---------------+-------------------------------------------------------------------------------------------------------
+19/11/2020	| D Day			| CDL specific change - temp workaround performance improvement to ignore DML changes to prtyinst, currprty, personxx
+			|				| on MV_DIARY and MV_APPLICATION_EVENTS. The way new client party instances get created even though the forename and surname
+			|				| for Strata users never or rarely changes it still causes the source table row to change and this causes the mview log table
+			|				| to record a DML change. This can happen often and cause large scale DELETE and INSERT combinations to apply to them
+			|				| corresponding mview table. Pernament fix being reviewed.
 22/10/2020	| D Day			| Defect fix - Added logic to loop around all join table aliases to allow the DML changes selected to be applied 
 			|				| from the same materialized view log before clearing the bitmap value for all selected rows. Previously the bitmap
 			|				| value selected was being cleared on the first occurrence even though the rowid could have been linked to them
@@ -948,30 +953,35 @@ BEGIN
         ELSE
 		
 			IF pQueryJoinsMultiTabCnt > 1 THEN
-
-				FOR i IN ARRAY_LOWER( aMultiTablePgMview.table_array, 1 ) .. ARRAY_UPPER( aMultiTablePgMview.table_array, 1 ) LOOP
-
-					IF aMultiTablePgMview.table_array[i] = pTableName THEN
-					
-						bOuterJoined := mv$checkIfOuterJoinedTable( pConst, aMultiTablePgMview.table_array[i], aMultiTablePgMview.outer_table_array[i] );
-									
-									CALL mv$executeMVFastRefresh
-									(
-										pConst,
-										tLastType,
-										pOwner,
-										pViewName,
-										aMultiTablePgMview.rowid_array[i],
-										aMultiTablePgMview.alias_array[i],
-										bOuterJoined,
-										aMultiTablePgMview.inner_alias_array[i],
-										aMultiTablePgMview.inner_rowid_array[i],
-										uRowIDArray
-									);
 			
-					END IF;
+				IF (pViewName <> 'mv_diary' AND pTableName NOT IN ('prtyinst','personxx','currprty')) 
+				OR (pViewName <> 'mv_application_events' AND pTableName NOT IN ('prtyinst','personxx','currprty')) THEN
+
+					FOR i IN ARRAY_LOWER( aMultiTablePgMview.table_array, 1 ) .. ARRAY_UPPER( aMultiTablePgMview.table_array, 1 ) LOOP
+
+						IF aMultiTablePgMview.table_array[i] = pTableName THEN
+						
+							bOuterJoined := mv$checkIfOuterJoinedTable( pConst, aMultiTablePgMview.table_array[i], aMultiTablePgMview.outer_table_array[i] );
+										
+										CALL mv$executeMVFastRefresh
+										(
+											pConst,
+											tLastType,
+											pOwner,
+											pViewName,
+											aMultiTablePgMview.rowid_array[i],
+											aMultiTablePgMview.alias_array[i],
+											bOuterJoined,
+											aMultiTablePgMview.inner_alias_array[i],
+											aMultiTablePgMview.inner_rowid_array[i],
+											uRowIDArray
+										);
+				
+						END IF;
+						
+					END LOOP;
 					
-				END LOOP;
+				END IF;
 								
 			ELSE
 					
