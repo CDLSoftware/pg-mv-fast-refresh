@@ -1,2 +1,2 @@
-*.log
+logs/*.log
 temp
