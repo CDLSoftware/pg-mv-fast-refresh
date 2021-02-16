@@ -43,4 +43,4 @@ export SOURCEUSERNAME=
 export SOURCEPASSWORD=
 export MVUSERNAME=
 export MVPASSWORD=
-export LOG_FILE=./logs/fast_refresh_module_install_`date +%Y%m%d-%H%M`.log
+export LOG_FILE=./fast_refresh_module_install_`date +%Y%m%d-%H%M`.log
