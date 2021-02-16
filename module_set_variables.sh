@@ -28,18 +28,19 @@
 ########################################################################################################################################################################
 
 # Set module deployment variables
+source ../../.env
 
-export MODULEOWNER=<MODULEOWNER>
-export MODULE_HOME=<MODULE_HOME>
-export MODULEOWNERPASS=<MODULEOWNERPASS>
+export MODULEOWNER="$DB_MV_USER"
+export MODULE_HOME="$DB_MV_HOME"
+export MODULEOWNERPASS="$DB_MV_PASSWORD"
 export INSTALL_TYPE=FULL
-export HOSTNAME=<HOSTNAME>
-export PORT=<PORT>
-export DBNAME=<DBNAME>
-export PGUSERNAME=<PGUSERNAME>
-export PGPASSWORD=<PGPASSWORD>
-export SOURCEUSERNAME=<SOURCEUSERNAME>
-export SOURCEPASSWORD=<SOURCEPASSWORD>
-export MVUSERNAME=<MVUSERNAME>
-export MVPASSWORD=<MVPASSWORD>
-export LOG_FILE=<LOG_PATH>/fast_refresh_module_install_`date +%Y%m%d-%H%M`.log
+export HOSTNAME="$DB_URL"
+export PORT=5432
+export DBNAME="$DB_NAME"
+export PGUSERNAME="$DB_PG_USER"
+export PGPASSWORD="$DB_PG_PASSWORD"
+export SOURCEUSERNAME=
+export SOURCEPASSWORD=
+export MVUSERNAME=
+export MVPASSWORD=
+export LOG_FILE=./logs/fast_refresh_module_install_`date +%Y%m%d-%H%M`.log
