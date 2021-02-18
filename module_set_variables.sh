@@ -28,8 +28,6 @@
 ########################################################################################################################################################################
 
 # Set module deployment variables
-source ../../.env
-
 export MODULEOWNER="$DB_MV_USER"
 export MODULE_HOME="$DB_MV_HOME"
 export MODULEOWNERPASS="$DB_MV_PASSWORD"
