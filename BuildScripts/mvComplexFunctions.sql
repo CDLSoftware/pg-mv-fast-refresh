@@ -3422,7 +3422,7 @@ tSQL := 'DELETE FROM '||pViewName||'
 					) src$,
 				'||tOtherTableName||' src$99
 				WHERE '||tJoinConditions||'
-							);
+							)';
 
 --RAISE INFO '%', tSQL;
 
