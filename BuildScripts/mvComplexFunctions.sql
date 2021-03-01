@@ -3409,45 +3409,20 @@ tJoinConditions := CONCAT(tJoinConditions,addWhereClauseJoinConditions);
 tAllROWIDs := SUBSTR(tAllROWIDs,1,length(tAllROWIDs)-1);
 
 tSQL := 'DELETE FROM '||pViewName||'
-	  WHERE ctid IN ( SELECT 
-							ctid
-					  FROM
-						  (SELECT ctid,
-								  ROW_NUMBER() OVER(
-                        PARTITION BY '||tAllROWIDs||'
-						ORDER BY '||tTableAlias||'_m_row$ NULLS FIRST
-						) r,
-						COUNT(*) OVER(
-						PARTITION BY '||tAllROWIDs||'
-						) t_cnt,
-						COUNT('||tTableAlias||'_m_row$) OVER(
-						PARTITION BY '||tAllROWIDs||'
-						) nonnull_cnt
+		 WHERE '||tOtherAlias||'_m_row$ IN (
+				SELECT src$99.m_row$
+				FROM
+					(
+						SELECT sna$.m_row$ rid$,
+							   sna$.*
 						FROM
-							'||pViewName||' mv$1
+							'||tTableName||' sna$
 						WHERE
-						'||tOtherAlias||'_m_row$ IN (
-								SELECT src$99.m_row$
-								FROM
-									(
-										SELECT sna$.m_row$ rid$,
-											   sna$.*
-										FROM
-											'||tTableName||' sna$
-										WHERE
-											m_row$ IN (SELECT UNNEST($1))
-									) src$,
-								'||tOtherTableName||' src$99
-								WHERE '||tJoinConditions||'
-							)
-						) mv$1
-					WHERE
-					t_cnt >= 1
-					AND ( ( nonnull_cnt = 0
-							AND r >= 1 )
-							OR ( nonnull_cnt > 0
-							   AND r <= t_cnt - nonnull_cnt ) ) )';
-
+							m_row$ IN (SELECT UNNEST($1))
+					) src$,
+				'||tOtherTableName||' src$99
+				WHERE '||tJoinConditions||'
+							);
 
 --RAISE INFO '%', tSQL;
 
