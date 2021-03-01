@@ -77,6 +77,7 @@ DROP FUNCTION IF EXISTS mv$regExpReplace;
 DROP FUNCTION IF EXISTS mv$regExpSubstr;
 DROP FUNCTION IF EXISTS mv$outerJoinToInnerJoinReplacement;
 DROP FUNCTION IF EXISTS mv$refreshMaterializedViewInitial;
+DROP FUNCTION IF EXISTS mv$outerJoinDeleteStatement;
 
 SET CLIENT_MIN_MESSAGES = NOTICE;
 
@@ -1308,28 +1309,29 @@ BEGIN
     aPgMview    		 := mv$getPgMviewTableData( pConst, pOwner, pViewName );
     aPgMviewOjDetails    := mv$getPgMviewOjDetailsTableData( pConst, pOwner, pViewName, pTableAlias);
 	
-	tFromClause		  	 := pConst.FROM_COMMAND  || aPgMview.table_names    || pConst.WHERE_COMMAND;
+	--tFromClause		  	 := pConst.FROM_COMMAND  || aPgMview.table_names    || pConst.WHERE_COMMAND;
 	--tDeleteFromClause := pConst.FROM_COMMAND  || aPgMview.table_names    || pConst.WHERE_COMMAND;
-	--tInsertFromClause := pConst.FROM_COMMAND  || aPgMviewOjDetails.join_replacement_from_sql    || pConst.WHERE_COMMAND;
+	tInsertFromClause := pConst.FROM_COMMAND  || aPgMviewOjDetails.join_replacement_from_sql    || pConst.WHERE_COMMAND;
 
     IF LENGTH( aPgMview.where_clause ) > 0
     THEN
-		tFromClause := tFromClause      || aPgMview.where_clause    || pConst.AND_COMMAND;
+		--tFromClause := tFromClause      || aPgMview.where_clause    || pConst.AND_COMMAND;
         --tDeleteFromClause := tDeleteFromClause      || aPgMview.where_clause    || pConst.AND_COMMAND;
-		--tInsertFromClause := tInsertFromClause      || aPgMview.where_clause    || pConst.AND_COMMAND;
+		tInsertFromClause := tInsertFromClause      || aPgMview.where_clause    || pConst.AND_COMMAND;
     END IF;
 	
-    tFromClause := tFromClause  || pTableAlias   || pConst.MV_M_ROW$_SOURCE_COLUMN   || pConst.IN_ROWID_LIST;
+    --tFromClause := tFromClause  || pTableAlias   || pConst.MV_M_ROW$_SOURCE_COLUMN   || pConst.IN_ROWID_LIST;
 
     --tDeleteFromClause := tDeleteFromClause  || pTableAlias   || pConst.MV_M_ROW$_SOURCE_COLUMN   || pConst.IN_ROWID_LIST;
-    --tInsertFromClause := tInsertFromClause  || pTableAlias   || pConst.MV_M_ROW$_SOURCE_COLUMN   || pConst.IN_ROWID_LIST;
+    tInsertFromClause := tInsertFromClause  || pTableAlias   || pConst.MV_M_ROW$_SOURCE_COLUMN   || pConst.IN_ROWID_LIST;
 
-    tSqlStatement   :=  pConst.DELETE_FROM       		||
-                        aPgMview.owner           		|| pConst.DOT_CHARACTER    || aPgMview.view_name			||
-                        pConst.WHERE_COMMAND     		|| pInnerRowid             ||
-                        pConst.IN_SELECT_COMMAND 		|| pInnerAlias             || pConst.DOT_CHARACTER    		|| 
-						pConst.MV_M_ROW$_SOURCE_COLUMN	|| tFromClause       || pConst.CLOSE_BRACKET;
+	tSqlStatement	  :=  aPgMviewOjDetails.delete_sql;
 
+    --tSqlStatement   :=  pConst.DELETE_FROM       		||
+    --                    aPgMview.owner           		|| pConst.DOT_CHARACTER    || aPgMview.view_name			||
+    --                    pConst.WHERE_COMMAND     		|| pInnerRowid             ||
+    --                    pConst.IN_SELECT_COMMAND 		|| pInnerAlias             || pConst.DOT_CHARACTER    		|| 
+	--					pConst.MV_M_ROW$_SOURCE_COLUMN	|| tFromClause       || pConst.CLOSE_BRACKET;
 
     EXECUTE tSqlStatement
     USING   pRowIDs;
@@ -1338,7 +1340,7 @@ BEGIN
                         aPgMview.owner           || pConst.DOT_CHARACTER    || aPgMview.view_name   ||
                         pConst.OPEN_BRACKET      || aPgMview.pgmv_columns   || pConst.CLOSE_BRACKET ||
                         pConst.SELECT_COMMAND    || aPgMview.select_columns ||
-                        tFromClause;
+                        tInsertFromClause;
 
     EXECUTE tSqlStatement
     USING   pRowIDs;
@@ -1368,7 +1370,9 @@ PROCEDURE    mv$insertPgMviewOuterJoinDetails
 	            pouterLeftAliasArray  IN      TEXT[],
 	            pOuterRightAliasArray IN      TEXT[],
 	            pLeftOuterJoinArray   IN      TEXT[],
-	            pRightOuterJoinArray  IN      TEXT[]
+	            pRightOuterJoinArray  IN      TEXT[],
+				pWhereClause		  IN	  TEXT,
+				pTableArray			  IN 	  TEXT[]
 			 )
 AS
 $BODY$
@@ -1409,6 +1413,8 @@ Arguments:      IN      pConst              	The memory structure containing all
                 IN      pOuterRightAliasArray   An array that holds the list of outer joined tables right aliases
                 IN      pLeftOuterJoinArray     An array that holds the the position list of whether it was a left outer join
                 IN      pRightOuterJoinArray    An array that holds the the position list of whether it was a right outer join
+				IN		pWhereClause
+				IN		pTableArray
 
 ************************************************************************************************************************************
 Copyright 2018 Amazon.com, Inc. or its affiliates. All Rights Reserved. SPDX-License-Identifier: MIT-0
@@ -1469,7 +1475,8 @@ DECLARE
 	
 	tIsTrueOrFalse					TEXT;
 	
-	tClauseJoinReplacement			TEXT;		
+	tClauseJoinReplacement			TEXT;
+	tOuterJoinDeleteStatement		TEXT;	
 	
 BEGIN
 
@@ -1799,8 +1806,11 @@ BEGIN
 						 tUpdateSetSql || pConst.NEW_LINE ||
 						 tWhereClause;
 						 
-		tClauseJoinReplacement := mv$OuterJoinToInnerJoinReplacement(pConst, pTableNames, tColumnNameAlias);
-		
+						 
+						 
+		tClauseJoinReplacement := mv$OuterJoinToInnerJoinReplacement(pConst, pTableNames, tColumnNameAlias);	
+		tOuterJoinDeleteStatement := mv$outerJoinDeleteStatement(pConst, pTableNames, tColumnNameAlias, pViewName, pRowidArray, pWhereClause, tTableName, pTableArray, pAliasArray);
+			
 		INSERT INTO pg$mviews_oj_details
 		(	owner
 		,	view_name
@@ -1809,7 +1819,8 @@ BEGIN
 		,   source_table_name
 		,   column_name_array
 		,   update_sql
-		,   join_replacement_from_sql)
+		,   join_replacement_from_sql
+		,   delete_sql)
 		VALUES
 		(	pOwner
 		,	pViewName
@@ -1818,7 +1829,8 @@ BEGIN
 		,   tTableName
 		,   tColumnNameArray
 		,	tSqlStatement
-		,   tClauseJoinReplacement);
+		,   tClauseJoinReplacement
+		,	tOuterJoinDeleteStatement);
 		
 		iMainLoopCounter := 0;
 		tParentToChildAliasArray := '{}';
@@ -2927,6 +2939,520 @@ BEGIN
         RAISE INFO      'Exception in procedure mv$refreshMaterializedViewInitial';
         RAISE INFO      'Error %:- %:',     SQLSTATE, SQLERRM;
         RAISE EXCEPTION '%',                SQLSTATE;
+END;
+$BODY$
+LANGUAGE    plpgsql;
+
+-----------------------------------------------------------------------------------------------------------------------------------
+
+CREATE OR REPLACE 
+FUNCTION mv$outerJoinDeleteStatement(
+	pConst          IN      mv$allConstants,
+	pTableNames 	IN		TEXT,
+	pTableAlias 	IN		TEXT,
+	pViewName		IN      TEXT,
+	pRowidArray		IN      TEXT[],
+	pWhereClause	IN		TEXT,
+	pTableName		IN		TEXT,
+    pTableArray		IN		TEXT[],
+	pAliasArray		IN		TEXT[])
+    RETURNS text
+AS $BODY$
+/* ---------------------------------------------------------------------------------------------------------------------------------
+Routine Name: mv$outerJoinDeleteStatement
+Author:       David Day
+Date:         26/02/2021
+------------------------------------------------------------------------------------------------------------------------------------
+Revision History    Push Down List
+------------------------------------------------------------------------------------------------------------------------------------
+Date        | Name          | Description
+------------+---------------+-------------------------------------------------------------------------------------------------------
+            |               |
+23/02/2021  | D Day      	| Initial version
+------------+---------------+-------------------------------------------------------------------------------------------------------
+Description:    Function to create outer join delete statement to remove the use of running the full materialized view query.
+
+Arguments:      IN      pConst             
+                IN      pTableNames
+				IN		pTableAlias
+				IN		pViewName
+				IN		pRowidArray
+				IN		pWhereClause
+				IN		pTableName
+				IN		pTableArray
+				IN		pAliasArray
+Returns:                TEXT
+
+************************************************************************************************************************************
+Copyright 2021 Amazon.com, Inc. or its affiliates. All Rights Reserved. SPDX-License-Identifier: MIT-0
+***********************************************************************************************************************************/
+DECLARE	
+
+	tAllROWIDs				TEXT;
+	tROWIDs					TEXT;
+
+	tJoinTableInfoFound		CHAR := 'N';
+	tOtherTableFound		CHAR := 'N';
+	
+	tLeftJoinConditions		TEXT;
+	tRightJoinConditions	TEXT;
+	
+	tTableName				TEXT := pTableName;
+	
+	iLeftJoinCnt 			INTEGER := 0;	
+	iRightJoinCnt 			INTEGER := 0;	
+	
+	iLeftJoinAliasCnt 		INTEGER := 0;
+	iRightJoinAliasCnt 		INTEGER := 0;
+	
+	tTablesSQL 				TEXT := pTableNames;
+	  
+	tSQL					TEXT;
+	tLeftJoinLine			TEXT;
+	tRightJoinLine			TEXT;
+	
+	tTableAliasReg 			TEXT := REPLACE(pTableAlias,'.','\.');	
+	tTableAlias 			TEXT := REPLACE(pTableAlias,'.','');
+	
+	iStartPosition			INTEGER := 0;
+	iEndPosition			INTEGER := 0;
+	
+	tLeftColumnAlias		TEXT;
+	tRightColumnAlias 		TEXT;
+	tOtherTableName 		TEXT;
+	tOtherAlias				TEXT;
+	tJoinConditions 		TEXT;
+	tWhereClause 			TEXT;
+	tWhereClauseCondition   TEXT;
+	addWhereClauseJoinConditions TEXT;
+	whereClauseConditionExists 	 CHAR := 'N';
+	
+	iAliasCnt 				INTEGER := 0;
+	iAndCnt 				INTEGER := 0;
+	iAliasLoopCnt 			INTEGER := 0;
+	iDotCnt 				INTEGER := 0;
+	iOtherAliasCnt 			INTEGER := 0;
+	
+	tTablesMarkerSQL		TEXT;	
+	tTable_Alias			TEXT;
+	
+	rec						RECORD;
+
+BEGIN
+
+tTablesSQL := regexp_replace(tTablesSQL,'left join','LEFT JOIN','gi');
+tTablesSQL := regexp_replace(tTablesSQL,'left outer join','LEFT JOIN','gi');
+tTablesSQL := regexp_replace(tTablesSQL,'right join','RIGHT JOIN','gi');
+tTablesSQL := regexp_replace(tTablesSQL,'right outer join','RIGHT JOIN','gi');
+tTablesSQL := regexp_replace(tTablesSQL,' on ',' ON ','gi');
+	  
+SELECT count(1) INTO iLeftJoinCnt FROM regexp_matches(tTablesSQL,'LEFT JOIN','g');
+SELECT count(1) INTO iRightJoinCnt FROM regexp_matches(tTablesSQL,'RIGHT JOIN','g');
+
+tTablesSQL :=
+		TRIM (
+		   mv$regexpreplace(
+			  tTablesSQL,
+			  '([' || CHR (11) || CHR (13) || CHR (9) || ']+)',
+			  ' '));
+
+tTablesMarkerSQL :=	mv$regexpreplace(tTablesSQL, 'LEFT JOIN',pConst.COMMA_LEFT_TOKEN);
+tTablesMarkerSQL :=	mv$regexpreplace(tTablesMarkerSQL, 'RIGHT JOIN',pConst.COMMA_RIGHT_TOKEN);
+tTablesMarkerSQL :=	mv$regexpreplace(tTablesMarkerSQL, 'INNER JOIN',pConst.COMMA_INNER_TOKEN);
+tTablesMarkerSQL :=	mv$regexpreplace(tTablesMarkerSQL, 'JOIN',pConst.COMMA_INNER_TOKEN);
+tTablesMarkerSQL :=	mv$regexpreplace(tTablesMarkerSQL, ' ON ',pConst.ON_TOKEN);
+tTablesMarkerSQL := tTablesMarkerSQL||pConst.COMMA_INNER_TOKEN;
+
+IF iLeftJoinCnt > 0 THEN
+	  
+	FOR i IN 1..iLeftJoinCnt
+	LOOP
+		
+		tLeftJoinLine :=  'LEFT JOIN'||substr(substr(tTablesMarkerSQL,mv$regexpinstr(tTablesMarkerSQL, 
+			'('|| pConst.COMMA_LEFT_TOKEN ||'+)',
+				1,
+				i,
+				1,
+				'i')),1,
+					   mv$regexpinstr(substr(tTablesMarkerSQL,mv$regexpinstr(tTablesMarkerSQL,
+			'('|| pConst.COMMA_LEFT_TOKEN ||'+)',
+							   1,
+				i,
+				1,
+				'i')),'('||pConst.COMMA_LEFT_TOKEN||'|'||pConst.COMMA_INNER_TOKEN||'|'||pConst.COMMA_RIGHT_TOKEN||')',
+				1,
+				1,
+				1,
+				'i')-3);
+			
+		IF tJoinTableInfoFound = 'N' THEN
+			
+			SELECT count(1) INTO iLeftJoinAliasCnt FROM regexp_matches(tLeftJoinLine,tTableName||'+[[:space:]]+'||tTableAlias,'g');
+
+			IF iLeftJoinAliasCnt > 0 THEN
+				
+				iStartPosition :=  mv$regexpinstr(tLeftJoinLine,pConst.ON_TOKEN,
+					1,
+					1,
+					1,
+					'i');
+					
+				tLeftJoinConditions := substr(tLeftJoinLine,iStartPosition);
+				
+				tLeftColumnAlias :=  TRIM(SUBSTR(tLeftJoinConditions,
+										   1,
+											 mv$regexpinstr(tLeftJoinConditions,
+														   '(\.){1}',
+														   1,
+														   1)
+										   - 1));
+								  
+				tRightColumnAlias := TRIM(SUBSTR(tLeftJoinConditions,mv$regexpinstr(tLeftJoinConditions,
+												  '[[:space:]]+(=|>|<|<>|!=)',
+												  1,
+												  1,
+												  1,
+												  'i')));
+								  
+				tRightColumnAlias := TRIM(SUBSTR(tRightColumnAlias,
+										   1,
+											 mv$regexpinstr(tRightColumnAlias||'\.',
+														   '(\.){1}',
+														   1,
+														   1)
+										   - 1));
+
+				tJoinTableInfoFound := 'Y';
+				
+			END IF;
+			
+			IF tJoinTableInfoFound = 'Y' THEN
+			
+				EXIT;
+				
+			END IF;
+			
+		END IF;	
+
+	END LOOP;
+
+ELSIF iRightJoinCnt > 0 AND tJoinTableInfoFound = 'N' THEN
+
+	FOR i IN 1..iRightJoinCnt
+	LOOP
+	
+	tRightJoinLine :=  'RIGHT JOIN'||substr(substr(tTablesMarkerSQL,mv$regexpinstr(tTablesMarkerSQL, 
+			'('|| pConst.COMMA_RIGHT_TOKEN ||'+)',
+				1,
+				i,
+				1,
+				'i')),1,
+					   mv$regexpinstr(substr(tTablesMarkerSQL,mv$regexpinstr(tTablesMarkerSQL,
+			'('|| pConst.COMMA_RIGHT_TOKEN ||'+)',
+							   1,
+				i,
+				1,
+				'i')),'('||pConst.COMMA_LEFT_TOKEN||'|'||pConst.COMMA_INNER_TOKEN||'|'||pConst.COMMA_RIGHT_TOKEN||')',
+				1,
+				1,
+				1,
+				'i')-3);
+			
+		IF tJoinTableInfoFound = 'N' THEN
+			
+			SELECT count(1) INTO iRightJoinAliasCnt FROM regexp_matches(tRightJoinLine,tTableName||'+[[:space:]]+'||tTableAlias,'g');
+
+			IF iRightJoinAliasCnt > 0 THEN
+				
+				iStartPosition :=  mv$regexpinstr(tRightJoinLine,pConst.ON_TOKEN,
+					1,
+					1,
+					1,
+					'i');
+					
+				tRightJoinConditions := substr(tRightJoinLine,iStartPosition);
+				
+				tLeftColumnAlias :=  TRIM(SUBSTR(tRightJoinConditions,
+										   1,
+											 mv$regexpinstr(tRightJoinConditions,
+														   '(\.){1}',
+														   1,
+														   1)
+										   - 1));
+								  
+				tRightColumnAlias := TRIM(SUBSTR(tRightJoinConditions,mv$regexpinstr(tRightJoinConditions,
+												  '[[:space:]]+(=|>|<|<>|!=)',
+												  1,
+												  1,
+												  1,
+												  'i')));
+								  
+				tRightColumnAlias := TRIM(SUBSTR(tRightColumnAlias,
+										   1,
+											 mv$regexpinstr(tRightColumnAlias||'\.',
+														   '(\.){1}',
+														   1,
+														   1)
+										   - 1));
+
+				tJoinTableInfoFound := 'Y';
+				
+			END IF;
+			
+			IF tJoinTableInfoFound = 'Y' THEN
+			
+				EXIT;
+				
+			END IF;
+			
+		END IF;
+		
+	END LOOP;
+
+END IF;
+
+FOR rec IN (SELECT UNNEST(pAliasArray) table_alias, UNNEST(pTableArray) table_name) LOOP
+
+tTable_Alias := REPLACE(rec.table_alias,'.','');
+
+IF tLeftColumnAlias = tTableAlias THEN
+
+	IF tRightColumnAlias = tTable_Alias THEN
+	
+		tOtherTableName := rec.table_name;
+		tOtherAlias := tRightColumnAlias;
+		tJoinConditions := COALESCE(tLeftJoinConditions,tRightJoinConditions);
+			
+	END IF;
+	
+ELSE
+
+	IF tLeftColumnAlias = tTable_Alias THEN
+	
+		tOtherTableName := rec.table_name;
+		tOtherAlias := tLeftColumnAlias;
+		tJoinConditions := COALESCE(tLeftJoinConditions,tRightJoinConditions);
+			
+	END IF;
+
+END IF;
+
+END LOOP;
+
+tJoinConditions := REPLACE(tJoinConditions,tTableAlias||'.','src$.');
+tJoinConditions := REPLACE(tJoinConditions,tOtherAlias||'.','src$99.');
+
+FOR rec IN (SELECT UNNEST(pRowidArray) rowid) LOOP
+	
+	tROWIDS := rec.rowid||',';	
+	tAllROWIDs := CONCAT(tAllROWIDs,tROWIDS);
+	
+END LOOP;
+
+tROWIDs := REPLACE(tROWIDs,'.','');
+
+IF pWhereClause <> '' THEN
+
+	SELECT count(1) INTO iAliasCnt FROM regexp_matches(pWhereClause,tTableAliasReg,'g');
+
+	IF iAliasCnt > 0 THEN
+
+		tWhereClause :=
+				REPLACE(TRIM(
+				   mv$regexpreplace(
+					  pWhereClause,
+					  '([' || CHR (11) || CHR (13) || CHR (9) || ']+)',
+					  ' ')),CHR(13),' ');
+
+		tWhereClause := REPLACE(tWhereClause, CHR(9), CHR(32) );
+		tWhereClause := REPLACE(tWhereClause, ' and ', ' AND ' );
+		tWhereClause := REPLACE(tWhereClause, 'where ', 'WHERE ' );
+		tWhereClause := REPLACE(tWhereClause, ' AND ', ' ### ' );
+		tWhereClause := REPLACE(tWhereClause, 'WHERE ', ' ### ' );
+
+		SELECT count(1) INTO iAndCnt FROM regexp_matches(tWhereClause,'###','g');
+
+		tWhereClause := tWhereClause||'###';
+		
+		IF iAndCnt > 0 THEN
+
+			FOR i IN 1..iAndCnt LOOP
+
+				iAliasLoopCnt := iAliasLoopCnt + 1;
+
+				IF iAliasLoopCnt = 1 THEN
+				
+					iStartPosition :=  mv$regexpinstr(tWhereClause,'###',
+					1,
+					i,
+					1,
+					'i');
+					
+					iEndPosition :=  mv$regexpinstr(tWhereClause,'###',
+					1,
+					i+1,
+					1,
+					'i');
+					
+					tWhereClauseCondition := TRIM(SUBSTR(tWhereClause,iStartPosition,iEndPosition-iStartPosition-3));										
+										
+					SELECT count(1) INTO iDotCnt FROM regexp_matches(tWhereClauseCondition,'\.','g');
+					
+					IF iDotCnt = 1 THEN
+					
+						SELECT count(1) INTO iAliasCnt FROM regexp_matches(tWhereClauseCondition,tTableAliasReg,'g');
+						
+						IF iAliasCnt = 1 THEN
+						
+							addWhereClauseJoinConditions := ' AND '|| tWhereClauseCondition;	
+							whereClauseConditionExists = 'Y';
+							
+						END IF;
+						
+					ELSE
+					
+						iStartPosition :=  mv$regexpinstr(tWhereClause,'###',
+						1,
+						i,
+						1,
+						'i');
+
+						iEndPosition :=  mv$regexpinstr(tWhereClause,'###',
+						1,
+						i+1,
+						1,
+						'i');
+					
+						tWhereClauseCondition := TRIM(SUBSTR(tWhereClause,iStartPosition,iEndPosition-iStartPosition-3));
+
+						SELECT count(1) INTO iAliasCnt FROM regexp_matches(tWhereClauseCondition,tTableAliasReg,'g');
+						SELECT count(1) INTO iOtherAliasCnt FROM regexp_matches(tWhereClauseCondition,tOtherAlias||'\.','g');
+
+						IF iAliasCnt = 1 AND iOtherAliasCnt = 1 THEN
+
+							IF whereClauseConditionExists = 'Y' THEN
+								addWhereClauseJoinConditions := CONCAT(addWhereClauseJoinConditions,' AND ', tWhereClauseCondition);	
+							ELSE
+								addWhereClauseJoinConditions := ' AND '|| tWhereClauseCondition;	
+								whereClauseConditionExists = 'Y';
+							END IF;
+
+						END IF;
+						
+					END IF;
+						
+				ELSE
+				
+					iStartPosition :=  mv$regexpinstr(tWhereClause,'###',
+					1,
+					i,
+					1,
+					'i');
+					
+					iEndPosition :=  mv$regexpinstr(tWhereClause,'###',
+					1,
+					i+1,
+					1,
+					'i');
+					
+					tWhereClauseCondition := TRIM(SUBSTR(tWhereClause,iStartPosition,iEndPosition-iStartPosition-3));
+					
+					SELECT count(1) INTO iDotCnt FROM regexp_matches(tWhereClauseCondition,'\.','g');
+					
+					IF iDotCnt = 1 THEN
+					
+						SELECT count(1) INTO iAliasCnt FROM regexp_matches(tWhereClauseCondition,tTableAliasReg,'g');
+						
+						IF iAliasCnt = 1 AND whereClauseConditionExists = 'Y' THEN
+						
+							addWhereClauseJoinConditions := CONCAT(addWhereClauseJoinConditions,' AND ', tWhereClauseCondition);
+							
+						ELSIF iAliasCnt = 1 AND whereClauseConditionExists = 'N' THEN
+
+							addWhereClauseJoinConditions := ' AND '|| tWhereClauseCondition;	
+							whereClauseConditionExists = 'Y';
+	
+						END IF;
+						
+					END IF;
+
+					SELECT count(1) INTO iAliasCnt FROM regexp_matches(tWhereClauseCondition,tTableAliasReg,'g');
+					SELECT count(1) INTO iOtherAliasCnt FROM regexp_matches(tWhereClauseCondition,tOtherAlias||'\.','g');
+					
+					IF iAliasCnt = 1 AND iOtherAliasCnt = 1 THEN
+					
+						IF whereClauseConditionExists = 'Y' THEN
+						
+							addWhereClauseJoinConditions := CONCAT(addWhereClauseJoinConditions,' AND ', tWhereClauseCondition);
+							
+						ELSE
+						
+							addWhereClauseJoinConditions := ' AND '|| tWhereClauseCondition;	
+							whereClauseConditionExists = 'Y';
+
+						END IF;
+						
+					END IF;
+					
+				END IF;
+
+			END LOOP;
+
+		END IF;
+	
+	END IF;
+	
+END IF;
+
+tJoinConditions := CONCAT(tJoinConditions,addWhereClauseJoinConditions);
+	
+tAllROWIDs := SUBSTR(tAllROWIDs,1,length(tAllROWIDs)-1);
+
+tSQL := 'DELETE FROM '||pViewName||'
+	  WHERE ctid IN ( SELECT 
+							ctid
+					  FROM
+						  (SELECT ctid,
+								  ROW_NUMBER() OVER(
+                        PARTITION BY '||tAllROWIDs||'
+						ORDER BY '||tTableAlias||'_m_row$ NULLS FIRST
+						) r,
+						COUNT(*) OVER(
+						PARTITION BY '||tAllROWIDs||'
+						) t_cnt,
+						COUNT('||tTableAlias||'_m_row$) OVER(
+						PARTITION BY '||tAllROWIDs||'
+						) nonnull_cnt
+						FROM
+							'||pViewName||' mv$1
+						WHERE
+						'||tOtherAlias||'_m_row$ IN (
+								SELECT src$99.m_row$
+								FROM
+									(
+										SELECT sna$.m_row$ rid$,
+											   sna$.*
+										FROM
+											'||tTableName||' sna$
+										WHERE
+											m_row$ IN (SELECT UNNEST($1))
+									) src$,
+								'||tOtherTableName||' src$99
+								WHERE '||tJoinConditions||'
+							)
+						) mv$1
+					WHERE
+					t_cnt >= 1
+					AND ( ( nonnull_cnt = 0
+							AND r >= 1 )
+							OR ( nonnull_cnt > 0
+							   AND r <= t_cnt - nonnull_cnt ) ) )';
+
+
+--RAISE INFO '%', tSQL;
+
+RETURN tSQL;
+
 END;
 $BODY$
 LANGUAGE    plpgsql;

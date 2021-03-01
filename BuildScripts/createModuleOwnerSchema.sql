@@ -11,6 +11,7 @@ Date        | Name          | Description
 12/11/2018  | M Revitt      | Initial version
 05/11/2019  | T Mullen      | Reflecting the changes of table names
 23/10/2020	| D Day			| Added new columns to pg$mviews table query_joins_multi_table_cnt_array and query_joins_multi_table_pos_array
+26/02/2020	| D Day			| Added new column to pg$mviews_oj_details table delete_sql
 ------------+---------------+-------------------------------------------------------------------------------------------------------
 Background:     PostGre does not support Materialized View Fast Refreshes, this suite of scripts is a PL/SQL coded mechanism to
                 provide that functionality, the next phase of this projecdt is to fold these changes into the PostGre kernel.
@@ -193,7 +194,7 @@ CREATE TABLE IF NOT EXISTS :MODULEOWNER.pg$mviews
 
 CREATE TABLE IF NOT EXISTS :MODULEOWNER.pg$mviews_oj_details
 (
-        owner               	TEXT        NOT NULL,
+        owner               		TEXT        NOT NULL,
         view_name           		TEXT        NOT NULL,
         table_alias         		TEXT        NOT NULL,
         rowid_column_name   		TEXT        NOT NULL,
@@ -201,6 +202,7 @@ CREATE TABLE IF NOT EXISTS :MODULEOWNER.pg$mviews_oj_details
         column_name_array   		TEXT[],
         update_sql          		TEXT,
 		join_replacement_from_sql	TEXT,
+		delete_sql 					TEXT,
         CONSTRAINT
             pk_pg$mviews_oj_details
             PRIMARY KEY

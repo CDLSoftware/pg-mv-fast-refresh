@@ -265,7 +265,9 @@ BEGIN
 				tOuterLeftAliasArray,
 				tOuterRightAliasArray,
 				tLeftOuterJoinArray,
-				tRightOuterJoinArray
+				tRightOuterJoinArray,
+				tWhereClause,
+				tTableArray
 			 );
 
     CALL mv$refreshMaterializedViewInitial( rConst , pOwner, pViewName );
