@@ -1809,7 +1809,7 @@ BEGIN
 						 
 						 
 		tClauseJoinReplacement := mv$OuterJoinToInnerJoinReplacement(pConst, pTableNames, tColumnNameAlias);	
-		tOuterJoinDeleteStatement := mv$outerJoinDeleteStatement(pConst, pTableNames, tColumnNameAlias, pViewName, pRowidArray, pWhereClause, tTableName, pTableArray, pAliasArray);
+		tOuterJoinDeleteStatement := mv$outerJoinDeleteStatement(pConst, pTableNames, tColumnNameAlias, pViewName, pWhereClause, tTableName, pTableArray, pAliasArray);
 			
 		INSERT INTO pg$mviews_oj_details
 		(	owner
@@ -2557,6 +2557,8 @@ Date        | Name          | Description
 ------------+---------------+-------------------------------------------------------------------------------------------------------
             |               |
 28/04/2020  | D Day      	| Initial version
+01/03/2021	| D Day			| Added some additional replace logic to handle double spaces found in ansi join types LEFT JOIN,
+			|				| RIGHT JOIN, etc.
 ------------+---------------+-------------------------------------------------------------------------------------------------------
 Description:    Function to replace the alias driven outer join conditions to inner join in the from tables join sql
 				regular expression pattern.
@@ -2617,6 +2619,16 @@ tTablesSQL := regexp_replace(tTablesSQL,'left join','LEFT JOIN','gi');
 tTablesSQL := regexp_replace(tTablesSQL,'left outer join','LEFT JOIN','gi');
 tTablesSQL := regexp_replace(tTablesSQL,'right join','RIGHT JOIN','gi');
 tTablesSQL := regexp_replace(tTablesSQL,'right outer join','RIGHT JOIN','gi');
+tTablesSQL := regexp_replace(tTablesSQL,'left  join','LEFT JOIN','gi');
+tTablesSQL := regexp_replace(tTablesSQL,'left  outer join','LEFT JOIN','gi');
+tTablesSQL := regexp_replace(tTablesSQL,'left  outer  join','LEFT JOIN','gi');
+tTablesSQL := regexp_replace(tTablesSQL,'left outer  join','LEFT JOIN','gi');
+tTablesSQL := regexp_replace(tTablesSQL,'right  join','RIGHT JOIN','gi');
+tTablesSQL := regexp_replace(tTablesSQL,'right  outer join','RIGHT JOIN','gi');
+tTablesSQL := regexp_replace(tTablesSQL,'right outer  join','RIGHT JOIN','gi');
+tTablesSQL := regexp_replace(tTablesSQL,'right  outer  join','RIGHT JOIN','gi');
+tTablesSQL := regexp_replace(tTablesSQL,'RIGHT  JOIN','RIGHT JOIN','gi');
+tTablesSQL := regexp_replace(tTablesSQL,'LEFT  JOIN','LEFT JOIN','gi');
 	  
 SELECT count(1) INTO iLeftJoinCnt FROM regexp_matches(tTablesSQL,'LEFT JOIN','g');
 SELECT count(1) INTO iRightJoinCnt FROM regexp_matches(tTablesSQL,'RIGHT JOIN','g');
@@ -2951,7 +2963,6 @@ FUNCTION mv$outerJoinDeleteStatement(
 	pTableNames 	IN		TEXT,
 	pTableAlias 	IN		TEXT,
 	pViewName		IN      TEXT,
-	pRowidArray		IN      TEXT[],
 	pWhereClause	IN		TEXT,
 	pTableName		IN		TEXT,
     pTableArray		IN		TEXT[],
@@ -2987,9 +2998,6 @@ Returns:                TEXT
 Copyright 2021 Amazon.com, Inc. or its affiliates. All Rights Reserved. SPDX-License-Identifier: MIT-0
 ***********************************************************************************************************************************/
 DECLARE	
-
-	tAllROWIDs				TEXT;
-	tROWIDs					TEXT;
 
 	tJoinTableInfoFound		CHAR := 'N';
 	tOtherTableFound		CHAR := 'N';
@@ -3044,6 +3052,16 @@ tTablesSQL := regexp_replace(tTablesSQL,'left join','LEFT JOIN','gi');
 tTablesSQL := regexp_replace(tTablesSQL,'left outer join','LEFT JOIN','gi');
 tTablesSQL := regexp_replace(tTablesSQL,'right join','RIGHT JOIN','gi');
 tTablesSQL := regexp_replace(tTablesSQL,'right outer join','RIGHT JOIN','gi');
+tTablesSQL := regexp_replace(tTablesSQL,'left  join','LEFT JOIN','gi');
+tTablesSQL := regexp_replace(tTablesSQL,'left  outer join','LEFT JOIN','gi');
+tTablesSQL := regexp_replace(tTablesSQL,'left  outer  join','LEFT JOIN','gi');
+tTablesSQL := regexp_replace(tTablesSQL,'left outer  join','LEFT JOIN','gi');
+tTablesSQL := regexp_replace(tTablesSQL,'right  join','RIGHT JOIN','gi');
+tTablesSQL := regexp_replace(tTablesSQL,'right  outer join','RIGHT JOIN','gi');
+tTablesSQL := regexp_replace(tTablesSQL,'right outer  join','RIGHT JOIN','gi');
+tTablesSQL := regexp_replace(tTablesSQL,'right  outer  join','RIGHT JOIN','gi');
+tTablesSQL := regexp_replace(tTablesSQL,'RIGHT  JOIN','RIGHT JOIN','gi');
+tTablesSQL := regexp_replace(tTablesSQL,'LEFT  JOIN','LEFT JOIN','gi');
 tTablesSQL := regexp_replace(tTablesSQL,' on ',' ON ','gi');
 	  
 SELECT count(1) INTO iLeftJoinCnt FROM regexp_matches(tTablesSQL,'LEFT JOIN','g');
@@ -3242,15 +3260,6 @@ END LOOP;
 tJoinConditions := REPLACE(tJoinConditions,tTableAlias||'.','src$.');
 tJoinConditions := REPLACE(tJoinConditions,tOtherAlias||'.','src$99.');
 
-FOR rec IN (SELECT UNNEST(pRowidArray) rowid) LOOP
-	
-	tROWIDS := rec.rowid||',';	
-	tAllROWIDs := CONCAT(tAllROWIDs,tROWIDS);
-	
-END LOOP;
-
-tROWIDs := REPLACE(tROWIDs,'.','');
-
 IF pWhereClause <> '' THEN
 
 	SELECT count(1) INTO iAliasCnt FROM regexp_matches(pWhereClause,tTableAliasReg,'g');
@@ -3405,8 +3414,6 @@ IF pWhereClause <> '' THEN
 END IF;
 
 tJoinConditions := CONCAT(tJoinConditions,addWhereClauseJoinConditions);
-	
-tAllROWIDs := SUBSTR(tAllROWIDs,1,length(tAllROWIDs)-1);
 
 tSQL := 'DELETE FROM '||pViewName||'
 		 WHERE '||tOtherAlias||'_m_row$ IN (
@@ -3419,9 +3426,8 @@ tSQL := 'DELETE FROM '||pViewName||'
 							'||tTableName||' sna$
 						WHERE
 							m_row$ IN (SELECT UNNEST($1))
-					) src$,
-				'||tOtherTableName||' src$99
-				WHERE '||tJoinConditions||'
+					) src$
+				JOIN '||tOtherTableName||' src$99 ON '||tJoinConditions||'
 							)';
 
 --RAISE INFO '%', tSQL;
