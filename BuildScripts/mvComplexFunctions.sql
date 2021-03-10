@@ -1385,6 +1385,8 @@ Revision History    Push Down List
 ------------------------------------------------------------------------------------------------------------------------------------
 Date        | Name          | Description
 ------------+---------------+-------------------------------------------------------------------------------------------------------
+10/03/2021	| D Day			| Added new function mv$outerJoinDeleteStatement to dynamically create delete sql to store in data dictionary 
+			|				| to be used during the refresh process.
 23/10/2020  | D Day			| Defect fix - added REGEXP_REPLACE to remove any spaces or tabs at the end of the line for variable 
 			|				| tColumnNameSql. This was causing columns to be not added to the UPDATE statement. Added logic to 
 			|				| ignore rAliasJoinLinks.alias array null values and check for characters before alias matches in select column

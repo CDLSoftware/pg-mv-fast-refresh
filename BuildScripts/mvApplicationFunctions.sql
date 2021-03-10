@@ -87,6 +87,8 @@ Revision History    Push Down List
 ------------------------------------------------------------------------------------------------------------------------------------
 Date        | Name          | Description
 ------------+---------------+-------------------------------------------------------------------------------------------------------
+10/03/2021  | D Day 		| Added additional input parameters to call mv$insertPgMviewOuterJoinDetails to support dynamical delete_sql
+			|				| statement for performance improvements to the outer join alias delete and re-insert routine for DML type INSERT.
 22/10/2020	| D Day			| Defect fix - added two variables tQueryJoinsMultiTabCntArray and tQueryJoinsMultiTabPosArray to out in
 			|				| arrays to handle DML changes being applied from materialized view log table that gets used more than once by
 			|				| the same stored query. This procedure calls mv$insertPgMview to insert these new arrays into pg$mviews
