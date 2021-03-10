@@ -1267,6 +1267,7 @@ Revision History    Push Down List
 ------------------------------------------------------------------------------------------------------------------------------------
 Date        | Name          | Description
 ------------+---------------+-------------------------------------------------------------------------------------------------------
+10/03/2021	| D Day         | Added new delete and insert statements for outer join alias performance improvements
 18/08/2020	| D Day			| Removed outer to inner join logic as this is under further review.
 04/06/2020  | D Day         | Change functions with RETURNS VOID to procedures allowing support/control of COMMITS during refresh process.
 28/04/2020	| D Day			| Added join_replacement_from_sql value from pg$mview_oj_details data dictionary table to use in DELETE 
