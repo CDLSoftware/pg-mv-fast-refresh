@@ -1,5 +1,5 @@
 CREATE OR REPLACE 
-FUNCTION mv$outerJoinDeleteStatement(
+FUNCTION V602_mv$outerJoinDeleteStatement(
 	pConst          IN      mv$allConstants,
 	pTableNames 	IN		TEXT,
 	pTableAlias 	IN		TEXT,
@@ -549,7 +549,7 @@ IF iColumnCnt = 1 THEN
 							 WHERE  moj.view_name = m.view_name
 							 AND 	moj.delete_sql IS NULL) LOOP
 							 
-	tOuterJoinDeleteStatement := mv$outerJoinDeleteStatement(rConst, pTableNames, rMviewsOjDetails.table_alias, rMviewsOjDetails.view_name, rMviewsOjDetails.where_clause, rMviewsOjDetails.source_table_name, rMviewsOjDetails.table_array, rMviewsOjDetails.alias_array);
+	tOuterJoinDeleteStatement := mv$outerJoinDeleteStatement(rConst, rMviewsOjDetails.table_names, rMviewsOjDetails.table_alias, rMviewsOjDetails.view_name, rMviewsOjDetails.where_clause, rMviewsOjDetails.source_table_name, rMviewsOjDetails.table_array, rMviewsOjDetails.alias_array);
 
 	UPDATE pg$mviews_oj_details
 	SET delete_sql = tOuterJoinDeleteStatement
