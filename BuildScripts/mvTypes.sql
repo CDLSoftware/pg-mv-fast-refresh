@@ -7,7 +7,7 @@ Revision History    Push Down List
 ------------------------------------------------------------------------------------------------------------------------------------
 Date        | Name          | Description
 ------------+---------------+-------------------------------------------------------------------------------------------------------
-            |               |
+25/03/2021  | D Day         | Added ON_CONFLICT_DO_NOTHING to support workaround for primary key issue
 14/01/2020  | M Revitt      | Changes to fix the array boundaries when doing > 61 materialised views per table
             |               | Added BITMAP_OFFSET
 05/11/2019  | M Revitt      | Changes to allow bitmap column to be manipulated as an array
@@ -171,6 +171,7 @@ AS
     WHERE_NO_DATA                   TEXT,
     LEFT_OUTER_JOIN                 TEXT,
     RIGHT_OUTER_JOIN                TEXT,
+	ON_CONFLICT_DO_NOTHING			TEXT,
 --
 -- Table and column name definitions
 ------------------------------------------------------------------------------------------------------------------------------------

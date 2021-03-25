@@ -447,7 +447,9 @@ PROCEDURE    mv$insertMaterializedViewRows
                 pOwner          IN      TEXT,
                 pViewName       IN      TEXT,
                 pTableAlias     IN      TEXT    DEFAULT NULL,
-                pRowIDs         IN      UUID[]  DEFAULT NULL
+                pRowIDs         IN      UUID[]  DEFAULT NULL,
+				pDmlType		IN		TEXT	DEFAULT NULL,
+				pTabPkExist		IN      INTEGER DEFAULT 0
             )
 AS
 $BODY$
@@ -460,6 +462,7 @@ Revision History    Push Down List
 ------------------------------------------------------------------------------------------------------------------------------------
 Date        | Name          | Description
 ------------+---------------+-------------------------------------------------------------------------------------------------------
+25/03/2021	| D Day			| Added workaround to fix primary key issue against mv_policy materialized view to ignore
 04/06/2020  | D Day         | Change functions with RETURNS VOID to procedures allowing support/control of COMMITS during refresh process.
 11/03/2018  | M Revitt      | Initial version
 ------------+---------------+-------------------------------------------------------------------------------------------------------
@@ -474,6 +477,8 @@ Arguments:      IN      pConst              The memory structure containing all 
                 IN      pViewName           The name of the materialized view
                 IN      pTableAlias         The alias for the base table in the original select statement
                 IN      pRowID              The unique identifier to locate the new row
+				IN      pDmlType			The dml type
+				IN      pTabPkExist			The table has a primary key that exists
 
 ************************************************************************************************************************************
 Copyright 2018 Amazon.com, Inc. or its affiliates. All Rights Reserved. SPDX-License-Identifier: MIT-0
@@ -482,15 +487,22 @@ DECLARE
 
     tSqlStatement   TEXT;
     aPgMview        pg$mviews;
+	tSqlSelectColumns TEXT;
 
 BEGIN
 
     aPgMview := mv$getPgMviewTableData( pConst, pOwner, pViewName );
+	
+	IF ( pViewName = 'mv_policy' AND pDmlType = 'INSERT' AND pTabPkExist = 1 ) THEN
+		tSqlSelectColumns := pConst.OPEN_BRACKET   || pConst.SELECT_COMMAND || aPgMview.select_columns;
+	ELSE
+		tSqlSelectColumns := pConst.SELECT_COMMAND || aPgMview.select_columns;
+	END IF;
 
     tSqlStatement := pConst.INSERT_INTO    || pOwner || pConst.DOT_CHARACTER    || aPgMview.view_name   ||
                      pConst.OPEN_BRACKET   || aPgMview.pgmv_columns             || pConst.CLOSE_BRACKET ||
-                     pConst.SELECT_COMMAND || aPgMview.select_columns           ||
-                     pConst.FROM_COMMAND   || aPgMview.table_names;
+                     --pConst.SELECT_COMMAND || aPgMview.select_columns           ||
+					 tSqlSelectColumns || pConst.FROM_COMMAND   || aPgMview.table_names;
 
      IF aPgMview.where_clause != pConst.EMPTY_STRING
     THEN
@@ -507,6 +519,13 @@ BEGIN
         END IF;
 
         tSqlStatement :=  tSqlStatement || pTableAlias || pConst.MV_M_ROW$_SOURCE_COLUMN || pConst.IN_ROWID_LIST;
+		
+		IF ( pViewName = 'mv_policy' AND pDmlType = 'INSERT' AND pTabPkExist = 1 ) THEN
+			
+			tSqlStatement := tSqlStatement || pConst.ON_CONFLICT_DO_NOTHING;
+			
+		END IF;
+		
     END IF;
 
     EXECUTE tSqlStatement
@@ -746,7 +765,8 @@ PROCEDURE    mv$executeMVFastRefresh
                 pOuterTable     IN      BOOLEAN,
                 pInnerAlias     IN      TEXT,
                 pInnerRowid     IN      TEXT,
-                pRowIDArray     IN      UUID[]
+                pRowIDArray     IN      UUID[],
+				pTabPkExist		IN      INTEGER
             )
 AS
 $BODY$
@@ -780,6 +800,7 @@ Arguments:      IN      pConst              The memory structure containing all 
                 IN		pInnerAlias
                 IN		pInnerRowid
                 IN		pRowIDArray
+				IN      pTabPkExist
 
 ************************************************************************************************************************************
 Copyright 2018 Amazon.com, Inc. or its affiliates. All Rights Reserved. SPDX-License-Identifier: MIT-0
@@ -820,11 +841,12 @@ BEGIN
                             pTableAlias,
                             pInnerAlias,
                             pInnerRowid,
-                            pRowIDArray
+                            pRowIDArray,
+							pTabPkExist
                         );
         ELSE
             CALL mv$deleteMaterializedViewRows( pConst, pOwner, pViewName, pConst.INSERT_DML_TYPE, pRowidColumn, pRowIDArray );
-            CALL mv$insertMaterializedViewRows( pConst, pOwner, pViewName, pTableAlias,  pRowIDArray );
+            CALL mv$insertMaterializedViewRows( pConst, pOwner, pViewName, pTableAlias,  pRowIDArray, pConst.INSERT_DML_TYPE, pTabPkExist );
         END IF;
 
     WHEN pConst.UPDATE_DML_TYPE
@@ -921,6 +943,8 @@ DECLARE
 	
 	aMultiTablePgMview		pg$mviews;
 	bOuterJoined			BOOLEAN;
+	
+	iTabPkExist				INTEGER := 0;
 
 BEGIN
 
@@ -929,6 +953,15 @@ BEGIN
 	
 	IF pQueryJoinsMultiTabCnt > 1 THEN
 		aMultiTablePgMview   := mv$getPgMviewTableData( pConst, pOwner, pViewName );
+	END IF;
+	
+	IF pViewName = 'mv_policy' THEN	
+		SELECT count(1) INTO iTabPkExist
+		FROM   pg_index i
+		JOIN   pg_attribute a ON a.attrelid = i.indrelid
+							 AND a.attnum = ANY(i.indkey)
+		WHERE  i.indrelid = pViewName::regclass
+		AND    i.indisprimary;	
 	END IF;
 
     tSqlStatement    := pConst.MV_LOG$_SELECT_M_ROW$    || aViewLog.owner || pConst.DOT_CHARACTER   || aViewLog.pglog$_name     ||
@@ -975,7 +1008,8 @@ BEGIN
 											bOuterJoined,
 											aMultiTablePgMview.inner_alias_array[i],
 											aMultiTablePgMview.inner_rowid_array[i],
-											uRowIDArray
+											uRowIDArray,
+											iTabPkExist
 										);
 				
 						END IF;
@@ -997,7 +1031,8 @@ BEGIN
 								pOuterTable,
 								pInnerAlias,
 								pInnerRowid,
-								uRowIDArray
+								uRowIDArray,
+								iTabPkExist
 							);
 							
 			END IF;
@@ -1035,7 +1070,8 @@ BEGIN
 									bOuterJoined,
 									aMultiTablePgMview.inner_alias_array[i],
 									aMultiTablePgMview.inner_rowid_array[i],
-									uRowIDArray
+									uRowIDArray,
+									iTabPkExist
 								);
 							
 				END IF;
@@ -1055,7 +1091,8 @@ BEGIN
 							pOuterTable,
 							pInnerAlias,
 							pInnerRowid,
-							uRowIDArray
+							uRowIDArray,
+							iTabPkExist
 						);
 						
 		END IF;
@@ -1254,7 +1291,8 @@ PROCEDURE    mv$insertOuterJoinRows
                 pTableAlias     IN      TEXT,
                 pInnerAlias     IN      TEXT,
                 pInnerRowid     IN      TEXT,
-                pRowIDs         IN      UUID[]
+                pRowIDs         IN      UUID[],
+				pTabPkExist		IN      INTEGER DEFAULT 0
             )
 AS
 $BODY$
@@ -1267,6 +1305,7 @@ Revision History    Push Down List
 ------------------------------------------------------------------------------------------------------------------------------------
 Date        | Name          | Description
 ------------+---------------+-------------------------------------------------------------------------------------------------------
+25/03/2021	| D Day			| Added workaround to fix primary key issue against mv_policy materialized view to ignore
 10/03/2021	| D Day         | Added new delete and insert statements for outer join alias performance improvements
 18/08/2020	| D Day			| Removed outer to inner join logic as this is under further review.
 04/06/2020  | D Day         | Change functions with RETURNS VOID to procedures allowing support/control of COMMITS during refresh process.
@@ -1292,6 +1331,7 @@ Arguments:      IN      pConst              The memory structure containing all 
                 IN		pInnerAlias
                 IN		pInnerRowid
                 IN		pRowIDs
+				IN		pTabPkExist
 
 ************************************************************************************************************************************
 Copyright 2018 Amazon.com, Inc. or its affiliates. All Rights Reserved. SPDX-License-Identifier: MIT-0
@@ -1304,13 +1344,14 @@ DECLARE
     aPgMview        	pg$mviews;
 	aPgMviewOjDetails	pg$mviews_oj_details;
 	tFromClause			TEXT;
+	tSqlSelectColumns   TEXT;
 
 BEGIN
 
     aPgMview    		 := mv$getPgMviewTableData( pConst, pOwner, pViewName );
     aPgMviewOjDetails    := mv$getPgMviewOjDetailsTableData( pConst, pOwner, pViewName, pTableAlias);
 	
-	--tFromClause		  	 := pConst.FROM_COMMAND  || aPgMview.table_names    || pConst.WHERE_COMMAND;
+	--tFromClause		:= pConst.FROM_COMMAND  || aPgMview.table_names    || pConst.WHERE_COMMAND;
 	--tDeleteFromClause := pConst.FROM_COMMAND  || aPgMview.table_names    || pConst.WHERE_COMMAND;
 	tInsertFromClause := pConst.FROM_COMMAND  || aPgMviewOjDetails.join_replacement_from_sql    || pConst.WHERE_COMMAND;
 
@@ -1322,7 +1363,6 @@ BEGIN
     END IF;
 	
     --tFromClause := tFromClause  || pTableAlias   || pConst.MV_M_ROW$_SOURCE_COLUMN   || pConst.IN_ROWID_LIST;
-
     --tDeleteFromClause := tDeleteFromClause  || pTableAlias   || pConst.MV_M_ROW$_SOURCE_COLUMN   || pConst.IN_ROWID_LIST;
     tInsertFromClause := tInsertFromClause  || pTableAlias   || pConst.MV_M_ROW$_SOURCE_COLUMN   || pConst.IN_ROWID_LIST;
 
@@ -1337,11 +1377,20 @@ BEGIN
     EXECUTE tSqlStatement
     USING   pRowIDs;
 	
+	IF ( pViewName = 'mv_policy' AND pTabPkExist = 1 ) THEN
+		tSqlSelectColumns := pConst.OPEN_BRACKET   || pConst.SELECT_COMMAND || aPgMview.select_columns;
+	ELSE
+		tSqlSelectColumns := pConst.SELECT_COMMAND || aPgMview.select_columns;
+	END IF;
+	
     tSqlStatement :=    pConst.INSERT_INTO       ||
                         aPgMview.owner           || pConst.DOT_CHARACTER    || aPgMview.view_name   ||
                         pConst.OPEN_BRACKET      || aPgMview.pgmv_columns   || pConst.CLOSE_BRACKET ||
-                        pConst.SELECT_COMMAND    || aPgMview.select_columns ||
-                        tInsertFromClause;
+                        tSqlSelectColumns 		 || tInsertFromClause;
+						
+	IF ( pViewName = 'mv_policy' AND pTabPkExist = 1 )  THEN		
+		tSqlStatement := tSqlStatement || pConst.ON_CONFLICT_DO_NOTHING;
+	END IF;
 
     EXECUTE tSqlStatement
     USING   pRowIDs;
