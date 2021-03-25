@@ -282,7 +282,7 @@ BEGIN
     rMvConstants.WHERE_NO_DATA                  := ' WHERE 1 = 2 ';
 	rMvConstants.LEFT_OUTER_JOIN				:= 'LOJ';
 	rMvConstants.RIGHT_OUTER_JOIN				:= 'ROJ';
-	rMvConstants.ON_CONFLICT_DO_NOTHING			:= rMvConstants.CLOSE_BRACKET || ' ON CONFLICT (policy_id) DO NOTHING'
+	rMvConstants.ON_CONFLICT_DO_NOTHING			:= rMvConstants.CLOSE_BRACKET || ' ON CONFLICT (policy_id) DO NOTHING';
 
 -- Table and column name definitions
 ------------------------------------------------------------------------------------------------------------------------------------
