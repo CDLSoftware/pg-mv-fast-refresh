@@ -2187,7 +2187,7 @@ BEGIN
     tSqlStatement := pConst.INSERT_INTO    || pOwner || pConst.DOT_CHARACTER    || aPgMview.view_name   ||
                      pConst.OPEN_BRACKET   || aPgMview.pgmv_columns             || pConst.CLOSE_BRACKET ||
                      --pConst.SELECT_COMMAND || aPgMview.select_columns           ||
-					 tSqlSelectColumns || pConst.FROM_COMMAND   || aPgMview.table_names
+					 tSqlSelectColumns || pConst.FROM_COMMAND   || aPgMview.table_names ||
                      pConst.WHERE_COMMAND;
 
     IF aPgMview.where_clause != pConst.EMPTY_STRING
