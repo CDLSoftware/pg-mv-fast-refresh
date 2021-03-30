@@ -462,7 +462,7 @@ Revision History    Push Down List
 ------------------------------------------------------------------------------------------------------------------------------------
 Date        | Name          | Description
 ------------+---------------+-------------------------------------------------------------------------------------------------------
-25/03/2021	| D Day			| Added workaround to fix primary key issue against mv_policy materialized view to ignore
+25/03/2021	| D Day			| Added workaround to fix primary key issue against mv_policy materialized view to ignore duplicates.
 04/06/2020  | D Day         | Change functions with RETURNS VOID to procedures allowing support/control of COMMITS during refresh process.
 11/03/2018  | M Revitt      | Initial version
 ------------+---------------+-------------------------------------------------------------------------------------------------------
@@ -779,6 +779,8 @@ Revision History    Push Down List
 ------------------------------------------------------------------------------------------------------------------------------------
 Date        | Name          | Description
 ------------+---------------+-------------------------------------------------------------------------------------------------------
+30/03/2021  | D Day			| Added new parameter variables for insert process to handle primary key duplicates on mv_policy when
+			|				| calling procedures mv$updateMaterializedViewRows and mv$insertMaterializedViewRows.
 04/06/2020  | D Day         | Change functions with RETURNS VOID to procedures allowing support/control of COMMITS during refresh process.
 01/07/2019	| David Day		| Added function mv$updateOuterJoinColumnsNull to handle outer join deletes.            |               |
 11/03/2018  | M Revitt      | Initial version
@@ -852,7 +854,7 @@ BEGIN
     WHEN pConst.UPDATE_DML_TYPE
     THEN
         CALL mv$deleteMaterializedViewRows( pConst, pOwner, pViewName, pConst.UPDATE_DML_TYPE, pRowidColumn, pRowIDArray );
-        CALL mv$updateMaterializedViewRows( pConst, pOwner, pViewName, pTableAlias,  pRowIDArray );
+        CALL mv$updateMaterializedViewRows( pConst, pOwner, pViewName, pTableAlias,  pRowIDArray, pTabPkExist);
     ELSE
         RAISE EXCEPTION 'DML Type % is unknown', pDmlType;
     END CASE;
@@ -2135,7 +2137,8 @@ PROCEDURE    mv$updateMaterializedViewRows
                 pOwner          IN      TEXT,
                 pViewName       IN      TEXT,
                 pTableAlias     IN      TEXT,
-                pRowIDs         IN      UUID[]
+                pRowIDs         IN      UUID[],
+				pTabPkExist		IN      INTEGER DEFAULT 0
             )
 AS
 $BODY$
@@ -2148,6 +2151,7 @@ Revision History    Push Down List
 ------------------------------------------------------------------------------------------------------------------------------------
 Date        | Name          | Description
 ------------+---------------+-------------------------------------------------------------------------------------------------------
+30/03/2021	| D Day			| Added workaround to fix primary key issue against mv_policy materialized view to ignore duplicates.
 04/06/2020  | D Day         | Change functions with RETURNS VOID to procedures allowing support/control of COMMITS during refresh process.
 11/03/2018  | M Revitt      | Initial version
 ------------+---------------+-------------------------------------------------------------------------------------------------------
@@ -2157,24 +2161,33 @@ Arguments:      IN      pOwner              The owner of the object
                 IN      pViewName           The name of the materialized view
                 IN      pTableAlias         The alias for the base table in the original select statement
                 IN      pRowID              The unique identifier to locate the new row
+				IN      pTabPkExist
 
 ************************************************************************************************************************************
 Copyright 2018 Amazon.com, Inc. or its affiliates. All Rights Reserved. SPDX-License-Identifier: MIT-0
 ***********************************************************************************************************************************/
 DECLARE
 
-    tSqlStatement   TEXT;
-    aPgMview        pg$mviews;
-    bBaseRowExists  BOOLEAN := FALSE;
+    tSqlStatement   	TEXT;
+    aPgMview        	pg$mviews;
+    bBaseRowExists  	BOOLEAN := FALSE;
+	tSqlSelectColumns 	TEXT;
+
 
 BEGIN
 
     aPgMview := mv$getPgMviewTableData( pConst, pOwner, pViewName );
+	
+	IF ( pViewName = 'mv_policy' AND pTabPkExist = 1 ) THEN
+		tSqlSelectColumns := pConst.OPEN_BRACKET   || pConst.SELECT_COMMAND || aPgMview.select_columns;
+	ELSE
+		tSqlSelectColumns := pConst.SELECT_COMMAND || aPgMview.select_columns;
+	END IF;
 
     tSqlStatement := pConst.INSERT_INTO    || pOwner || pConst.DOT_CHARACTER    || aPgMview.view_name   ||
                      pConst.OPEN_BRACKET   || aPgMview.pgmv_columns             || pConst.CLOSE_BRACKET ||
-                     pConst.SELECT_COMMAND || aPgMview.select_columns           ||
-                     pConst.FROM_COMMAND   || aPgMview.table_names              ||
+                     --pConst.SELECT_COMMAND || aPgMview.select_columns           ||
+					 tSqlSelectColumns || pConst.FROM_COMMAND   || aPgMview.table_names
                      pConst.WHERE_COMMAND;
 
     IF aPgMview.where_clause != pConst.EMPTY_STRING
@@ -2183,6 +2196,12 @@ BEGIN
     END IF;
 
     tSqlStatement :=  tSqlStatement || pTableAlias  || pConst.MV_M_ROW$_SOURCE_COLUMN || pConst.IN_ROWID_LIST;
+	
+	IF ( pViewName = 'mv_policy' AND pTabPkExist = 1 ) THEN
+		
+		tSqlStatement := tSqlStatement || pConst.ON_CONFLICT_DO_NOTHING;
+		
+	END IF;	
 
     EXECUTE tSqlStatement
     USING   pRowIDs;
