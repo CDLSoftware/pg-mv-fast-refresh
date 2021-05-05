@@ -1,38 +1,52 @@
--- Simple functions
-DROP FUNCTION IF EXISTS mv$addIndexToMvLog$Table;
-DROP FUNCTION IF EXISTS mv$addRow$ToMv$Table;
-DROP FUNCTION IF EXISTS mv$addRow$ToSourceTable;
-DROP FUNCTION IF EXISTS mv$clearSpentPgMviewLogs;
-DROP FUNCTION IF EXISTS mv$createMvLog$Table;
-DROP FUNCTION IF EXISTS mv$createMvLogTrigger;
-DROP FUNCTION IF EXISTS mv$deleteMaterializedViewRows;
-DROP FUNCTION IF EXISTS mv$deletePgMview;
-DROP FUNCTION IF EXISTS mv$deletePgMviewOjDetails;
-DROP FUNCTION IF EXISTS mv$deletePgMviewLog;
-DROP FUNCTION IF EXISTS mv$dropTable;
-DROP FUNCTION IF EXISTS mv$dropTrigger;
-DROP FUNCTION IF EXISTS mv$grantSelectPrivileges;
-DROP FUNCTION IF EXISTS mv$insertPgMviewLogs;
-DROP FUNCTION IF EXISTS mv$removeRow$FromSourceTable;
-DROP FUNCTION IF EXISTS mv$truncateMaterializedView;
---Complex Functions
-DROP FUNCTION IF EXISTS mv$clearAllPgMvLogTableBits;
-DROP FUNCTION IF EXISTS mv$clearPgMvLogTableBits;
-DROP FUNCTION IF EXISTS mv$clearPgMviewLogBit;
-DROP FUNCTION IF EXISTS mv$createPgMv$Table;
-DROP FUNCTION IF EXISTS mv$insertMaterializedViewRows;
-DROP FUNCTION IF EXISTS mv$insertPgMview;
-DROP FUNCTION IF EXISTS mv$insertOuterJoinRows;
-DROP FUNCTION IF EXISTS mv$insertPgMviewOuterJoinDetails;
-DROP FUNCTION IF EXISTS mv$executeMVFastRefresh;
-DROP FUNCTION IF EXISTS mv$refreshMaterializedViewFast;
-DROP FUNCTION IF EXISTS mv$refreshMaterializedViewFull;
-DROP FUNCTION IF EXISTS mv$setPgMviewLogBit;
-DROP FUNCTION IF EXISTS mv$updateMaterializedViewRows;
-DROP FUNCTION IF EXISTS mv$updateOuterJoinColumnsNull;
--- Application Functions
-DROP FUNCTION IF EXISTS mv$createMaterializedView;
-DROP FUNCTION IF EXISTS mv$createMaterializedViewlog;
-DROP FUNCTION IF EXISTS mv$refreshMaterializedView;
-DROP FUNCTION IF EXISTS mv$removeMaterializedView;
-DROP FUNCTION IF EXISTS mv$removeMaterializedViewLog;
+DO $$
+DECLARE
+
+each_row RECORD;
+
+BEGIN
+
+	FOR each_row IN (select 'DROP FUNCTION IF EXISTS '||proname AS drop_function
+	   FROM pg_proc 
+	   AND prokind = 'f'
+	   AND proname IN ('mv$addindextomvlog$table',
+			'mv$addindextomvlog$table',
+			'mv$addrow$tomv$table',
+			'mv$addrow$tosourcetable',
+			'mv$clearspentpgmviewlogs',
+			'mv$createmvlog$table',
+			'mv$createmvlogtrigger',
+			'mv$deletematerializedviewrows',
+			'mv$deletepgmview',
+			'mv$deletepgmviewojdetails',
+			'mv$deletepgmviewlog',
+			'mv$droptable',
+			'mv$droptrigger',
+			'mv$grantselectprivileges',
+			'mv$insertpgmviewlogs',
+			'mv$removerow$fromsourcetable',
+			'mv$truncatematerializedview',
+			'mv$clearallpgmvlogtablebits',
+			'mv$clearpgmvlogtablebits',
+			'mv$clearpgmviewlogbit',
+			'mv$createpgmv$table',
+			'mv$insertmaterializedviewrows',
+			'mv$insertpgmview',
+			'mv$insertouterjoinrows',
+			'mv$insertpgmviewouterjoindetails',
+			'mv$executemvfastrefresh',
+			'mv$refreshmaterializedviewfast',
+			'mv$refreshmaterializedviewfull',
+			'mv$setpgmviewlogbit',
+			'mv$updatematerializedviewrows',
+			'mv$updateouterjoincolumnsnull',
+			'mv$creatematerializedview',
+			'mv$creatematerializedviewlog',
+			'mv$refreshmaterializedview',
+			'mv$removematerializedview',
+			'mv$removematerializedviewlog')) LOOP
+			
+		EXECUTE ech_row.drop_function;
+		
+	END LOOP;
+	
+END $$;
