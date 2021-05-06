@@ -145,8 +145,16 @@ IF iLeftJoinCnt > 0 THEN
 				'i')-3);
 			
 		IF tJoinTableInfoFound = 'N' THEN
+		
+			IF tTableName = tTableAlias THEN
+		
+				SELECT count(1) INTO iLeftJoinAliasCnt FROM regexp_matches(tLeftJoinLine,tTableName||pConst.ON_TOKEN,'g');
 			
-			SELECT count(1) INTO iLeftJoinAliasCnt FROM regexp_matches(tLeftJoinLine,tTableName||'+[[:space:]]+'||tTableAlias,'g');
+			ELSE 
+			
+				SELECT count(1) INTO iLeftJoinAliasCnt FROM regexp_matches(tLeftJoinLine,tTableName||'+[[:space:]]+'||tTableAlias,'g');
+			
+			END IF;
 
 			IF iLeftJoinAliasCnt > 0 THEN
 				
@@ -218,8 +226,16 @@ ELSIF iRightJoinCnt > 0 AND tJoinTableInfoFound = 'N' THEN
 				'i')-3);
 			
 		IF tJoinTableInfoFound = 'N' THEN
+		
+			IF tTableName = tTableAlias THEN
+		
+				SELECT count(1) INTO iRightJoinAliasCnt FROM regexp_matches(tLeftJoinLine,tTableName||pConst.ON_TOKEN,'g');
 			
-			SELECT count(1) INTO iRightJoinAliasCnt FROM regexp_matches(tRightJoinLine,tTableName||'+[[:space:]]+'||tTableAlias,'g');
+			ELSE 
+			
+				SELECT count(1) INTO iRightJoinAliasCnt FROM regexp_matches(tLeftJoinLine,tTableName||'+[[:space:]]+'||tTableAlias,'g');
+			
+			END IF;
 
 			IF iRightJoinAliasCnt > 0 THEN
 				
