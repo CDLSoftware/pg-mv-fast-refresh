@@ -7,7 +7,7 @@ BEGIN
 
 	FOR each_row IN (select 'DROP FUNCTION IF EXISTS '||proname AS drop_function
 	   FROM pg_proc 
-	   W prokind = 'f'
+	   WHERE prokind = 'f'
 	   AND proname IN ('mv$addindextomvlog$table',
 			'mv$addindextomvlog$table',
 			'mv$addrow$tomv$table',
