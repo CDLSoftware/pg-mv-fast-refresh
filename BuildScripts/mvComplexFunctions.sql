@@ -56,6 +56,7 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 SET     CLIENT_MIN_MESSAGES = ERROR;
 
+DROP PROCEDURE IF EXISTS mv$clearAllPgMvLogTableBitsCompleteRefresh;
 DROP PROCEDURE IF EXISTS mv$clearAllPgMvLogTableBits;
 DROP PROCEDURE IF EXISTS mv$clearPgMvLogTableBits;
 DROP PROCEDURE IF EXISTS mv$clearPgMviewLogBit;
@@ -81,6 +82,91 @@ DROP FUNCTION IF EXISTS mv$refreshMaterializedViewInitial;
 SET CLIENT_MIN_MESSAGES = NOTICE;
 
 --------------------------------------------- Write CREATE-PROCEDURE-FUNCTION-stage scripts --------------------------------------------------
+CREATE OR REPLACE
+PROCEDURE    mv$clearAllPgMvLogTableBitsCompleteRefresh
+            (
+                pConst      IN      mv$allConstants,
+                pOwner      IN      TEXT,
+                pViewName   IN      TEXT
+            )
+AS
+$BODY$
+/* ---------------------------------------------------------------------------------------------------------------------------------
+Routine Name: mv$clearAllPgMvLogTableBitsCompleteRefresh
+Author:       David Day
+Date:         04/05/2021
+------------------------------------------------------------------------------------------------------------------------------------
+Revision History    Push Down List
+------------------------------------------------------------------------------------------------------------------------------------
+Date        | Name          | Description
+------------+---------------+-------------------------------------------------------------------------------------------------------
+04/05/2021  | D Day         | Initial version
+------------+---------------+-------------------------------------------------------------------------------------------------------
+Description:    Performs a full refresh of the materialized view used for Complete Refresh Only, which consists of truncating the table 
+				and then re-populating it.
+
+                This activity also requires that every row in the materialized view log is updated to remove the interest from this
+                materialized view, then as with the fast refresh once all the rows have been processed the materialized view log is
+                cleaned up, in that all rows with a bitmap of zero are deleted as they are then no longer required.
+
+Note:           This procedure requires the SEARCH_PATH to be set to the current value so that the select statement can find the
+                source tables.
+                The default for PostGres procedures is to not use the search path when executing with the privileges of the creator
+
+Arguments:      IN      pConst              The memory structure containing all constants
+         		IN      pOwner              The owner of the object
+                IN      pViewName           The name of the materialized view
+************************************************************************************************************************************
+Copyright 2018 Amazon.com, Inc. or its affiliates. All Rights Reserved. SPDX-License-Identifier: MIT-0
+***********************************************************************************************************************************/
+DECLARE
+
+    aViewLog        		pg$mview_logs;
+    aPgMview        		pg$mviews;
+	
+	tTableName				TEXT;
+	tDistinctTableArray		TEXT[];
+	
+	iTableAlreadyExistsCnt 	INTEGER DEFAULT 0;
+
+BEGIN
+    aPgMview := mv$getPgMviewTableData( pConst, pOwner, pViewName );
+
+    FOR i IN ARRAY_LOWER( aPgMview.table_array, 1 ) .. ARRAY_UPPER( aPgMview.table_array, 1 )
+    LOOP
+        aViewLog := mv$getPgMviewLogTableData( pConst, aPgMview.table_array[i] );
+		
+		tTableName := aPgMview.table_array[i];		
+		tDistinctTableArray[i] := tTableName;
+		
+		SELECT count(1) INTO STRICT iTableAlreadyExistsCnt 
+		FROM (SELECT unnest(tDistinctTableArray) as table_name) inline
+		WHERE inline.table_name = tTableName;
+		
+		IF iTableAlreadyExistsCnt = 1
+		THEN
+
+			CALL mv$clearPgMvLogTableBits
+						(
+							pConst,
+							aViewLog.owner,
+							aViewLog.pglog$_name,
+							aPgMview.bit_array[i],
+							pConst.MAX_BITMAP_SIZE
+						);
+
+			CALL mv$clearSpentPgMviewLogs( pConst, aViewLog.owner, aViewLog.pglog$_name );
+			
+			COMMIT;
+			
+		END IF;
+
+    END LOOP;
+
+END;
+$BODY$
+LANGUAGE    plpgsql;
+------------------------------------------------------------------------------------------------------------------------------------
 CREATE OR REPLACE
 PROCEDURE    mv$clearAllPgMvLogTableBits
             (
@@ -1103,6 +1189,8 @@ Revision History    Push Down List
 ------------------------------------------------------------------------------------------------------------------------------------
 Date        | Name          | Description
 ------------+---------------+-------------------------------------------------------------------------------------------------------
+06/05/2021  | D Day			| Replaced function mv$clearAllPgMvLogTableBits with mv$clearAllPgMvLogTableBitsCompleteRefresh to handle
+			|				| commits during the complete refresh. Removed exception handler to support commits.
 18/08/2020	| J Bills		| Added process to drop and re-index MVs to prevent the refresh from hanging. Also changed the order of 
 			|				| clearing the logs to prevent missing data when base table replication process is running.
 04/06/2020  | D Day         | Change functions with RETURNS VOID to procedures allowing support/control of COMMITS during refresh process.
@@ -1135,7 +1223,7 @@ BEGIN
     CALL mv$createindexestemptable(pOwner, pViewName);
 	CALL mv$dropmvindexes(pOwner, pViewName);
 	CALL mv$truncateMaterializedView(   pConst, pOwner, aPgMview.view_name );
-    CALL mv$clearAllPgMvLogTableBits(   pConst, pOwner, pViewName );
+    CALL mv$clearAllPgMvLogTableBitsCompleteRefresh(   pConst, pOwner, pViewName );
 	CALL mv$insertMaterializedViewRows( pConst, pOwner, pViewName );
     CALL mv$readdmvindexes (pViewName);
 	CALL mv$dropindexestemptable (pViewName);
