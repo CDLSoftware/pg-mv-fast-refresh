@@ -982,10 +982,9 @@ Revision History    Push Down List
 ------------------------------------------------------------------------------------------------------------------------------------
 Date        | Name          | Description
 ------------+---------------+-------------------------------------------------------------------------------------------------------
-20/05/2020  | D Day			| Missed temp workaround performance improvement to ignore DML changes to prtyinst, currprty, personxx
-			|				| on MV_DIARY and MV_APPLICATION_EVENTS from second IF statement calls to the same functionality. Also
-			|				| added MV_DOCUMENT to ignore DML changes to prtyinst and personxx. If the main joining table changes
-			|				| this will update the row i.e. createdby or updatedby columns.
+20/05/2020  | D Day			| Bug fix - to ignore DML changes to prtyinst, currprty, personxx for materialized views that only
+			|				| use these table joins to get forename and surname. If the main joining table changes for the linking id
+			|				| this will update the row i.e. createdby or updatedby columns for the forename and surname.
 19/11/2020	| D Day			| CDL specific change - temp workaround performance improvement to ignore DML changes to prtyinst, currprty, personxx
 			|				| on MV_DIARY and MV_APPLICATION_EVENTS. The way new client party instances get created even though the forename and surname
 			|				| for Strata users never or rarely changes it still causes the source table row to change and this causes the mview log table
@@ -1081,9 +1080,9 @@ BEGIN
 		
 			IF pQueryJoinsMultiTabCnt > 1 THEN
 			
-				IF (pViewName <> 'mv_diary' AND pTableName NOT IN ('prtyinst','personxx','currprty')) 
-				OR (pViewName <> 'mv_application_events' AND pTableName NOT IN ('prtyinst','personxx','currprty'))
-				OR (pViewName <> 'mv_document' AND pTableName NOT IN ('prtyinst','personxx')) THEN
+				-- Ignore DML changes for forename and surname columns unless the joining createdby or updatedby ID changes on the joining table. This is required ro reduce performance impact
+				-- when these tables get updated with no changes to forename and surname.
+				IF pTableName NOT IN ('prtyinst','personxx','currprty') THEN
 
 					FOR i IN ARRAY_LOWER( aMultiTablePgMview.table_array, 1 ) .. ARRAY_UPPER( aMultiTablePgMview.table_array, 1 ) LOOP
 
@@ -1145,9 +1144,9 @@ BEGIN
 
 		IF pQueryJoinsMultiTabCnt > 1 THEN
 		
-			IF (pViewName <> 'mv_diary' AND pTableName NOT IN ('prtyinst','personxx','currprty')) 
-			OR (pViewName <> 'mv_application_events' AND pTableName NOT IN ('prtyinst','personxx','currprty'))
-			OR (pViewName <> 'mv_document' AND pTableName NOT IN ('prtyinst','personxx')) THEN
+			-- Ignore DML changes for forename and surname columns unless the joining createdby or updatedby ID changes on the joining table. This is required ro reduce performance impact
+			-- when these tables get updated with no changes to forename and surname.
+			IF pTableName NOT IN ('prtyinst','personxx','currprty') THEN
 		
 				aMultiTablePgMview   := mv$getPgMviewTableData( pConst, pOwner, pViewName );
 
