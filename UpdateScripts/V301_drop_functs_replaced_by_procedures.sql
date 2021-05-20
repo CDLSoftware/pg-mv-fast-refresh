@@ -45,7 +45,7 @@ BEGIN
 			'mv$removematerializedview',
 			'mv$removematerializedviewlog')) LOOP
 			
-		EXECUTE ech_row.drop_function;
+		EXECUTE each_row.drop_function;
 		
 	END LOOP;
 	

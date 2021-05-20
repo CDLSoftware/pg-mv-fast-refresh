@@ -168,7 +168,7 @@ BEGIN
 END;
 $BODY$
 LANGUAGE    plpgsql;
---------------------------------------------- Write CREATE-PROCEDURE-FUNCTION-stage scripts --------------------------------------------------
+------------------------------------------------------------------------------------------------------------------------------------
 CREATE OR REPLACE
 PROCEDURE    mv$clearAllPgMvLogTableBits
             (
@@ -982,6 +982,10 @@ Revision History    Push Down List
 ------------------------------------------------------------------------------------------------------------------------------------
 Date        | Name          | Description
 ------------+---------------+-------------------------------------------------------------------------------------------------------
+20/05/2020  | D Day			| Missed temp workaround performance improvement to ignore DML changes to prtyinst, currprty, personxx
+			|				| on MV_DIARY and MV_APPLICATION_EVENTS from second IF statement calls to the same functionality. Also
+			|				| added MV_DOCUMENT to ignore DML changes to prtyinst and personxx. If the main joining table changes
+			|				| this will update the row i.e. createdby or updatedby columns.
 19/11/2020	| D Day			| CDL specific change - temp workaround performance improvement to ignore DML changes to prtyinst, currprty, personxx
 			|				| on MV_DIARY and MV_APPLICATION_EVENTS. The way new client party instances get created even though the forename and surname
 			|				| for Strata users never or rarely changes it still causes the source table row to change and this causes the mview log table
@@ -1078,7 +1082,8 @@ BEGIN
 			IF pQueryJoinsMultiTabCnt > 1 THEN
 			
 				IF (pViewName <> 'mv_diary' AND pTableName NOT IN ('prtyinst','personxx','currprty')) 
-				OR (pViewName <> 'mv_application_events' AND pTableName NOT IN ('prtyinst','personxx','currprty')) THEN
+				OR (pViewName <> 'mv_application_events' AND pTableName NOT IN ('prtyinst','personxx','currprty'))
+				OR (pViewName <> 'mv_document' AND pTableName NOT IN ('prtyinst','personxx')) THEN
 
 					FOR i IN ARRAY_LOWER( aMultiTablePgMview.table_array, 1 ) .. ARRAY_UPPER( aMultiTablePgMview.table_array, 1 ) LOOP
 
@@ -1140,32 +1145,38 @@ BEGIN
 
 		IF pQueryJoinsMultiTabCnt > 1 THEN
 		
-			aMultiTablePgMview   := mv$getPgMviewTableData( pConst, pOwner, pViewName );
+			IF (pViewName <> 'mv_diary' AND pTableName NOT IN ('prtyinst','personxx','currprty')) 
+			OR (pViewName <> 'mv_application_events' AND pTableName NOT IN ('prtyinst','personxx','currprty'))
+			OR (pViewName <> 'mv_document' AND pTableName NOT IN ('prtyinst','personxx')) THEN
+		
+				aMultiTablePgMview   := mv$getPgMviewTableData( pConst, pOwner, pViewName );
 
-			FOR i IN ARRAY_LOWER( aMultiTablePgMview.table_array, 1 ) .. ARRAY_UPPER( aMultiTablePgMview.table_array, 1 ) LOOP
-				
-				IF aMultiTablePgMview.table_array[i] = pTableName THEN
+				FOR i IN ARRAY_LOWER( aMultiTablePgMview.table_array, 1 ) .. ARRAY_UPPER( aMultiTablePgMview.table_array, 1 ) LOOP
+					
+					IF aMultiTablePgMview.table_array[i] = pTableName THEN
+										
+						bOuterJoined := mv$checkIfOuterJoinedTable( pConst, aMultiTablePgMview.table_array[i], aMultiTablePgMview.outer_table_array[i] );
 									
-					bOuterJoined := mv$checkIfOuterJoinedTable( pConst, aMultiTablePgMview.table_array[i], aMultiTablePgMview.outer_table_array[i] );
+									CALL  mv$executeMVFastRefresh
+									(
+										pConst,
+										tLastType,
+										pOwner,
+										pViewName,
+										aMultiTablePgMview.rowid_array[i],
+										aMultiTablePgMview.alias_array[i],
+										bOuterJoined,
+										aMultiTablePgMview.inner_alias_array[i],
+										aMultiTablePgMview.inner_rowid_array[i],
+										uRowIDArray,
+										iTabPkExist
+									);
 								
-								CALL  mv$executeMVFastRefresh
-								(
-									pConst,
-									tLastType,
-									pOwner,
-									pViewName,
-									aMultiTablePgMview.rowid_array[i],
-									aMultiTablePgMview.alias_array[i],
-									bOuterJoined,
-									aMultiTablePgMview.inner_alias_array[i],
-									aMultiTablePgMview.inner_rowid_array[i],
-									uRowIDArray,
-									iTabPkExist
-								);
-							
-				END IF;
+					END IF;
+					
+				END LOOP;
 				
-			END LOOP;
+			END IF;
 			
 		ELSE
 	
