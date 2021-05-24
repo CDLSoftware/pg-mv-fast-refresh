@@ -1082,7 +1082,7 @@ BEGIN
 			
 				-- Ignore DML changes for forename and surname columns unless the joining createdby or updatedby ID changes on the joining table. This is required ro reduce performance impact
 				-- when these tables get updated with no changes to forename and surname.
-				IF pTableName NOT IN ('prtyinst','personxx','currprty') THEN
+				IF (pViewName = 'mv_insurer_details' OR pTableName NOT IN ('prtyinst','personxx','currprty')) THEN
 
 					FOR i IN ARRAY_LOWER( aMultiTablePgMview.table_array, 1 ) .. ARRAY_UPPER( aMultiTablePgMview.table_array, 1 ) LOOP
 
@@ -1146,7 +1146,7 @@ BEGIN
 		
 			-- Ignore DML changes for forename and surname columns unless the joining createdby or updatedby ID changes on the joining table. This is required ro reduce performance impact
 			-- when these tables get updated with no changes to forename and surname.
-			IF pTableName NOT IN ('prtyinst','personxx','currprty') THEN
+			IF (pViewName = 'mv_insurer_details' OR pTableName NOT IN ('prtyinst','personxx','currprty')) THEN
 		
 				aMultiTablePgMview   := mv$getPgMviewTableData( pConst, pOwner, pViewName );
 
