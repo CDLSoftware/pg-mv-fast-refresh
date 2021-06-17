@@ -149,6 +149,7 @@ AS
     DELETE_FROM                     TEXT,
     DROP_COLUMN                     TEXT,
     DROP_TABLE                      TEXT,
+    DROP_INDEX                      TEXT,
     EQUALS_NULL                     TEXT,
     FROM_COMMAND                    TEXT,
     GRANT_SELECT_ON                 TEXT,

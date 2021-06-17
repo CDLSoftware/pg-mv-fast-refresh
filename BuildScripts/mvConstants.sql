@@ -262,6 +262,7 @@ BEGIN
     rMvConstants.DELETE_FROM                    := 'DELETE FROM ';
     rMvConstants.DROP_COLUMN                    := ' DROP COLUMN ';
     rMvConstants.DROP_TABLE                     := 'DROP TABLE ';
+    rMvConstants.DROP_INDEX                     := 'DROP INDEX ';
     rMvConstants.EQUALS_NULL                      := ' = NULL ';
     rMvConstants.FROM_COMMAND                   := ' FROM ';
     rMvConstants.GRANT_SELECT_ON                := 'GRANT SELECT ON ';

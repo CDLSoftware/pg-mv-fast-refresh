@@ -54,6 +54,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 SET     CLIENT_MIN_MESSAGES = ERROR;
 
 DROP FUNCTION IF EXISTS mv$addIndexToMvLog$Table;
+DROP FUNCTION IF EXISTS mv$addIndexToMv$Table;
 DROP FUNCTION IF EXISTS mv$addRow$ToMv$Table;
 DROP FUNCTION IF EXISTS mv$addRow$ToSourceTable;
 DROP FUNCTION IF EXISTS mv$checkIfOuterJoinedTable;
@@ -78,6 +79,7 @@ DROP FUNCTION IF EXISTS mv$getPgMviewViewColumns;
 DROP FUNCTION IF EXISTS mv$getSourceTableSchema;
 DROP FUNCTION IF EXISTS mv$grantSelectPrivileges;
 DROP FUNCTION IF EXISTS mv$insertPgMviewLogs;
+DROP FUNCTION IF EXISTS mv$removeIndexFromMv$Table;
 DROP FUNCTION IF EXISTS mv$removeRow$FromSourceTable;
 DROP FUNCTION IF EXISTS mv$replaceCommandWithToken;
 DROP FUNCTION IF EXISTS mv$truncateMaterializedView;
@@ -138,6 +140,61 @@ BEGIN
     WHEN OTHERS
     THEN
         RAISE INFO      'Exception in function mv$addIndexToMvLog$Table';
+        RAISE INFO      'Error %:- %:',     SQLSTATE, SQLERRM;
+        RAISE INFO      'Error Context:% %',CHR(10),  tSqlStatement;
+        RAISE EXCEPTION '%',                SQLSTATE;
+END;
+$BODY$
+LANGUAGE    plpgsql
+SECURITY    DEFINER;
+------------------------------------------------------------------------------------------------------------------------------------
+CREATE OR REPLACE
+FUNCTION    mv$addIndexToMv$Table
+            (
+                pConst          IN      mv$allConstants,
+                pOwner          IN      TEXT,
+                pPgMv$Name      IN      TEXT,
+                pIndexName      IN      TEXT,
+                pIndexCols      IN      TEXT
+            )
+
+    RETURNS VOID
+AS
+$BODY$
+/* ---------------------------------------------------------------------------------------------------------------------------------
+Routine Name: mv$addIndexToMv$Table
+Author:       Rohan Port
+Date:         15/06/2021
+------------+---------------+-------------------------------------------------------------------------------------------------------
+Description:    This function creates an index on the materialized view table
+
+Arguments:      IN      pConst              The memory structure containing all constants
+                IN      pOwner              The owner of the object
+                IN      pPgMv$Name          The name of the materialized view table
+                IN      pIndexName          The name of the index to create
+                IN      pIndexCols          The columns of the index to create
+Returns:                VOID
+************************************************************************************************************************************
+Copyright 2021 Beyond Essential Systems Pty Ltd
+***********************************************************************************************************************************/
+DECLARE
+
+    tSqlStatement   TEXT;
+
+BEGIN
+
+    tSqlStatement   :=  pConst.CREATE_INDEX || pIndexName           ||
+                        pConst.ON_COMMAND   || pOwner               || pConst.DOT_CHARACTER     || pPgMv$Name ||
+                                               pConst.OPEN_BRACKET  || pIndexCols               || pConst.CLOSE_BRACKET;
+
+    EXECUTE tSqlStatement;
+
+    RETURN;
+
+    EXCEPTION
+    WHEN OTHERS
+    THEN
+        RAISE INFO      'Exception in function mv$addIndexToMv$Table';
         RAISE INFO      'Error %:- %:',     SQLSTATE, SQLERRM;
         RAISE INFO      'Error Context:% %',CHR(10),  tSqlStatement;
         RAISE EXCEPTION '%',                SQLSTATE;
@@ -1946,6 +2003,52 @@ BEGIN
     THEN
         RAISE INFO      'Exception in function mv$insertPgMviewLogs';
         RAISE INFO      'Error %:- %:',     SQLSTATE, SQLERRM;
+        RAISE EXCEPTION '%',                SQLSTATE;
+END;
+$BODY$
+LANGUAGE    plpgsql
+SECURITY    DEFINER;
+------------------------------------------------------------------------------------------------------------------------------------
+CREATE OR REPLACE
+FUNCTION    mv$removeIndexFromMv$Table
+            (
+                pConst          IN      mv$allConstants,
+                pIndexName      IN      TEXT
+            )
+    RETURNS VOID
+AS
+$BODY$
+/* ---------------------------------------------------------------------------------------------------------------------------------
+Routine Name: mv$removeIndexFromMv$Table
+Author:       Rohan Port
+Date:         15/06/2021
+------------+---------------+-------------------------------------------------------------------------------------------------------
+Description:    This function removes an index from the materialized view table
+
+Arguments:      IN      pConst              The memory structure containing all constants
+                IN      pIndexName          The name of the index to remove
+Returns:                VOID
+************************************************************************************************************************************
+Copyright 2021 Beyond Essential Systems Pty Ltd
+***********************************************************************************************************************************/
+DECLARE
+
+    tSqlStatement   TEXT;
+
+BEGIN
+
+    tSqlStatement   :=  pConst.DROP_INDEX   || pIndexName;
+
+    EXECUTE tSqlStatement;
+
+    RETURN;
+
+    EXCEPTION
+    WHEN OTHERS
+    THEN
+        RAISE INFO      'Exception in function mv$removeIndexFromMv$Table';
+        RAISE INFO      'Error %:- %:',     SQLSTATE, SQLERRM;
+        RAISE INFO      'Error Context:% %',CHR(10),  tSqlStatement;
         RAISE EXCEPTION '%',                SQLSTATE;
 END;
 $BODY$
