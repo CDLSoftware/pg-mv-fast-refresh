@@ -1238,12 +1238,6 @@ BEGIN
     CALL mv$readdmvindexes (pViewName);
 	CALL mv$dropindexestemptable (pViewName);
 
-    EXCEPTION
-    WHEN OTHERS
-    THEN
-        RAISE INFO      'Exception in procedure mv$refreshMaterializedViewFull';
-        RAISE INFO      'Error %:- %:',     SQLSTATE, SQLERRM;
-        RAISE EXCEPTION '%',                SQLSTATE;
 END;
 $BODY$
 LANGUAGE    plpgsql;
