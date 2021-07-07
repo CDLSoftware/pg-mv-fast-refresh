@@ -19,7 +19,7 @@ Revision History    Push Down List
 ------------------------------------------------------------------------------------------------------------------------------------
 Date        | Name          | Description
 ------------+---------------+-------------------------------------------------------------------------------------------------------
-            |               |
+07/07/2021  | D Day         | Defect fix to resolve dynamic sql build for delete statement update.
 23/02/2021  | D Day      	| Initial version
 ------------+---------------+-------------------------------------------------------------------------------------------------------
 Description:    Function to create outer join delete statement to remove the use of running the full materialized view query.
