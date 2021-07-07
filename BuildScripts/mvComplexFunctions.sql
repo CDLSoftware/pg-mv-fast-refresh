@@ -3278,7 +3278,7 @@ IF iLeftJoinCnt > 0 THEN
 			
 			ELSE 
 			
-				SELECT count(1) INTO iLeftJoinAliasCnt FROM regexp_matches(tLeftJoinLine,tTableName||pConst.SPACE_CHARACTER||tTableAlias||pConst.ON_TOKEN,'g');
+				SELECT count(1) INTO iLeftJoinAliasCnt FROM regexp_matches(tLeftJoinLine,tTableName||'+[[:space:]]+'||tTableAlias||pConst.ON_TOKEN,'g');
 			
 			END IF;
 			
