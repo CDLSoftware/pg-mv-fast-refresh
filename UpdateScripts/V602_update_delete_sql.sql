@@ -76,6 +76,8 @@ DECLARE
 	addWhereClauseJoinConditions TEXT;
 	whereClauseConditionExists 	 CHAR := 'N';
 	
+	tMatchedTable_Alias		TEXT;
+	
 	iAliasCnt 				INTEGER := 0;
 	iAndCnt 				INTEGER := 0;
 	iAliasLoopCnt 			INTEGER := 0;
@@ -119,7 +121,7 @@ tTablesMarkerSQL :=	mv$regexpreplace(tTablesSQL, 'LEFT JOIN',pConst.COMMA_LEFT_T
 tTablesMarkerSQL :=	mv$regexpreplace(tTablesMarkerSQL, 'RIGHT JOIN',pConst.COMMA_RIGHT_TOKEN);
 tTablesMarkerSQL :=	mv$regexpreplace(tTablesMarkerSQL, 'INNER JOIN',pConst.COMMA_INNER_TOKEN);
 tTablesMarkerSQL :=	mv$regexpreplace(tTablesMarkerSQL, 'JOIN',pConst.COMMA_INNER_TOKEN);
-tTablesMarkerSQL :=	mv$regexpreplace(tTablesMarkerSQL, ' ON ',pConst.ON_TOKEN);
+tTablesMarkerSQL :=	mv$regexpreplace(tTablesMarkerSQL,'[[:space:]]+'||'ON ',pConst.ON_TOKEN);
 tTablesMarkerSQL := tTablesMarkerSQL||pConst.COMMA_INNER_TOKEN;
 
 IF iLeftJoinCnt > 0 THEN
@@ -152,8 +154,8 @@ IF iLeftJoinCnt > 0 THEN
 			
 			ELSE 
 			
-				SELECT count(1) INTO iLeftJoinAliasCnt FROM regexp_matches(tLeftJoinLine,tTableName||'+[[:space:]]+'||tTableAlias,'g');
-			
+				SELECT count(1) INTO iLeftJoinAliasCnt FROM regexp_matches(tLeftJoinLine,tTableName||pConst.SPACE_CHARACTER||tTableAlias||pConst.ON_TOKEN,'g');
+				
 			END IF;
 
 			IF iLeftJoinAliasCnt > 0 THEN
@@ -297,6 +299,8 @@ IF tLeftColumnAlias = tTableAlias THEN
 		tOtherTableName := rec.table_name;
 		tOtherAlias := tRightColumnAlias;
 		tJoinConditions := COALESCE(tLeftJoinConditions,tRightJoinConditions);
+		tJoinConditions := CONCAT(' ', tJoinConditions);		
+		tMatchedTable_Alias := tLeftColumnAlias;		
 			
 	END IF;
 	
@@ -307,6 +311,10 @@ ELSE
 		tOtherTableName := rec.table_name;
 		tOtherAlias := tLeftColumnAlias;
 		tJoinConditions := COALESCE(tLeftJoinConditions,tRightJoinConditions);
+		
+		tJoinConditions := CONCAT(' ', tJoinConditions);
+		
+		tMatchedTable_Alias := tRightColumnAlias;
 			
 	END IF;
 
@@ -314,8 +322,10 @@ END IF;
 
 END LOOP;
 
-tJoinConditions := REPLACE(tJoinConditions,tTableAlias||'.','src$.');
-tJoinConditions := REPLACE(tJoinConditions,tOtherAlias||'.','src$99.');
+tJoinConditions := REPLACE(tJoinConditions,CONCAT(' ',tMatchedTable_Alias||'.'),' src$.');
+tJoinConditions := REPLACE(tJoinConditions,CONCAT(' ',tOtherAlias||'.'),' src$99.');
+
+tJoinConditions := LTRIM(tJoinConditions);
 
 IF pWhereClause <> '' THEN
 
@@ -470,6 +480,9 @@ IF pWhereClause <> '' THEN
 	
 END IF;
 
+addWhereClauseJoinConditions := REPLACE(addWhereClauseJoinConditions,CONCAT(' ',tMatchedTable_Alias||'.'),' src$.');
+addWhereClauseJoinConditions := REPLACE(addWhereClauseJoinConditions,CONCAT(' ',tOtherAlias||'.'),' src$99.');
+
 tJoinConditions := CONCAT(tJoinConditions,addWhereClauseJoinConditions);
 
 tSQL := 'DELETE FROM '||pViewName||'
@@ -487,102 +500,7 @@ tSQL := 'DELETE FROM '||pViewName||'
 				JOIN '||tOtherTableName||' src$99 ON '||tJoinConditions||'
 							)';
 
---RAISE INFO '%', tSQL;
-
 RETURN tSQL;
-
-END;
-$BODY$
-LANGUAGE    plpgsql;
-
-CREATE OR REPLACE FUNCTION V602_update_delete_sql()
-    RETURNS VOID
-AS
-$BODY$
-
-/* ---------------------------------------------------------------------------------------------------------------------------------
-Routine Name: V602_update_delete_sql
-Author:       David Day
-Date:         10/03/2021
-------------------------------------------------------------------------------------------------------------------------------------
-Revision History    Push Down List
-------------------------------------------------------------------------------------------------------------------------------------
-Date        | Name          | Description
-------------+---------------+-------------------------------------------------------------------------------------------------------
-            |               |
-29/04/2020  | D Day		    | Initial version
-------------+---------------+-------------------------------------------------------------------------------------------------------
-Background:     Postgres does not support Materialized View Fast Refreshes, this suite of scripts is a PL/SQL coded mechanism to
-                provide that functionality, the next phase of this project is to fold these changes into the PostGre kernel.
-Description:    This is a patch script to update the data dictionary pg$mviews_oj_details table new column delete_sql
-				to improve performance of the outer join delete statements. Replacing the full WHERE clause conditions with just
-				the rowid join conditions and linking source tables.
-Notes:          
-Issues:        	https://forums.aws.amazon.com/thread.jspa?messageID=860564
-************************************************************************************************************************************
-Copyright 2018 Amazon.com, Inc. or its affiliates. All Rights Reserved.
-Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files
-(the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify,
-merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is
-furnished to do so.
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES
-OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE
-LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
-CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
-***********************************************************************************************************************************/
-
-DECLARE
-
-iColumnCnt						INTEGER := 0;
-
-rMviewsOjDetails				RECORD;
-tOuterJoinDeleteStatement 		TEXT;
-iDeleteSqlIsNull				INTEGER := 0;
-
-rConst              			mv$allConstants;
-
-BEGIN
-
-rConst      := mv$buildAllConstants();
-
-SELECT count(1) INTO iColumnCnt
-FROM information_schema.columns 
-WHERE table_name= 'pg$mviews_oj_details'
-AND column_name='join_replacement_from_sql';
-
-IF iColumnCnt = 1 THEN
-
-	FOR rMviewsOjDetails IN (SELECT moj.owner,
-									moj.view_name,
-									moj.table_alias,
-									moj.source_table_name,
-									m.table_names,
-									m.where_clause,
-									m.table_array,
-									m.alias_array
-							 FROM 	pg$mviews_oj_details moj
-							 ,      pg$mviews m
-							 WHERE  moj.view_name = m.view_name
-							 AND 	moj.delete_sql IS NULL) LOOP
-							 
-	tOuterJoinDeleteStatement := V602_mv$outerJoinDeleteStatement(rConst, rMviewsOjDetails.table_names, rMviewsOjDetails.table_alias, rMviewsOjDetails.view_name, rMviewsOjDetails.where_clause, rMviewsOjDetails.source_table_name, rMviewsOjDetails.table_array, rMviewsOjDetails.alias_array);
-
-	UPDATE pg$mviews_oj_details
-	SET delete_sql = tOuterJoinDeleteStatement
-	WHERE view_name = rMviewsOjDetails.view_name
-	AND table_alias = rMviewsOjDetails.table_alias;
-						
-	END LOOP;
-
-	SELECT COUNT(1) INTO iDeleteSqlIsNull
-	FROM   pg$mviews_oj_details
-	WHERE   delete_sql IS NULL;
-
-	IF iDeleteSqlIsNull > 0 THEN
-			RAISE EXCEPTION 'The UPDATE patch script V602_update_delete_sql.sql has not successfully updated all the linking aliases for each mview in data dictionary table pg$mviews_oj_details column delete_sql';
-	END IF;
-	
-END IF;
 
 END;
 $BODY$
