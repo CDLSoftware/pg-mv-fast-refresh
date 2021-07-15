@@ -19,7 +19,7 @@ Revision History    Push Down List
 ------------------------------------------------------------------------------------------------------------------------------------
 Date        | Name          | Description
 ------------+---------------+-------------------------------------------------------------------------------------------------------
-            |               |
+07/07/2021  | D Day         | Defect fix to resolve dynamic sql build for delete statement update.
 23/02/2021  | D Day      	| Initial version
 ------------+---------------+-------------------------------------------------------------------------------------------------------
 Description:    Function to create outer join delete statement to remove the use of running the full materialized view query.
@@ -76,6 +76,8 @@ DECLARE
 	addWhereClauseJoinConditions TEXT;
 	whereClauseConditionExists 	 CHAR := 'N';
 	
+	tMatchedTable_Alias		TEXT;
+	
 	iAliasCnt 				INTEGER := 0;
 	iAndCnt 				INTEGER := 0;
 	iAliasLoopCnt 			INTEGER := 0;
@@ -119,7 +121,7 @@ tTablesMarkerSQL :=	mv$regexpreplace(tTablesSQL, 'LEFT JOIN',pConst.COMMA_LEFT_T
 tTablesMarkerSQL :=	mv$regexpreplace(tTablesMarkerSQL, 'RIGHT JOIN',pConst.COMMA_RIGHT_TOKEN);
 tTablesMarkerSQL :=	mv$regexpreplace(tTablesMarkerSQL, 'INNER JOIN',pConst.COMMA_INNER_TOKEN);
 tTablesMarkerSQL :=	mv$regexpreplace(tTablesMarkerSQL, 'JOIN',pConst.COMMA_INNER_TOKEN);
-tTablesMarkerSQL :=	mv$regexpreplace(tTablesMarkerSQL, ' ON ',pConst.ON_TOKEN);
+tTablesMarkerSQL :=	mv$regexpreplace(tTablesMarkerSQL,'[[:space:]]+'||'ON ',pConst.ON_TOKEN);
 tTablesMarkerSQL := tTablesMarkerSQL||pConst.COMMA_INNER_TOKEN;
 
 IF iLeftJoinCnt > 0 THEN
@@ -152,8 +154,8 @@ IF iLeftJoinCnt > 0 THEN
 			
 			ELSE 
 			
-				SELECT count(1) INTO iLeftJoinAliasCnt FROM regexp_matches(tLeftJoinLine,tTableName||'+[[:space:]]+'||tTableAlias,'g');
-			
+				SELECT count(1) INTO iLeftJoinAliasCnt FROM regexp_matches(tLeftJoinLine,tTableName||'+[[:space:]]+'||tTableAlias||pConst.ON_TOKEN,'g');
+				
 			END IF;
 
 			IF iLeftJoinAliasCnt > 0 THEN
@@ -297,6 +299,8 @@ IF tLeftColumnAlias = tTableAlias THEN
 		tOtherTableName := rec.table_name;
 		tOtherAlias := tRightColumnAlias;
 		tJoinConditions := COALESCE(tLeftJoinConditions,tRightJoinConditions);
+		tJoinConditions := CONCAT(' ', tJoinConditions);		
+		tMatchedTable_Alias := tLeftColumnAlias;		
 			
 	END IF;
 	
@@ -307,6 +311,10 @@ ELSE
 		tOtherTableName := rec.table_name;
 		tOtherAlias := tLeftColumnAlias;
 		tJoinConditions := COALESCE(tLeftJoinConditions,tRightJoinConditions);
+		
+		tJoinConditions := CONCAT(' ', tJoinConditions);
+		
+		tMatchedTable_Alias := tRightColumnAlias;
 			
 	END IF;
 
@@ -314,8 +322,10 @@ END IF;
 
 END LOOP;
 
-tJoinConditions := REPLACE(tJoinConditions,tTableAlias||'.','src$.');
-tJoinConditions := REPLACE(tJoinConditions,tOtherAlias||'.','src$99.');
+tJoinConditions := REPLACE(tJoinConditions,CONCAT(' ',tMatchedTable_Alias||'.'),' src$.');
+tJoinConditions := REPLACE(tJoinConditions,CONCAT(' ',tOtherAlias||'.'),' src$99.');
+
+tJoinConditions := LTRIM(tJoinConditions);
 
 IF pWhereClause <> '' THEN
 
@@ -470,6 +480,9 @@ IF pWhereClause <> '' THEN
 	
 END IF;
 
+addWhereClauseJoinConditions := REPLACE(addWhereClauseJoinConditions,CONCAT(' ',tMatchedTable_Alias||'.'),' src$.');
+addWhereClauseJoinConditions := REPLACE(addWhereClauseJoinConditions,CONCAT(' ',tOtherAlias||'.'),' src$99.');
+
 tJoinConditions := CONCAT(tJoinConditions,addWhereClauseJoinConditions);
 
 tSQL := 'DELETE FROM '||pViewName||'
@@ -487,13 +500,12 @@ tSQL := 'DELETE FROM '||pViewName||'
 				JOIN '||tOtherTableName||' src$99 ON '||tJoinConditions||'
 							)';
 
---RAISE INFO '%', tSQL;
-
 RETURN tSQL;
 
 END;
 $BODY$
-LANGUAGE    plpgsql;
+LANGUAGE    plpgsql
+SECURITY    DEFINER;
 
 CREATE OR REPLACE FUNCTION V602_update_delete_sql()
     RETURNS VOID
