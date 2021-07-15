@@ -52,6 +52,7 @@ SET  CLIENT_MIN_MESSAGES = ERROR;
 CREATE EXTENSION    IF NOT EXISTS "uuid-ossp";
 CREATE EXTENSION 	IF NOT EXISTS "dblink";
 CREATE EXTENSION 	IF NOT EXISTS "postgres_fdw";
+CREATE EXTENSION	IF NOT EXISTS "pg_cron";
 
 SET CLIENT_MIN_MESSAGES = NOTICE;
 
@@ -183,6 +184,10 @@ CREATE TABLE IF NOT EXISTS :MODULEOWNER.pg$mviews
 	inner_join_other_rowid_array	TEXT[],
 	query_joins_multi_table_cnt_array	SMALLINT[],
 	query_joins_multi_table_pos_array	SMALLINT[],
+	parallel			TEXT,
+	parallel_jobs		TEXT,
+	parallel_column		TEXT,
+	parallel_alias		TEXT,
     CONSTRAINT
             pk_pg$mviews
             PRIMARY KEY
@@ -229,12 +234,22 @@ GRANT ALL ON ALL sequences in schema :MODULEOWNER to pgmv$_role;
 ALTER EXTENSION "uuid-ossp" SET SCHEMA public;
 ALTER EXTENSION "dblink" SET SCHEMA public;
 ALTER EXTENSION "postgres_fdw" SET SCHEMA public;
+ALTER EXTENSION "pg_cron" SET SCHEMA public;
+
+GRANT USAGE ON SCHEMA cron TO postgres;
+GRANT USAGE ON SCHEMA cron TO :MODULEOWNER;
 
 CREATE SERVER IF NOT EXISTS pgmv$_instance FOREIGN DATA WRAPPER postgres_fdw options ( dbname :'DBNAME', port :'PORT', host :'HOSTNAME', connect_timeout '2', keepalives_count '5' );
 
 CREATE USER MAPPING IF NOT EXISTS for :MODULEOWNER SERVER pgmv$_instance OPTIONS (user :'MODULEOWNER', password :'MODULEOWNERPASS');
 
+CREATE SERVER IF NOT EXISTS pgmv$cron_instance FOREIGN DATA WRAPPER postgres_fdw options ( dbname : 'postgres', port :'PORT', host :'HOSTNAME', connect_timeout '2', keepalives_count '5' );
+
+CREATE USER MAPPING IF NOT EXISTS for :MODULEOWNER SERVER pgmv$cron_instance OPTIONS (user :'MODULEOWNER', password :'MODULEOWNERPASS');
+
 GRANT USAGE ON FOREIGN SERVER pgmv$_instance TO :MODULEOWNER;
+
+GRANT USAGE ON FOREIGN SERVER pgmv$cron_instance TO :MODULEOWNER;
 
 
 

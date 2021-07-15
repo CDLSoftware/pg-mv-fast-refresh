@@ -87,6 +87,8 @@ DROP PROCEDURE IF EXISTS mv$readdmvindexes;
 DROP PROCEDURE IF EXISTS mv$dropindexestemptable;
 DROP PROCEDURE IF EXISTS mv$setQueryJoinsMultiTableCount;
 DROP PROCEDURE IF EXISTS mv$setQueryJoinsMultiTablePosition;
+DROP FUNCTION IF EXISTS mv$setCronSchedule;
+DROP FUNCTION IF EXISTS mv$setFromAndToTimestampRange;
 
 ----------------------- Write CREATE-FUNCTION-stage scripts --------------------
 SET CLIENT_MIN_MESSAGES = NOTICE;
@@ -2631,3 +2633,167 @@ END;
 $BODY$
 LANGUAGE    plpgsql;
 ------------------------------------------------------------------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION mv$setCronSchedule()
+    RETURNS text
+AS $BODY$
+
+/* ---------------------------------------------------------------------------------------------------------------------------------
+Routine Name: mv$setCronSchedule
+Author:       David Day
+Date:         13/07/2021
+------------------------------------------------------------------------------------------------------------------------------------
+Revision History    Push Down List
+------------------------------------------------------------------------------------------------------------------------------------
+Date        | Name          | Description
+------------+---------------+-------------------------------------------------------------------------------------------------------
+13/07/2021  | D Day      	| Initial version
+------------+---------------+-------------------------------------------------------------------------------------------------------
+Description: 	Function to set cron schedule time for parallel insert statements
+
+Arguments:      	    	
+
+Returns:                text
+************************************************************************************************************************************
+Copyright 2018 Amazon.com, Inc. or its affiliates. All Rights Reserved. SPDX-License-Identifier: MIT-0
+***********************************************************************************************************************************/
+DECLARE
+
+tSql 				TEXT;
+tsCurrentDate 		TIMESTAMP;
+iMinutes			INTEGER;
+iHours				INTEGER;
+tCronJobSchedule	TEXT;
+
+BEGIN
+
+	tsCurrentDate := clock_timestamp() AT TIME ZONE 'GMT';
+		
+	tSql := 'SELECT extract(
+	MINUTE FROM TIMESTAMP '''||tsCurrentDate||''')';
+
+	EXECUTE tSql INTO iMinutes;
+	RAISE INFO '%', iMinutes;
+
+	tSql := 'SELECT extract(
+	HOUR FROM TIMESTAMP '''||tsCurrentDate||''')';
+
+	EXECUTE tSql INTO iHours;
+	RAISE INFO '%', iHours;
+
+	IF iMinutes IN (58,59) THEN
+
+		IF iMinutes = 58 THEN
+			iMinutes := 0;
+		ELSE
+			iMinutes := 1;
+		END IF;
+			
+		IF iHours = 23 THEN
+		
+			iHours   := 0;
+			
+		ELSE
+		
+			iHours   := iHours+1;
+			
+		END IF;
+		
+	ELSE
+	
+		iMinutes := iMinutes+2;
+	
+	END IF;
+
+	tCronJobSchedule := iMinutes||' '||iHours||' * * *';
+		
+	RETURN tCronJobSchedule;
+	
+END;
+$BODY$
+LANGUAGE    plpgsql;
+------------------------------------------------------------------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION mv$setFromAndToTimestampRange(pMinDate       	IN      DATE,
+														 pMaxDate       	IN      DATE,
+														 pParallelJobs		IN		INTEGER,
+														 pSequence			IN		INTEGER,
+														 pParallelColumn	IN		TEXT,
+														 pParallelAlias		IN		TEXT)
+    RETURNS text
+AS $BODY$
+
+/* ---------------------------------------------------------------------------------------------------------------------------------
+Routine Name: mv$setFromAndToTimestampRange
+Author:       David Day
+Date:         13/07/2021
+------------------------------------------------------------------------------------------------------------------------------------
+Revision History    Push Down List
+------------------------------------------------------------------------------------------------------------------------------------
+Date        | Name          | Description
+------------+---------------+-------------------------------------------------------------------------------------------------------
+13/07/2021  | D Day      	| Initial version
+------------+---------------+-------------------------------------------------------------------------------------------------------
+Description: 	Function to set timestamp date range for cron insert statements
+
+Arguments:      	    	
+
+Returns:                text
+************************************************************************************************************************************
+Copyright 2018 Amazon.com, Inc. or its affiliates. All Rights Reserved. SPDX-License-Identifier: MIT-0
+***********************************************************************************************************************************/
+DECLARE
+
+lSql				TEXT;
+
+iDaysSplit			TEXT;
+
+tSql 				INTEGER;
+tsCurrentDate 		TIMESTAMP;
+
+iMinutes			INTEGER;
+iHours				INTEGER;
+tCronJobSchedule	TEXT;
+
+iSequencePlusOne	INTEGER := pSequence+1;
+
+tFrom_Date			TEXT;
+tTo_Date			TEXT;
+
+tWhereClauseSql 	TEXT;
+
+BEGIN
+
+	SELECT (pMaxDate-pMinDate)/pParallelJobs AS days_diff INTO iDaysSplit;
+	
+	iDaysSplit := iDaysSplit||' day';
+	
+	RAISE INFO '%', iDaysSplit;
+	
+	lSql := 'SELECT CAST(min(inline.dates)::date||'' 00:00:00'' AS TIMESTAMP) AS from_date, CAST(max(inline.dates)::date||'' 23:59:59'' AS TIMESTAMP) AS to_date 
+	FROM (SELECT dates, ROW_NUMBER() OVER(ORDER BY dates ASC) AS id
+	FROM generate_series
+			( '''||pMinDate||'''::timestamp 
+			, '''||pMaxDate||'''::timestamp
+			, '''||iDaysSplit||'''::interval) dates) inline
+	WHERE inline.id IN ('||pSequence||','||iSequencePlusOne||')';
+	
+	EXECUTE lSql INTO tFrom_Date, tTo_Date;
+	
+	IF pParallelJobs = pSequence THEN
+	
+		tTo_Date := pMaxDate||' 23:59:59';
+		
+	END IF;
+	
+	IF pSequence > 1 THEN
+	
+		tFrom_Date := tFrom_Date::date+1||' 00:00:00';
+		
+	END IF;	
+	
+	tWhereClauseSql := pParallelAlias||'.'||pParallelColumn||' BETWEEN '''||tFrom_Date||''' AND '''||tTo_Date||'''';
+
+	RETURN tWhereClauseSql;
+	
+END;
+$BODY$
+LANGUAGE    plpgsql;

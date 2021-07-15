@@ -74,6 +74,10 @@ PROCEDURE    mv$createMaterializedView
                 pOwner              IN      TEXT        DEFAULT USER,
                 pNamedColumns       IN      TEXT        DEFAULT NULL,
                 pStorageClause      IN      TEXT        DEFAULT NULL,
+				pParallel			IN		TEXT		DEFAULT 'N',
+				pParallelJobs		IN		INTEGER		DEFAULT 0,
+				pParallelColumn		IN		TEXT		DEFAULT NULL,
+				pParallelAlias		IN 		TEXT		DEFAULT NULL,
                 pFastRefresh        IN      BOOLEAN     DEFAULT FALSE
             )
 AS
@@ -87,6 +91,7 @@ Revision History    Push Down List
 ------------------------------------------------------------------------------------------------------------------------------------
 Date        | Name          | Description
 ------------+---------------+-------------------------------------------------------------------------------------------------------
+12/07/2021	| D Day			| Added new input parameters to support parallel inserts during build phase.
 10/03/2021  | D Day 		| Added additional input parameters to call mv$insertPgMviewOuterJoinDetails to support dynamical delete_sql
 			|				| statement for performance improvements to the outer join alias delete and re-insert routine for DML type INSERT.
 22/10/2020	| D Day			| Defect fix - added two variables tQueryJoinsMultiTabCntArray and tQueryJoinsMultiTabPosArray to out in
@@ -118,6 +123,12 @@ Arguments:      IN      pViewName           The name of the materialized view to
                                             This list is positional so must match the position and number of columns in the
                                             select statment
                 IN      pStorageClause      Optional, storage clause for the materialized view
+				IN		pParallel			Optional, set to Y if you want to run build insert in parallel
+				IN		pParallelJobs		Optional, if pParallel set to Y then set how many parallel jobs are required
+				IN		pParallelColumn		Optional, if pParallel set to Y then add date column you want to split insert into parallel 
+											cron sessions by date range.
+				IN		pParallelAlias		Optional, if pParallel set to Y then add date column alias you want to split insert into parallel 
+											cron sessions by date range.
                 IN      pFastRefresh        Defaults to FALSE, but if set to yes then materialized view fast refresh is supported
 Returns:                VOID
 ************************************************************************************************************************************
@@ -152,6 +163,17 @@ DECLARE
 BEGIN
 
     rConst      := mv$buildAllConstants();
+	
+	IF pParallel = 'Y' THEN
+	
+		IF pParallelColumn IS NULL AND pParallelColumn IS NULL AND pParallelJobs = 0 THEN
+		
+			RAISE INFO      'Exception in procedure mv$createMaterializedView';
+			RAISE EXCEPTION 'Error: Procedure input parameter pParallel set to Y but either pParallelColumn OR pParallelAlias OR pParallelJobs have not been set from their default value';
+			
+		END IF;
+		
+	END IF;
 
     SELECT
             pTableNames,
@@ -252,6 +274,10 @@ BEGIN
 					tInnerJoinOtherTableRowidArray,
 					tQueryJoinsMultiTabCntArray,
 					tQueryJoinsMultiTabPosArray,
+					pParallel,
+					pParallelJobs,
+					pParallelColumn,
+					pParallelAlias,
                     pFastRefresh
                 );
 				
@@ -272,7 +298,7 @@ BEGIN
 				tTableArray
 			 );
 
-    CALL mv$refreshMaterializedViewInitial( rConst , pOwner, pViewName );
+    CALL mv$refreshMaterializedViewInitial( rConst , pOwner, pViewName, pParallel );
 
 END;
 $BODY$
@@ -406,7 +432,8 @@ PROCEDURE    mv$refreshMaterializedView
             (
                 pViewName           IN      TEXT,
                 pOwner              IN      TEXT    DEFAULT USER,
-                pFastRefresh        IN      BOOLEAN DEFAULT FALSE
+                pFastRefresh        IN      BOOLEAN DEFAULT FALSE,
+				pParallel			IN		DEFAULT 'N'
             )
 AS
 $BODY$
@@ -419,6 +446,7 @@ Revision History    Push Down List
 ------------------------------------------------------------------------------------------------------------------------------------
 Date        | Name          | Description
 ------------+---------------+-------------------------------------------------------------------------------------------------------
+15/07/2021	| D Day			| Added logic to run complete refresh INSERT in parallel
 03/06/2020	| D Day			| Changed function to procedure to allow support/control of COMMITS within the refresh process.
 11/03/2018  | M Revitt      | Initial version
 ------------+---------------+-------------------------------------------------------------------------------------------------------
@@ -449,7 +477,7 @@ BEGIN
     THEN
         CALL mv$refreshMaterializedViewFast( rConst, pOwner, pViewName );
     ELSE
-        CALL mv$refreshMaterializedViewFull( rConst, pOwner, pViewName );
+        CALL mv$refreshMaterializedViewFull( rConst, pOwner, pViewName, pParallel );
     END IF;
 
 END;

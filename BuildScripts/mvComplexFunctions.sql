@@ -62,6 +62,7 @@ DROP PROCEDURE IF EXISTS mv$clearPgMvLogTableBits;
 DROP PROCEDURE IF EXISTS mv$clearPgMviewLogBit;
 DROP PROCEDURE IF EXISTS mv$createPgMv$Table;
 DROP PROCEDURE IF EXISTS mv$insertMaterializedViewRows;
+DROP PROCEDURE IF EXISTS mv$insertParallelMaterializedViewRows
 DROP PROCEDURE IF EXISTS mv$insertPgMview;
 DROP PROCEDURE IF EXISTS mv$insertOuterJoinRows;
 DROP PROCEDURE IF EXISTS mv$insertPgMviewOuterJoinDetails;
@@ -630,6 +631,190 @@ $BODY$
 LANGUAGE    plpgsql;
 ------------------------------------------------------------------------------------------------------------------------------------
 CREATE OR REPLACE
+PROCEDURE    mv$insertParallelMaterializedViewRows
+            (
+                pConst          IN      mv$allConstants,
+                pOwner          IN      TEXT,
+                pViewName       IN      TEXT
+            )
+AS
+$BODY$
+/* ---------------------------------------------------------------------------------------------------------------------------------
+Routine Name: mv$insertParallelMaterializedViewRows
+Author:       David Day
+Date:         13/07/2021
+------------------------------------------------------------------------------------------------------------------------------------
+Revision History    Push Down List
+------------------------------------------------------------------------------------------------------------------------------------
+Date        | Name          | Description
+------------+---------------+-------------------------------------------------------------------------------------------------------
+13/07/2021  | D Day     	| Initial version
+------------+---------------+-------------------------------------------------------------------------------------------------------
+Description:    Gets called to insert a new row into the Materialized View when an insert is detected
+
+Note:           This procedure requires the SEARCH_PATH to be set to the current value so that the select statement can find the
+                source tables.
+                The default for PostGres procedures is to not use the search path when executing with the privileges of the creator
+
+Arguments:      IN      pConst              The memory structure containing all constants
+				IN      pOwner              The owner of the object
+                IN      pViewName           The name of the materialized view
+
+************************************************************************************************************************************
+Copyright 2018 Amazon.com, Inc. or its affiliates. All Rights Reserved. SPDX-License-Identifier: MIT-0
+***********************************************************************************************************************************/
+DECLARE
+
+    tSqlStatement   		TEXT;
+    aPgMview        		pg$mviews;
+	tSqlSelectColumns 		TEXT;
+	
+	tCronJobSchedule		TEXT;
+	
+	tsCurrentDate			TIMESTAMP;
+	tUsername				TEXT := 'biadmin';
+	tDatabase				TEXT := 'strata';
+	tJobName				TEXT;
+	tTableName				TEXT;
+	
+	tsMaxTimestamp			TIMESTAMP;
+	tsMinTimestamp			TIMESTAMP;
+	
+	insert_rec				RECORD;
+	
+	iCounter				INTEGER := 0;
+	
+	ret 					TEXT;
+	
+	tStatus					TEXT	:= 1;	
+	iStatusCount			INTEGER;
+	iJobCount				INTEGER := 0;
+	iJobErrorCount			INTEGER := 0;	
+	tsJobCreation			TIMESTAMP;
+	
+	tErrorCheckSql			TEXT;
+	tCronSqlStatement		TEXT;
+	tStatusCheckSql			TEXT;
+	tMinMaxTimestampSql		TEXT;	
+	tTimestampRangeSql		TEXT;
+	tResult					TEXT;
+
+BEGIN
+
+    aPgMview := mv$getPgMviewTableData( pConst, pOwner, pViewName );
+	
+	-- set cron time
+	tCronJobSchedule := mv$setCronSchedule();
+	
+	RAISE INFO '%', tCronJobSchedule;
+	
+	SELECT DISTINCT inline.table_name FROM
+	(SELECT UNNEST(aPgMview.table_array) AS table_name
+	 ,	    UNNEST(aPgMview.alias_array) AS table_alias ) inline INTO tTableName
+	WHERE aPgMview.parallel_alias = REPLACE(inline.table_alias,'.','');
+	
+	tMinMaxTimestampSql := 'SELECT MIN('||aPgMview.parallel_column||'), MAX('||aPgMview.parallel_column||') FROM '||tTableName;
+	
+	-- set Min and Max Date with Timestamp
+	EXECUTE tMinMaxTimestampSql INTO tsMinTimestamp, tsMaxTimestamp;
+	
+	tsJobCreation := clock_timestamp();
+	
+	FOR insert_rec IN 1..aPgMview.parallel_jobs LOOP
+		
+		iCounter := iCounter+1;
+	
+		tJobName := pViewName||'_job_'||iCounter;
+		
+		tTimestampRangeSql := mv$setFromAndToTimestampRange(tsMinTimestamp::DATE,tsMaxTimestamp::DATE,aPgMview.parallel_jobs, iCounter, aPgMview.parallel_column, aPgMview.parallel_alias );	
+		
+		tSqlSelectColumns := pConst.SELECT_COMMAND || aPgMview.select_columns;
+
+		tSqlStatement := pConst.INSERT_INTO    || pOwner || pConst.DOT_CHARACTER    || aPgMview.view_name   ||
+						 pConst.OPEN_BRACKET   || aPgMview.pgmv_columns             || pConst.CLOSE_BRACKET ||
+						 tSqlSelectColumns || pConst.FROM_COMMAND   || aPgMview.table_names;
+
+		IF aPgMview.where_clause != pConst.EMPTY_STRING
+		THEN
+			tSqlStatement := tSqlStatement || pConst.WHERE_COMMAND || aPgMview.where_clause || pConst.AND_COMMAND || tTimestampRangeSql;
+		ELSE
+			tSqlStatement := tSqlStatement || pConst.WHERE_COMMAND || aPgMview.where_clause || pConst.SPACE_CHARACTER || tTimestampRangeSql;
+		END IF;
+		
+		tSqlStatement := REPLACE(tSqlStatement,'''','''''');
+		
+		tCronSqlStatement := 'INSERT INTO cron.job(schedule, command, database, username, jobname)
+						  VALUES ('''||tCronJobSchedule||''','''||tSqlStatement||''','''||tDatabase||''','''||tUsername||''','''||tJobName||''')';
+						  
+		--RAISE INFO '%', tCronSqlStatement;
+		
+		PERFORM * FROM dblink('test_instance',tCronSqlStatement) AS p (ret TEXT);
+		
+	END LOOP;
+	
+	-- Checks to confirm jobs have been created and successfully ran
+	WHILE iJobCount < aPgMview.parallel_jobs LOOP
+
+		tStatusCheckSql := 'SELECT count(1) FROM cron.job_run_details jrd
+							JOIN cron.job j ON j.jobid = jrd.jobid
+							WHERE j.jobname LIKE '''||pViewName||'_job_%''
+							AND jrd.start_time >= '''||tsJobCreation||'''';
+										
+		SELECT * FROM
+		dblink('test_instance', tStatusCheckSql) AS p (ret TEXT) INTO iJobCount;
+		
+		IF iJobCount < aPgMview.parallel_jobs THEN
+		
+			SELECT pg_sleep(60) INTO tResult;
+			
+		END IF;
+		
+	END LOOP;
+
+	WHILE iStatusCount > 0 LOOP
+	 
+		tStatusCheckSql := 'SELECT count(1) FROM cron.job_run_details jrd
+							JOIN cron.job j ON j.jobid = jrd.jobid
+							WHERE j.job_name LIKE '''||pViewName||'_job_%''
+							AND jrd.status = ''running''';
+							
+		SELECT * FROM
+		dblink('test_instance', tStatusCheckSql) AS p (ret TEXT) INTO iStatusCount;
+		
+		tErrorCheckSql := 'SELECT count(1) FROM cron.job_run_details jrd
+							JOIN cron.job j ON j.jobid = jrd.jobid
+							WHERE j.jobname LIKE '''||pViewName||'_job_%''
+							AND jrd.start_time >= '''||tsJobCreation||'''
+							AND jrd.status = ''failed''';
+							
+		SELECT * FROM
+		dblink('test_instance', tStatusCheckSql) AS p (ret TEXT) INTO iJobErrorCount;
+		
+		IF iJobErrorCount > 0 THEN
+			RAISE INFO      'Exception in procedure mv$insertParallelMaterializedViewRows';
+			RAISE EXCEPTION 'Error: Cron job(s) for % found in status of failed - please check table cron.job_run_details for full details', pViewName;
+		END IF;
+		
+		IF iStatusCount > 0 THEN
+		
+			SELECT pg_sleep(120) INTO tResult;
+			
+		END IF;
+		
+	END LOOP;
+
+    EXCEPTION
+    WHEN OTHERS
+    THEN
+        RAISE INFO      'Exception in procedure mv$insertParallelMaterializedViewRows';
+        RAISE INFO      'Error %:- %:',     SQLSTATE, SQLERRM;
+        RAISE INFO      'Error Context:% %',CHR(10),  tSqlStatement;
+        RAISE EXCEPTION '%',                SQLSTATE;
+END;
+$BODY$
+LANGUAGE    plpgsql;
+------------------------------------------------------------------------------------------------------------------------------------
+CREATE OR REPLACE
 PROCEDURE    mv$insertPgMview
             (
                 pConst              IN      mv$allConstants,
@@ -653,6 +838,10 @@ PROCEDURE    mv$insertPgMview
 				pInnerJoinOtherTableRowidArray	IN		TEXT[],
 				pQueryJoinsMultiTabCntArray 	IN 		SMALLINT[],
 				pQueryJoinsMultiTabPosArray 	IN 		SMALLINT[],
+				pParallel			IN      TEXT,
+				pParallelJobs		IN		INTEGER,
+				pParallelColumn		IN		TEXT,
+				pParallelAlias		IN		TEXT,
                 pFastRefresh        IN      BOOLEAN
             )
 AS
@@ -801,7 +990,11 @@ BEGIN
 			inner_join_other_alias_array,
 			inner_join_other_rowid_array,
 			query_joins_multi_table_cnt_array,
-			query_joins_multi_table_pos_array
+			query_joins_multi_table_pos_array,
+			parallel,
+			parallel_jobs,
+			parallel_column,
+			parallel_alias
     )
     VALUES
     (
@@ -826,7 +1019,11 @@ BEGIN
 			pInnerJoinOtherTableAliasArray,
 			pInnerJoinOtherTableRowidArray,
 			pQueryJoinsMultiTabCntArray,
-			pQueryJoinsMultiTabPosArray
+			pQueryJoinsMultiTabPosArray,
+			pParallel,
+			pParallelJobs,
+			pParallelColumn,
+			pParallelAlias
     );
 
     EXCEPTION
@@ -1227,7 +1424,8 @@ PROCEDURE    mv$refreshMaterializedViewFull
             (
                 pConst      IN      mv$allConstants,
                 pOwner      IN      TEXT,
-                pViewName   IN      TEXT
+                pViewName   IN      TEXT,
+				pParallel	IN      TEXT
             )
 AS
 $BODY$
@@ -1240,6 +1438,8 @@ Revision History    Push Down List
 ------------------------------------------------------------------------------------------------------------------------------------
 Date        | Name          | Description
 ------------+---------------+-------------------------------------------------------------------------------------------------------
+15/07/2021	| D Day			| Added function mv$insertParallelMaterializedViewRows and parameter pParallel to allow complete
+			|				| refresh of materialized view table in Parallel.
 04/05/2021  | D Day			| Replaced function mv$clearAllPgMvLogTableBits with mv$clearAllPgMvLogTableBitsCompleteRefresh to handle
 			|				| commits during the complete refresh. Removed exception handler to support commits.
 18/08/2020	| J Bills		| Added process to drop and re-index MVs to prevent the refresh from hanging. Also changed the order of 
@@ -1275,7 +1475,11 @@ BEGIN
 	CALL mv$dropmvindexes(pOwner, pViewName);
 	CALL mv$truncateMaterializedView(   pConst, pOwner, aPgMview.view_name );
     CALL mv$clearAllPgMvLogTableBitsCompleteRefresh(   pConst, pOwner, pViewName );
-	CALL mv$insertMaterializedViewRows( pConst, pOwner, pViewName );
+	IF pParallel = 'Y' THEN
+		CALL mv$insertParallelMaterializedViewRows( pConst, pOwner, pViewName );
+	ELSE
+		CALL mv$insertMaterializedViewRows( pConst, pOwner, pViewName );
+	END IF; 
     CALL mv$readdmvindexes (pViewName);
 	CALL mv$dropindexestemptable (pViewName);
 
@@ -3065,7 +3269,8 @@ PROCEDURE    mv$refreshMaterializedViewInitial
             (
                 pConst      IN      mv$allConstants,
                 pOwner      IN      TEXT,
-                pViewName   IN      TEXT
+                pViewName   IN      TEXT,
+				pParallel	IN		TEXT
             )
 AS
 $BODY$
@@ -3078,7 +3283,8 @@ Revision History    Push Down List
 ------------------------------------------------------------------------------------------------------------------------------------
 Date        | Name          | Description
 ------------+---------------+-------------------------------------------------------------------------------------------------------
-19/08/2020  | J Bills      | Initial version
+15/07/2021	| D Day			| Added new parallel option to allow materialized views to be built in parallel INSERT sessions.
+19/08/2020  | J Bills       | Initial version
 ------------+---------------+-------------------------------------------------------------------------------------------------------
 Description:    Performs a full refresh of the materialized view, which consists of truncating the table and then re-populating it.
 
@@ -3094,6 +3300,8 @@ Note:           This procedure requires the SEARCH_PATH to be set to the current
 Arguments:      IN      pConst              The memory structure containing all constants
 				IN      pOwner              The owner of the object
                 IN      pViewName           The name of the materialized view
+				IN      pParallel			The materialized view set Y/N depending if it has been selected to run in parallel 
+											for the INSERT process
 
 ************************************************************************************************************************************
 Copyright 2018 Amazon.com, Inc. or its affiliates. All Rights Reserved. SPDX-License-Identifier: MIT-0
@@ -3106,7 +3314,13 @@ BEGIN
 
     aPgMview    := mv$getPgMviewTableData(        pConst, pOwner, pViewName );
     CALL mv$truncateMaterializedView(   pConst, pOwner, aPgMview.view_name );
-    CALL mv$insertMaterializedViewRows( pConst, pOwner, pViewName );
+	
+	IF aPgMview.parallel = 'Y' THEM
+		CALL mv$insertMaterializedViewRows( pConst, pOwner, pViewName );
+	ELSE
+		CALL mv$insertParallelMaterializedViewRows( pConst, pOwner, pViewName );
+	END IF;
+				
     CALL mv$clearAllPgMvLogTableBits(   pConst, pOwner, pViewName );
 
     EXCEPTION

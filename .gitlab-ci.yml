@@ -1,4 +1,4 @@
-image: postgres:11.5
+image: postgres:12.5
 
 Build:
      stage: build
@@ -8,6 +8,7 @@ Build:
        - echo Starting postgres
        - /usr/local/bin/docker-entrypoint.sh postgres &
        - sleep 10
+       - apt-get -y install postgresql-12-cron
        - echo Starting pipeline build
        - cd /builds/cheshire-datasystems/dba-team/pg-mv-fast-refresh-githubrunner
        - cp .pipeline_module_set_variables.sh module_set_variables.sh 
@@ -21,6 +22,7 @@ MV-Refresh:
        - echo Starting postgres
        - /usr/local/bin/docker-entrypoint.sh postgres &
        - sleep 10
+       - apt-get -y install postgresql-10-cron
        - echo Starting pipeline build
        - cd /builds/cheshire-datasystems/dba-team/pg-mv-fast-refresh-githubrunner
        - cp .pipeline_module_set_variables.sh module_set_variables.sh 
@@ -37,6 +39,7 @@ Module-Destroy:
        - echo Starting postgres
        - /usr/local/bin/docker-entrypoint.sh postgres &
        - sleep 10
+       - apt-get -y install postgresql-10-cron
        - echo Starting pipeline build
        - cd /builds/cheshire-datasystems/dba-team/pg-mv-fast-refresh-githubrunner
        - cp .pipeline_module_set_variables.sh module_set_variables.sh 
