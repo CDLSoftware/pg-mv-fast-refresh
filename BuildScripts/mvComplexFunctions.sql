@@ -917,6 +917,7 @@ BEGIN
 
             tLastType               := tDmlType;
             iArraySeq               := 1;
+            uRowIDArray             := '{}';
             uRowIDArray[iArraySeq]  := uRowID;
         END IF;
     END LOOP;
