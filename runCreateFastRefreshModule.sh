@@ -50,7 +50,7 @@ EOF2
 
 echo "INFO: Run $MODULEOWNER schema object build scripts" >> $LOG_FILE
 echo "INFO: Connect to postgres database $DBNAME via PSQL session" >> $LOG_FILE
-  psql --host=$HOSTNAME --port=$PORT --username=$MODULEOWNER --dbname=$DBNAME v MODULE_HOME=$MODULE_HOME -v MODULEOWNERPASS=$MODULEOWNERPASS -v MODULEOWNER=$MODULEOWNER -v HOSTNAME=$HOSTNAME -v PORT=$PORT << EOF3 >> $LOG_FILE 2>&1
+  psql --host=$HOSTNAME --port=$PORT --username=$MODULEOWNER --dbname=$DBNAME -v MODULE_HOME=$MODULE_HOME -v MODULEOWNERPASS=$MODULEOWNERPASS -v MODULEOWNER=$MODULEOWNER -v HOSTNAME=$HOSTNAME -v PORT=$PORT << EOF3 >> $LOG_FILE 2>&1
   
 	SET search_path = :MODULEOWNER,catalog,public;
 	
