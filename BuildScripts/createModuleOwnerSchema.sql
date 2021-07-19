@@ -55,10 +55,6 @@ CREATE EXTENSION 	IF NOT EXISTS "postgres_fdw";
 
 SET CLIENT_MIN_MESSAGES = NOTICE;
 
-CREATE  ROLE    pgmv$_execute;
-CREATE  ROLE    pgmv$_usage;
-CREATE  ROLE    pgmv$_view;
-
 CREATE OR REPLACE FUNCTION create_user_and_role(IN pis_password TEXT, IN pis_moduleowner TEXT)
 RETURNS void
 AS
@@ -72,10 +68,62 @@ ls_moduleowner TEXT := pis_moduleowner;
 ls_sql TEXT;
 
 BEGIN
- IF NOT EXISTS (
-      SELECT
-      FROM   pg_user
-      WHERE  usename = pis_moduleowner) THEN
+
+	IF NOT EXISTS (
+	  SELECT
+	  FROM   pg_roles
+	  WHERE  rolname = 'pgmv$_execute') THEN
+	  
+	  ls_sql := 'CREATE ROLE pgmv$_execute WITH
+				  NOLOGIN
+				  NOSUPERUSER
+				  INHERIT
+				  NOCREATEDB
+				  NOCREATEROLE
+				  NOREPLICATION;';
+				
+	  EXECUTE ls_sql;
+	  
+	END IF;
+	   
+	IF NOT EXISTS (
+	  SELECT
+	  FROM   pg_roles
+	  WHERE  rolname = 'pgmv$_usage') THEN
+	  
+	  ls_sql := 'CREATE ROLE pgmv$_usage WITH
+				  NOLOGIN
+				  NOSUPERUSER
+				  INHERIT
+				  NOCREATEDB
+				  NOCREATEROLE
+				  NOREPLICATION;';
+				
+	  EXECUTE ls_sql;
+	  
+	END IF;
+	   
+	IF NOT EXISTS (
+	  SELECT
+	  FROM   pg_roles
+	  WHERE  rolname = 'pgmv$_view') THEN
+	  
+	  ls_sql := 'CREATE ROLE pgmv$_view WITH
+				  NOLOGIN
+				  NOSUPERUSER
+				  INHERIT
+				  NOCREATEDB
+				  NOCREATEROLE
+				  NOREPLICATION;';
+				
+	  EXECUTE ls_sql;
+	  
+	END IF;
+
+	IF NOT EXISTS (
+	  SELECT
+	  FROM   pg_user
+	  WHERE  usename = pis_moduleowner) THEN
 	  
 	  ls_sql := 'CREATE USER '||ls_moduleowner||' WITH
 					LOGIN
@@ -89,12 +137,12 @@ BEGIN
 				
 	  EXECUTE ls_sql;
 	  
-   END IF;
-   
-   IF NOT EXISTS (
-      SELECT
-      FROM   pg_roles
-      WHERE  rolname = 'pgmv$_role') THEN
+	END IF;
+
+	IF NOT EXISTS (
+	  SELECT
+	  FROM   pg_roles
+	  WHERE  rolname = 'pgmv$_role') THEN
 	  
 	  ls_sql := 'CREATE ROLE pgmv$_role WITH
 				  NOLOGIN
@@ -106,24 +154,24 @@ BEGIN
 				
 	  EXECUTE ls_sql;
 	  
-   END IF;
-   
-   IF NOT EXISTS (
-      SELECT
-      FROM   pg_roles
-      WHERE  rolname = 'rds_superuser') THEN
+	END IF;
+
+	IF NOT EXISTS (
+	  SELECT
+	  FROM   pg_roles
+	  WHERE  rolname = 'rds_superuser') THEN
 	  
 	  ls_sql := 'ALTER USER '||pis_moduleowner||' with superuser;';
 				
 	  EXECUTE ls_sql;
 	  
-   ELSE
-	
+	ELSE
+
 	  ls_sql := 'GRANT rds_superuser TO '||pis_moduleowner||';';
 	  
 	  EXECUTE ls_sql;
 	  
-   END IF;
+	END IF;
 
 END;
 $BODY$
