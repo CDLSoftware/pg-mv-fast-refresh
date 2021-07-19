@@ -62,7 +62,7 @@ DROP PROCEDURE IF EXISTS mv$clearPgMvLogTableBits;
 DROP PROCEDURE IF EXISTS mv$clearPgMviewLogBit;
 DROP PROCEDURE IF EXISTS mv$createPgMv$Table;
 DROP PROCEDURE IF EXISTS mv$insertMaterializedViewRows;
-DROP PROCEDURE IF EXISTS mv$insertParallelMaterializedViewRows
+DROP PROCEDURE IF EXISTS mv$insertParallelMaterializedViewRows;
 DROP PROCEDURE IF EXISTS mv$insertPgMview;
 DROP PROCEDURE IF EXISTS mv$insertOuterJoinRows;
 DROP PROCEDURE IF EXISTS mv$insertPgMviewOuterJoinDetails;
@@ -698,6 +698,7 @@ DECLARE
 	tMinMaxTimestampSql		TEXT;	
 	tTimestampRangeSql		TEXT;
 	tResult					TEXT;
+	tDeleteJobsSql			TEXT;
 
 BEGIN
 
@@ -726,6 +727,7 @@ BEGIN
 	
 		tJobName := pViewName||'_job_'||iCounter;
 		
+		-- set date range sql for insert where clause based on max and min date split as per parallel jobs calculation
 		tTimestampRangeSql := mv$setFromAndToTimestampRange(tsMinTimestamp::DATE,tsMaxTimestamp::DATE,aPgMview.parallel_jobs, iCounter, aPgMview.parallel_column, aPgMview.parallel_alias );	
 		
 		tSqlSelectColumns := pConst.SELECT_COMMAND || aPgMview.select_columns;
@@ -748,7 +750,7 @@ BEGIN
 						  
 		--RAISE INFO '%', tCronSqlStatement;
 		
-		PERFORM * FROM dblink('test_instance',tCronSqlStatement) AS p (ret TEXT);
+		PERFORM * FROM dblink('pgmv$cron_instance',tCronSqlStatement) AS p (ret TEXT);
 		
 	END LOOP;
 	
@@ -761,7 +763,7 @@ BEGIN
 							AND jrd.start_time >= '''||tsJobCreation||'''';
 										
 		SELECT * FROM
-		dblink('test_instance', tStatusCheckSql) AS p (ret TEXT) INTO iJobCount;
+		dblink('pgmv$cron_instance', tStatusCheckSql) AS p (ret TEXT) INTO iJobCount;
 		
 		IF iJobCount < aPgMview.parallel_jobs THEN
 		
@@ -779,7 +781,7 @@ BEGIN
 							AND jrd.status = ''running''';
 							
 		SELECT * FROM
-		dblink('test_instance', tStatusCheckSql) AS p (ret TEXT) INTO iStatusCount;
+		dblink('pgmv$cron_instance', tStatusCheckSql) AS p (ret TEXT) INTO iStatusCount;
 		
 		tErrorCheckSql := 'SELECT count(1) FROM cron.job_run_details jrd
 							JOIN cron.job j ON j.jobid = jrd.jobid
@@ -788,7 +790,7 @@ BEGIN
 							AND jrd.status = ''failed''';
 							
 		SELECT * FROM
-		dblink('test_instance', tStatusCheckSql) AS p (ret TEXT) INTO iJobErrorCount;
+		dblink('pgmv$cron_instance', tStatusCheckSql) AS p (ret TEXT) INTO iJobErrorCount;
 		
 		IF iJobErrorCount > 0 THEN
 			RAISE INFO      'Exception in procedure mv$insertParallelMaterializedViewRows';
@@ -801,7 +803,16 @@ BEGIN
 			
 		END IF;
 		
-	END LOOP;
+		IF iStatusCount = 0 THEN
+		
+			tDeleteJobsSql := 'DELETE FROM cron.job j 
+							   WHERE j.job_name LIKE '''||pViewName||'_job_%''';
+							   
+			PERFORM * FROM dblink('pgmv$cron_instance',tDeleteJobsSql) AS p (ret TEXT);
+							   
+		END IF;
+		
+	END LOOP;	
 
     EXCEPTION
     WHEN OTHERS

@@ -111,6 +111,9 @@ END
  GRANT USAGE ON SCHEMA $SOURCEUSERNAME TO $MODULEOWNER;
  GRANT ALL ON SCHEMA $MODULEOWNER TO $SOURCEUSERNAME;
  GRANT USAGE ON FOREIGN SERVER pgmv\$_instance TO $SOURCEUSERNAME;
+ GRANT USAGE ON FOREIGN SERVER pgmv\$cron_instance TO $SOURCEUSERNAME;
+ GRANT USAGE ON SCHEMA cron TO $SOURCEUSERNAME;
+ GRANT ALL ON SCHEMA cron TO $SOURCEUSERNAME;
 
 
 EOF1
@@ -172,6 +175,9 @@ GRANT   $SOURCEUSERNAME TO   $MODULEOWNER;
 GRANT   pgmv\$_view, pgmv\$_usage TO $MVUSERNAME;
 GRANT   pgmv\$_view, pgmv\$_usage, pgmv\$_execute, pgmv\$_role TO $SOURCEUSERNAME;
 GRANT USAGE ON FOREIGN SERVER pgmv\$_instance TO $MVUSERNAME;
+GRANT USAGE ON FOREIGN SERVER pgmv\$cron_instance TO $MVUSERNAME;
+GRANT USAGE ON SCHEMA cron TO $MVUSERNAME;
+GRANT ALL ON SCHEMA cron TO $MVUSERNAME;
 
 EOF2
 }
@@ -195,6 +201,7 @@ CREATE TABLE $SOURCEUSERNAME.test1
     id numeric NOT NULL,
     lookup_id numeric,
     code character varying(10) COLLATE pg_catalog."default",
+	created	timestamp without time zone,
     CONSTRAINT test1_pkey PRIMARY KEY (id)
 );
 
@@ -252,27 +259,27 @@ CREATE TABLE $SOURCEUSERNAME.test6
 
 INSERT INTO $SOURCEUSERNAME.test1(
 	id, lookup_id, code)
-	VALUES (1, 10, 'hello');
+	VALUES (1, 10, 'hello','2015-04-21 09:40:27.364');
 
 INSERT INTO $SOURCEUSERNAME.test1(
 	id, lookup_id, code)
-	VALUES (2, 20, 'bye');
+	VALUES (2, 20, 'bye','2016-04-21 21:40:20.364');
 
 INSERT INTO $SOURCEUSERNAME.test1(
 	id, lookup_id, code)
-	VALUES (3, 30, 'cya');
+	VALUES (3, 30, 'cya','2016-07-01 17:00:20.364');
 
 INSERT INTO $SOURCEUSERNAME.test1(
 	id, lookup_id, code)
-	VALUES (4, 50, 'goodbye');
+	VALUES (4, 50, 'goodbye','2017-02-12 19:01:20.364');
 
 INSERT INTO $SOURCEUSERNAME.test1(
 	id, lookup_id, code)
-	VALUES (5, 50, 'hi');
+	VALUES (5, 50, 'hi','2018-03-27 01:01:20.364');
 
 INSERT INTO $SOURCEUSERNAME.test1(
 	id, lookup_id, code)
-	VALUES (6, 20, 'bye');
+	VALUES (6, 20, 'bye','2020-06-25 23:59:20.364');
 
 -- insert records into test2 table
 
@@ -436,6 +443,7 @@ BEGIN
     pSqlStatement := 'SELECT test1.id test1_id,
 test1.lookup_id test1_lookup_id,
 test1.code test1_code,
+test1.created test1_created,
 test2.id test2_id,
 test2.description test2_desc,
 test2.metavals_id test2_metavals_id,
@@ -469,6 +477,18 @@ LEFT JOIN test6 ON test5.trans_id = test6.trans_id';
             pFastRefresh        =>  TRUE
         );
     END LOOP;
+	
+	CALL mv\$createMaterializedView
+        (
+            pViewName           => 'mvtesting101',
+            pSelectStatement    =>  pSqlStatement,
+            pOwner              =>  '$MVUSERNAME',
+            pFastRefresh        =>  TRUE,
+			pParallel			=> 'Y',
+			pParallelJobs		=> 4,
+			pParallelColumn		=> 'created',
+			pParallelAlias		=> 'test1'
+        );
 
     RAISE NOTICE 'Simple Snapshot Creation took %', clock_timestamp() - tStartTime;
 END
@@ -492,7 +512,7 @@ DECLARE
 	cResult         CHAR(1)     := NULL;
 	iTableCounter   SMALLINT    := 10;
 BEGIN
-	FOR iTableCounter IN 10 .. 100 
+	FOR iTableCounter IN 10 .. 101 
     	LOOP
     	CALL mv\$removeMaterializedView( 'mvtesting' || iTableCounter, '$MVUSERNAME' );
     	END LOOP;
@@ -530,6 +550,9 @@ PGPASSWORD=$PGPASS
 
 psql --host=$HOSTNAME --port=$PORT --username=$PGUSERNAME --dbname=$DBNAME << EOF3 >> $LOG_FILE 2>&1
  
+ REVOKE USAGE ON FOREIGN SERVER pgmv\$cron_instance TO $MVUSERNAME;
+ REVOKE USAGE ON SCHEMA cron TO $MVUSERNAME;
+ REVOKE ALL ON SCHEMA cron TO $MVUSERNAME; 
  REVOKE ALL PRIVILEGES ON DATABASE "$DBNAME" from $MVUSERNAME;
  GRANT ALL PRIVILEGES ON SCHEMA $MVUSERNAME to $PGUSERNAME;
  REVOKE USAGE ON FOREIGN SERVER pgmv\$_instance FROM $MVUSERNAME;
@@ -542,7 +565,7 @@ psql --host=$HOSTNAME --port=$PORT --username=$PGUSERNAME --dbname=$DBNAME << EO
  revoke $MVUSERNAME from $PGUSERNAME;
  revoke USAGE ON SCHEMA $MODULEOWNER from $MVUSERNAME ;
  DROP USER $MVUSERNAME;
-
+ 
 EOF3
 }
 
@@ -555,7 +578,10 @@ PGPASSWORD=$PGPASS
 
 psql --host=$HOSTNAME --port=$PORT --username=$PGUSERNAME --dbname=$DBNAME << EOF4 >> $LOG_FILE 2>&1
  
-  REVOKE ALL PRIVILEGES ON DATABASE "$DBNAME" from $SOURCEUSERNAME;
+ REVOKE USAGE ON FOREIGN SERVER pgmv\$cron_instance TO $SOURCEUSERNAME;
+ REVOKE USAGE ON SCHEMA cron TO $SOURCEUSERNAME;
+ REVOKE ALL ON SCHEMA cron TO $SOURCEUSERNAME;
+ REVOKE ALL PRIVILEGES ON DATABASE "$DBNAME" from $SOURCEUSERNAME;
  GRANT ALL PRIVILEGES ON SCHEMA $SOURCEUSERNAME to $PGUSERNAME;
  REVOKE USAGE ON FOREIGN SERVER pgmv\$_instance FROM $SOURCEUSERNAME;
  ALTER SCHEMA $SOURCEUSERNAME OWNER TO $PGUSERNAME;
@@ -578,9 +604,13 @@ PGPASSWORD=$PGPASS
 
 
 psql --host=$HOSTNAME --port=$PORT --username=$PGUSERNAME --dbname=$DBNAME << EOF1 >> $LOG_FILE 2>&1
- 
+
+ REVOKE USAGE ON FOREIGN SERVER pgmv\$cron_instance TO $MODULEOWNER;
+ REVOKE USAGE ON SCHEMA cron TO $MODULEOWNER;
+ REVOKE ALL ON SCHEMA cron TO $MODULEOWNER; 
  REVOKE ALL PRIVILEGES ON DATABASE "$DBNAME" from $MODULEOWNER;
  REVOKE USAGE ON FOREIGN SERVER pgmv\$_instance FROM $MODULEOWNER;
+ DROP SERVER IF EXISTS pgmv\$cron_instance CASCADE;
  DROP SERVER IF EXISTS pgmv\$_instance CASCADE;
  DROP EXTENSION IF EXISTS postgres_fdw;
  DROP EXTENSION IF EXISTS dblink;
@@ -641,7 +671,7 @@ DECLARE
     cResult     CHAR(1)     := NULL;
     iTableCounter   SMALLINT    := 10;
 BEGIN
-    FOR iTableCounter IN 70 .. 100
+    FOR iTableCounter IN 70 .. 101
     LOOP
     CALL mv\$refreshMaterializedView
     (

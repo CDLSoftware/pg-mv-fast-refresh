@@ -74,11 +74,11 @@ PROCEDURE    mv$createMaterializedView
                 pOwner              IN      TEXT        DEFAULT USER,
                 pNamedColumns       IN      TEXT        DEFAULT NULL,
                 pStorageClause      IN      TEXT        DEFAULT NULL,
+                pFastRefresh        IN      BOOLEAN     DEFAULT FALSE,
 				pParallel			IN		TEXT		DEFAULT 'N',
 				pParallelJobs		IN		INTEGER		DEFAULT 0,
 				pParallelColumn		IN		TEXT		DEFAULT NULL,
-				pParallelAlias		IN 		TEXT		DEFAULT NULL,
-                pFastRefresh        IN      BOOLEAN     DEFAULT FALSE
+				pParallelAlias		IN 		TEXT		DEFAULT NULL
             )
 AS
 $BODY$
