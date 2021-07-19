@@ -233,10 +233,6 @@ GRANT ALL ON ALL sequences in schema :MODULEOWNER to pgmv$_role;
 ALTER EXTENSION "uuid-ossp" SET SCHEMA public;
 ALTER EXTENSION "dblink" SET SCHEMA public;
 ALTER EXTENSION "postgres_fdw" SET SCHEMA public;
-ALTER EXTENSION "pg_cron" SET SCHEMA public;
-
-GRANT USAGE ON SCHEMA cron TO postgres;
-GRANT USAGE ON SCHEMA cron TO :MODULEOWNER;
 
 CREATE SERVER IF NOT EXISTS pgmv$_instance FOREIGN DATA WRAPPER postgres_fdw options ( dbname :'DBNAME', port :'PORT', host :'HOSTNAME', connect_timeout '2', keepalives_count '5' );
 

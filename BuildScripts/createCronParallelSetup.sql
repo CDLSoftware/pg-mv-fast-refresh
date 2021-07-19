@@ -1,7 +1,6 @@
 CREATE EXTENSION 	IF NOT EXISTS "pg_cron";
 
-CREATE SERVER IF NOT EXISTS pgmv$cron_instance FOREIGN DATA WRAPPER postgres_fdw options ( dbname 'postgres', port :'PORT', host :'HOSTNAME', connect_timeout '2', keepalives_count '5' );
+ALTER EXTENSION "pg_cron" SET SCHEMA public;
 
-CREATE USER MAPPING IF NOT EXISTS for :MODULEOWNER SERVER pgmv$cron_instance OPTIONS (user :'MODULEOWNER', password :'MODULEOWNERPASS');
-
-GRANT USAGE ON FOREIGN SERVER pgmv$cron_instance TO :MODULEOWNER;
+GRANT USAGE ON SCHEMA cron TO postgres;
+GRANT USAGE ON SCHEMA cron TO :MODULEOWNER;
