@@ -38,9 +38,19 @@ EOF1
 
 PGPASSWORD=$MODULEOWNERPASS
 
+echo "INFO: Run $MODULEOWNER Cron Parallel setup script" >> $LOG_FILE
+echo "INFO: Connect to postgres database $DBNAME via PSQL session" >> $LOG_FILE
+  psql --host=$HOSTNAME --port=$PORT --username=$PGUSERNAME --dbname="postgres" -v MODULE_HOME=$MODULE_HOME -v MODULEOWNERPASS=$MODULEOWNERPASS -v MODULEOWNER=$MODULEOWNER -v PGUSERNAME=$PGUSERNAME -v DBNAME=$DBNAME -v HOSTNAME=$HOSTNAME -v PORT=$PORT << EOF2 >> $LOG_FILE 2>&1
+	
+	\i :MODULE_HOME/BuildScripts/createCronParallelSetup.sql;
+
+	\q
+	
+EOF2
+
 echo "INFO: Run $MODULEOWNER schema object build scripts" >> $LOG_FILE
 echo "INFO: Connect to postgres database $DBNAME via PSQL session" >> $LOG_FILE
-  psql --host=$HOSTNAME --port=$PORT --username=$MODULEOWNER --dbname=$DBNAME -v MODULE_HOME=$MODULE_HOME -v MODULEOWNER=$MODULEOWNER << EOF2 >> $LOG_FILE 2>&1
+  psql --host=$HOSTNAME --port=$PORT --username=$MODULEOWNER --dbname=$DBNAME -v MODULE_HOME=$MODULE_HOME -v MODULEOWNER=$MODULEOWNER << EOF3 >> $LOG_FILE 2>&1
   
 	SET search_path = :MODULEOWNER,catalog,public;
 
@@ -53,7 +63,7 @@ echo "INFO: Connect to postgres database $DBNAME via PSQL session" >> $LOG_FILE
 	
   \q
 
-EOF2
+EOF3
 
 elif [ "$INSTALL_TYPE" == "UPDATE" ]; then
 
@@ -87,13 +97,13 @@ PGPASSWORD=$MODULEOWNERPASS
 echo "INFO: Run $MODULEOWNER schema UPDATE patch scripts" >> $LOG_FILE
 echo "INFO: Connect to postgres database $DBNAME via PSQL session" >> $LOG_FILE
 
-psql --host=$HOSTNAME --port=$PORT --username=$MODULEOWNER --dbname=$DBNAME -v MODULE_HOME=$MODULE_HOME -v MODULEOWNER=$MODULEOWNER << EOF3 >> $LOG_FILE 2>&1
+psql --host=$HOSTNAME --port=$PORT --username=$MODULEOWNER --dbname=$DBNAME -v MODULE_HOME=$MODULE_HOME -v MODULEOWNER=$MODULEOWNER << EOF4 >> $LOG_FILE 2>&1
  
 	SET search_path = :MODULEOWNER,catalog,public;
  
    \i :MODULE_HOME/fast_refresh_module_update_patch_objects.sql;
 
-EOF3
+EOF4
 
 fi
 

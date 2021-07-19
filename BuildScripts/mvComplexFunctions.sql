@@ -592,7 +592,7 @@ BEGIN
                      --pConst.SELECT_COMMAND || aPgMview.select_columns           ||
 					 tSqlSelectColumns || pConst.FROM_COMMAND   || aPgMview.table_names;
 
-     IF aPgMview.where_clause != pConst.EMPTY_STRING
+    IF aPgMview.where_clause != pConst.EMPTY_STRING
     THEN
         tSqlStatement := tSqlStatement || pConst.WHERE_COMMAND || aPgMview.where_clause ;
     END IF;
@@ -3326,7 +3326,7 @@ BEGIN
     aPgMview    := mv$getPgMviewTableData(        pConst, pOwner, pViewName );
     CALL mv$truncateMaterializedView(   pConst, pOwner, aPgMview.view_name );
 	
-	IF aPgMview.parallel = 'Y' THEM
+	IF aPgMview.parallel = 'Y' THEN
 		CALL mv$insertMaterializedViewRows( pConst, pOwner, pViewName );
 	ELSE
 		CALL mv$insertParallelMaterializedViewRows( pConst, pOwner, pViewName );

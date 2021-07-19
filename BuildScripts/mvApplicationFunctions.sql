@@ -433,7 +433,7 @@ PROCEDURE    mv$refreshMaterializedView
                 pViewName           IN      TEXT,
                 pOwner              IN      TEXT    DEFAULT USER,
                 pFastRefresh        IN      BOOLEAN DEFAULT FALSE,
-				pParallel			IN		DEFAULT 'N'
+				pParallel			IN		TEXT DEFAULT 'N'	
             )
 AS
 $BODY$
