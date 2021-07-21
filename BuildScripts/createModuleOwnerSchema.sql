@@ -232,7 +232,7 @@ CREATE TABLE IF NOT EXISTS :MODULEOWNER.pg$mviews
 	query_joins_multi_table_cnt_array	SMALLINT[],
 	query_joins_multi_table_pos_array	SMALLINT[],
 	parallel			TEXT,
-	parallel_jobs		TEXT,
+	parallel_jobs		INTEGER,
 	parallel_column		TEXT,
 	parallel_alias		TEXT,
     CONSTRAINT

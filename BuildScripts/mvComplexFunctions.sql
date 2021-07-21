@@ -3327,9 +3327,9 @@ BEGIN
     CALL mv$truncateMaterializedView(   pConst, pOwner, aPgMview.view_name );
 	
 	IF aPgMview.parallel = 'Y' THEN
-		CALL mv$insertMaterializedViewRows( pConst, pOwner, pViewName );
-	ELSE
 		CALL mv$insertParallelMaterializedViewRows( pConst, pOwner, pViewName );
+	ELSE
+		CALL mv$insertMaterializedViewRows( pConst, pOwner, pViewName );
 	END IF;
 				
     CALL mv$clearAllPgMvLogTableBits(   pConst, pOwner, pViewName );
