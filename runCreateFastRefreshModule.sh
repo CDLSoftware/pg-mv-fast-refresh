@@ -36,17 +36,17 @@ echo "INFO: Connect to postgres database $DBNAME via PSQL session" >> $LOG_FILE
 	
 EOF1
 
-PGPASSWORD=$MODULEOWNERPASS
-
 echo "INFO: Run $MODULEOWNER Cron Parallel setup script" >> $LOG_FILE
 echo "INFO: Connect to postgres database $DBNAME via PSQL session" >> $LOG_FILE
-  psql --host=$HOSTNAME --port=$PORT --username=$MODULEOWNER --dbname="postgres" -v MODULE_HOME=$MODULE_HOME -v MODULEOWNERPASS=$MODULEOWNERPASS -v MODULEOWNER=$MODULEOWNER << EOF2 >> $LOG_FILE 2>&1
+  psql --host=$HOSTNAME --port=$PORT --username=$MODULEOWNER --dbname=postgres -v MODULE_HOME=$MODULE_HOME -v MODULEOWNERPASS=$MODULEOWNERPASS -v MODULEOWNER=$MODULEOWNER << EOF2 >> $LOG_FILE 2>&1
 	
 	\i :MODULE_HOME/BuildScripts/createCronSetup.sql;
 
 	\q
 	
 EOF2
+
+PGPASSWORD=$MODULEOWNERPASS
 
 echo "INFO: Run $MODULEOWNER schema object build scripts" >> $LOG_FILE
 echo "INFO: Connect to postgres database $DBNAME via PSQL session" >> $LOG_FILE
