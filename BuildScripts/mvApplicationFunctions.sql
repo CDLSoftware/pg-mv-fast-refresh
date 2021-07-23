@@ -237,6 +237,7 @@ BEGIN
                             tSelectColumns,
                             tTableNames,
                             pStorageClause,
+							pParallel,
 							tViewColumns
                         );
 						
@@ -247,6 +248,7 @@ BEGIN
                 pViewName,
                 tAliasArray,
                 tRowidArray,
+				pParallel,
                 tViewColumns,
                 tSelectColumns
             );
@@ -460,6 +462,7 @@ Notes:          This procedure must come after the creation of the 2 procedures 
 Arguments:      IN      pViewName           The name of the materialized view
                 IN      pOwner              Optional, the owner of the materialized view, defaults to user
                 IN      pFastRefresh        Defaults to FALSE, but if set to yes then materialized view fast refresh is performed
+				IN		pParallel			Optional, build in parallel	
 Returns:                VOID
 
 ************************************************************************************************************************************

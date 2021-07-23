@@ -157,6 +157,7 @@ PROCEDURE    mv$addRow$ToMv$Table
                 pViewName           IN      TEXT,
                 pAliasArray         IN      TEXT[],
                 pRowidArray         IN      TEXT[],
+				pParallel			IN		TEXT,
                 pViewColumns        INOUT   TEXT,
                 pSelectColumns      INOUT   TEXT
             )
@@ -171,6 +172,7 @@ Revision History    Push Down List
 ------------------------------------------------------------------------------------------------------------------------------------
 Date        | Name          | Description
 ------------+---------------+-------------------------------------------------------------------------------------------------------
+23/07/2021	| D Day			| Added logic to support running build in parallel.
 05/06/2020  | D Day         | Change functions with RETURNS VOID to procedures allowing support/control of COMMITS during refresh process.
 15/01/2019  | M Revitt      | Initial version
 ------------+---------------+-------------------------------------------------------------------------------------------------------
@@ -181,6 +183,7 @@ Arguments:      IN      pConst              The memory structure containing all 
                 IN      pViewName           The name of the materialized view table
                 IN      pAliasArray         An array containing the table aliases that make up the materialized view
                 IN      pRowidArray         An array containing the MV_M_ROW$_COLUMN column name for the base table
+				IN		pParallel			Optional, build in parallel				
                 INOUT   pViewColumns        This is the list of view columns to which the MV_M_ROW$_COLUMNs will be added
                 INOUT   pSelectColumns      The columns from the SQL Statement that created the materialised view
 
@@ -206,12 +209,28 @@ BEGIN
         tIndexName      := pViewName    || pConst.UNDERSCORE_CHARACTER  || pRowidArray[i]       || pConst.MV_INDEX_SUFFIX;
         tSqlStatement   := tAddColumn   || pRowidArray[i]               || pConst.MV_M_ROW$_COLUMN_FORMAT;
 
-        EXECUTE tSqlStatement;
+		IF pParallel = 'Y' THEN
+		
+			PERFORM * FROM dblink('pgmv$_instance',tSqlStatement) AS p (ret TEXT);
+		
+		ELSE
+
+			EXECUTE tSqlStatement;
+			
+		END IF;
 
         tSqlStatement   :=  tCreateIndex    || tIndexName               || pConst.ON_COMMAND    ||
                                                pOwner                   || pConst.DOT_CHARACTER || pViewName ||
                                                pConst.OPEN_BRACKET      || pRowidArray[i]       || pConst.CLOSE_BRACKET;
-        EXECUTE tSqlStatement;
+		IF pParallel = 'Y' THEN
+		
+			PERFORM * FROM dblink('pgmv$_instance',tSqlStatement) AS p (ret TEXT);
+		
+		ELSE
+
+			EXECUTE tSqlStatement;
+			
+		END IF;
 
         pViewColumns    :=  pViewColumns    || pConst.COMMA_CHARACTER   || pRowidArray[i];
         pSelectColumns  :=  pSelectColumns  || pConst.COMMA_CHARACTER   || pAliasArray[i]       || pConst.MV_M_ROW$_COLUMN;
@@ -1971,7 +1990,8 @@ PROCEDURE    mv$grantSelectPrivileges
             (
                 pConst          IN      mv$allConstants,
                 pOwner          IN      TEXT,
-                pObjectName     IN      TEXT
+                pObjectName     IN      TEXT,
+				pParallel		IN      TEXT
             )
 AS
 $BODY$
@@ -1984,6 +2004,7 @@ Revision History    Push Down List
 ------------------------------------------------------------------------------------------------------------------------------------
 Date        | Name          | Description
 ------------+---------------+-------------------------------------------------------------------------------------------------------
+23/07/2021	| D Day			| Added logic to support running build in parallel.
 05/06/2020  | D Day         | Change functions with RETURNS VOID to procedures allowing support/control of COMMITS during refresh process.
 11/03/2018  | M Revitt      | Initial version
 ------------+---------------+-------------------------------------------------------------------------------------------------------
@@ -1994,6 +2015,7 @@ Description:    Whilst objects are created into the named schema, the ownership 
 Arguments:      IN      pConst              The memory structure containing all constants
 				IN      pOwner              The owner of the object
                 IN      pObjectName         The name of the object to receive select privileges
+				IN		pParallel			Optional, build in parallel
 ************************************************************************************************************************************
 Copyright 2019 Amazon.com, Inc. or its affiliates. All Rights Reserved. SPDX-License-Identifier: MIT-0
 ***********************************************************************************************************************************/
@@ -2206,7 +2228,8 @@ PROCEDURE    mv$truncateMaterializedView
             (
                 pConst      IN      mv$allConstants,
                 pOwner      IN      TEXT,
-                pViewName   IN      TEXT
+                pViewName   IN      TEXT,
+				pParallel 	IN 		TEXT
             )
 AS
 $BODY$
@@ -2219,6 +2242,8 @@ Revision History    Push Down List
 ------------------------------------------------------------------------------------------------------------------------------------
 Date        | Name          | Description
 ------------+---------------+-------------------------------------------------------------------------------------------------------
+23/07/2020	| D Day			| Added parallel running logic into truncate as this needs committing in the background due to locking
+			|				| the cron jobs for the split insert sessions.
 05/06/2020  | D Day         | Change functions with RETURNS VOID to procedures allowing support/control of COMMITS during refresh process.
 11/03/2018  | M Revitt      | Initial version
 ------------+---------------+-------------------------------------------------------------------------------------------------------
@@ -2227,6 +2252,7 @@ Description:    When performing a full refresh, we first have to truncate the ma
 Arguments:      IN      pConst             The memory structure containing all constants
 				IN      pOwner             The owner of the object
                 IN      pViewName          The name of the materialized view base table
+				IN 		pParallel		   Build of materialized view set to run in Parallel
 Returns:                VOID
 
 ************************************************************************************************************************************
@@ -2235,11 +2261,21 @@ Copyright 2019 Amazon.com, Inc. or its affiliates. All Rights Reserved. SPDX-Lic
 DECLARE
 
     tSqlStatement TEXT;
+	ret			  TEXT;
 
 BEGIN
-    tSqlStatement := pConst.TRUNCATE_TABLE || pOwner || pConst.DOT_CHARACTER || pViewName;
 
-    EXECUTE tSqlStatement;
+	tSqlStatement := pConst.TRUNCATE_TABLE || pOwner || pConst.DOT_CHARACTER || pViewName;
+
+	IF pParallel = 'Y' THEN
+							   
+		PERFORM * FROM dblink('pgmv$_instance',tSqlStatement) AS p (ret TEXT);
+	
+	ELSE
+
+		EXECUTE tSqlStatement;
+		
+	END IF;
 
     EXCEPTION
     WHEN OTHERS

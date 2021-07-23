@@ -442,7 +442,8 @@ PROCEDURE    mv$createPgMv$Table
                 pSelectColumns      IN      TEXT,
                 pTableNames         IN      TEXT,
                 pStorageClause      IN      TEXT,
-				pTableColumns		INOUT	TEXT
+				pParallel			IN		TEXT,
+				pTableColumns		INOUT	TEXT		
             )
 AS
 $BODY$
@@ -455,6 +456,7 @@ Revision History    Push Down List
 ------------------------------------------------------------------------------------------------------------------------------------
 Date        | Name          | Description
 ------------+---------------+-------------------------------------------------------------------------------------------------------
+23/07/2021	| D Day			| Added logic to support running build in parallel.
 04/06/2020  | D Day         | Change functions with RETURNS VOID to procedures allowing support/control of COMMITS during refresh process.
 			|				| Added new INOUT parameter to replace the RETURN TEXT as this function was previously doing UPDATE and RETURN
 			|				| which is not supported by procedure.
@@ -475,6 +477,7 @@ Arguments:      IN      pConst              The memory structure containing all 
                 IN      pSelectColumns      The column list from the SQL query that will be used to create the view
                 IN      pTableNames         The string between the FROM and WHERE clauses in the SQL query
                 IN      pStorageClause      Optional, storage clause for the materialized view
+				IN		pParallel			Optional, build in parallel
 				INOUT	pTableColumns		The columns from the materialized view table returned as an INOUT paremeter
 ************************************************************************************************************************************
 Copyright 2018 Amazon.com, Inc. or its affiliates. All Rights Reserved. SPDX-License-Identifier: MIT-0
@@ -484,6 +487,7 @@ DECLARE
     tDefinedColumns TEXT    := NULL;
     tSqlStatement   TEXT    := NULL;
     tStorageClause  TEXT    := NULL;
+	ret				TEXT;
 
 BEGIN
 
@@ -510,10 +514,18 @@ BEGIN
                         pConst.SELECT_COMMAND   || pSelectColumns  ||
                         pConst.FROM_COMMAND     || pTableNames     ||
                         pConst.WHERE_NO_DATA    || tStorageClause;
+						
+	IF pParallel = 'Y' THEN
+	
+		PERFORM * FROM dblink('pgmv$_instance',tSqlStatement) AS p (ret TEXT);
+	
+	ELSE
 
-    EXECUTE tSqlStatement;
+		EXECUTE tSqlStatement;
+		
+	END IF;
 
-    CALL mv$grantSelectPrivileges( pConst, pOwner, pViewName );
+    CALL mv$grantSelectPrivileges( pConst, pOwner, pViewName, pParallel );
 	
 	pTableColumns    :=  mv$getPgMviewViewColumns( pConst, pOwner, pViewName );
 
@@ -685,9 +697,9 @@ DECLARE
 	iCounter				INTEGER := 0;
 	
 	ret 					TEXT;
+	iDblinkCount			INT;
 	
-	tStatus					TEXT	:= 1;	
-	iStatusCount			INTEGER;
+	iStatusCount			INTEGER := 1;
 	iJobCount				INTEGER := 0;
 	iJobErrorCount			INTEGER := 0;	
 	tsJobCreation			TIMESTAMP;
@@ -698,7 +710,7 @@ DECLARE
 	tMinMaxTimestampSql		TEXT;	
 	tTimestampRangeSql		TEXT;
 	tResult					TEXT;
-	tDeleteJobsSql			TEXT;
+	tDeleteSql				TEXT;
 
 BEGIN
 
@@ -763,12 +775,10 @@ BEGIN
 							AND jrd.start_time >= '''||tsJobCreation||'''';
 										
 		SELECT * FROM
-		dblink('pgmv$cron_instance', tStatusCheckSql) AS p (ret TEXT) INTO iJobCount;
+		dblink('pgmv$cron_instance', tStatusCheckSql) AS p (iDblinkCount INT) INTO iJobCount;
 		
-		IF iJobCount < aPgMview.parallel_jobs THEN
-		
-			SELECT pg_sleep(60) INTO tResult;
-			
+		IF iJobCount < aPgMview.parallel_jobs THEN		
+			SELECT pg_sleep(60) INTO tResult;			
 		END IF;
 		
 	END LOOP;
@@ -777,11 +787,11 @@ BEGIN
 	 
 		tStatusCheckSql := 'SELECT count(1) FROM cron.job_run_details jrd
 							JOIN cron.job j ON j.jobid = jrd.jobid
-							WHERE j.job_name LIKE '''||pViewName||'_job_%''
+							WHERE j.jobname LIKE '''||pViewName||'_job_%''
 							AND jrd.status = ''running''';
 							
 		SELECT * FROM
-		dblink('pgmv$cron_instance', tStatusCheckSql) AS p (ret TEXT) INTO iStatusCount;
+		dblink('pgmv$cron_instance', tStatusCheckSql) AS p (iDblinkCount INT) INTO iStatusCount;
 		
 		tErrorCheckSql := 'SELECT count(1) FROM cron.job_run_details jrd
 							JOIN cron.job j ON j.jobid = jrd.jobid
@@ -790,9 +800,21 @@ BEGIN
 							AND jrd.status = ''failed''';
 							
 		SELECT * FROM
-		dblink('pgmv$cron_instance', tStatusCheckSql) AS p (ret TEXT) INTO iJobErrorCount;
+		dblink('pgmv$cron_instance', tStatusCheckSql) AS p (iDblinkCount INT) INTO iJobErrorCount;
 		
 		IF iJobErrorCount > 0 THEN
+		
+			IF EXISTS (
+			  SELECT
+			  FROM   pg_tables
+			  WHERE  tablename = pViewName) THEN
+		
+				tDeleteSql := 'DROP TABLE '||pViewName;
+							   
+				PERFORM * FROM dblink('pgmv$_instance',tDeleteSql) AS p (ret TEXT);
+				
+			END IF;
+			
 			RAISE INFO      'Exception in procedure mv$insertParallelMaterializedViewRows';
 			RAISE EXCEPTION 'Error: Cron job(s) for % found in status of failed - please check table cron.job_run_details for full details', pViewName;
 		END IF;
@@ -805,10 +827,10 @@ BEGIN
 		
 		IF iStatusCount = 0 THEN
 		
-			tDeleteJobsSql := 'DELETE FROM cron.job j 
-							   WHERE j.job_name LIKE '''||pViewName||'_job_%''';
+			tDeleteSql := 'DELETE FROM cron.job j 
+						   WHERE j.jobname LIKE '''||pViewName||'_job_%''';
 							   
-			PERFORM * FROM dblink('pgmv$cron_instance',tDeleteJobsSql) AS p (ret TEXT);
+			PERFORM * FROM dblink('pgmv$cron_instance',tDeleteSql) AS p (ret TEXT);
 							   
 		END IF;
 		
@@ -1471,6 +1493,7 @@ Note:           This procedure requires the SEARCH_PATH to be set to the current
 Arguments:      IN      pConst              The memory structure containing all constants
 				IN      pOwner              The owner of the object
                 IN      pViewName           The name of the materialized view
+				IN		pParallel			Optional, build in parallel	
 
 ************************************************************************************************************************************
 Copyright 2018 Amazon.com, Inc. or its affiliates. All Rights Reserved. SPDX-License-Identifier: MIT-0
@@ -3337,6 +3360,21 @@ BEGIN
     EXCEPTION
     WHEN OTHERS
     THEN
+		IF aPgMview.parallel = 'Y' THEN
+		
+			IF EXISTS (
+			  SELECT
+			  FROM   pg_tables
+			  WHERE  tablename = pViewName) THEN
+		
+				tDeleteSql := 'DROP TABLE '||pViewName;
+							   
+				PERFORM * FROM dblink('pgmv$_instance',tDeleteSql) AS p (ret TEXT);
+				
+			END IF;
+
+		END IF;
+		
         RAISE INFO      'Exception in procedure mv$refreshMaterializedViewInitial';
         RAISE INFO      'Error %:- %:',     SQLSTATE, SQLERRM;
         RAISE EXCEPTION '%',                SQLSTATE;
