@@ -55,9 +55,9 @@ echo "INFO: Connect to postgres database $DBNAME via PSQL session" >> $LOG_FILE
 	SET search_path = :MODULEOWNER,catalog,public;
 	
 	-- Used to run materialized view build insert in parallel sessions
-	CREATE SERVER IF NOT EXISTS pgmv$cron_instance FOREIGN DATA WRAPPER postgres_fdw options ( dbname 'postgres', port :'PORT', host :'HOSTNAME', connect_timeout '2', keepalives_count '5' );
-	CREATE USER MAPPING IF NOT EXISTS for :MODULEOWNER SERVER pgmv$cron_instance OPTIONS (user :'MODULEOWNER', password :'MODULEOWNERPASS');
-	GRANT USAGE ON FOREIGN SERVER pgmv$cron_instance TO :MODULEOWNER;
+	CREATE SERVER IF NOT EXISTS pgmv\$cron_instance FOREIGN DATA WRAPPER postgres_fdw options ( dbname 'postgres', port :'PORT', host :'HOSTNAME', connect_timeout '2', keepalives_count '5' );
+	CREATE USER MAPPING IF NOT EXISTS for :MODULEOWNER SERVER pgmv\$cron_instance OPTIONS (user :'MODULEOWNER', password :'MODULEOWNERPASS');
+	GRANT USAGE ON FOREIGN SERVER pgmv\$cron_instance TO :MODULEOWNER;
 
    \i :MODULE_HOME/BuildScripts/mvTypes.sql;
    \i :MODULE_HOME/BuildScripts/mvConstants.sql;

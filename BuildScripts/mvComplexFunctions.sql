@@ -1507,7 +1507,7 @@ BEGIN
     aPgMview    := mv$getPgMviewTableData(        pConst, pOwner, pViewName );
     CALL mv$createindexestemptable(pOwner, pViewName);
 	CALL mv$dropmvindexes(pOwner, pViewName);
-	CALL mv$truncateMaterializedView(   pConst, pOwner, aPgMview.view_name );
+	CALL mv$truncateMaterializedView(   pConst, pOwner, aPgMview.view_name, pParallel );
     CALL mv$clearAllPgMvLogTableBitsCompleteRefresh(   pConst, pOwner, pViewName );
 	IF pParallel = 'Y' THEN
 		CALL mv$insertParallelMaterializedViewRows( pConst, pOwner, pViewName );
@@ -3343,13 +3343,11 @@ Copyright 2018 Amazon.com, Inc. or its affiliates. All Rights Reserved. SPDX-Lic
 DECLARE
 
     aPgMview    pg$mviews;
-	
-	tDeleteSql	TEXT;
 
 BEGIN
 
     aPgMview    := mv$getPgMviewTableData(        pConst, pOwner, pViewName );
-    CALL mv$truncateMaterializedView(   pConst, pOwner, aPgMview.view_name );
+    CALL mv$truncateMaterializedView(   pConst, pOwner, aPgMview.view_name, pParallel );
 	
 	IF aPgMview.parallel = 'Y' THEN
 		CALL mv$insertParallelMaterializedViewRows( pConst, pOwner, pViewName );
