@@ -3343,6 +3343,8 @@ Copyright 2018 Amazon.com, Inc. or its affiliates. All Rights Reserved. SPDX-Lic
 DECLARE
 
     aPgMview    pg$mviews;
+	
+	tdeletesql	TEXT;
 
 BEGIN
 
