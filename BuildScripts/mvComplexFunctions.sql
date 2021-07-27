@@ -719,8 +719,6 @@ BEGIN
 	-- set cron time
 	tCronJobSchedule := mv$setCronSchedule();
 	
-	RAISE INFO '%', tCronJobSchedule;
-	
 	SELECT DISTINCT inline.table_name FROM
 	(SELECT UNNEST(aPgMview.table_array) AS table_name
 	 ,	    UNNEST(aPgMview.alias_array) AS table_alias ) inline INTO tTableName

@@ -309,9 +309,10 @@ LANGUAGE    plpgsql;
 CREATE OR REPLACE
 PROCEDURE    mv$createMaterializedViewlog
             (
-                pTableName          IN      TEXT,
-                pOwner              IN      TEXT     DEFAULT USER,
-                pStorageClause      IN      TEXT     DEFAULT NULL
+                pTableName          	IN      TEXT,
+                pOwner              	IN      TEXT     DEFAULT USER,
+                pStorageClause      	IN      TEXT     DEFAULT NULL,
+				pAddRow$ToSourceTable	IN		TEXT	 DEFAULT 'Y'
             )
 AS
 $BODY$
@@ -324,6 +325,8 @@ Revision History    Push Down List
 ------------------------------------------------------------------------------------------------------------------------------------
 Date        | Name          | Description
 ------------+---------------+-------------------------------------------------------------------------------------------------------
+27/07/2021	| D Day			| Added new input parameter pAddRow$ToSourceTable to support building a materialized view log without
+			|				| adding the source table m_row$ column with values.
 03/06/2020	| D Day			| Changed function to procedure to allow support/control of COMMITS within the refresh process.
 12/11/2018  | M Revitt      | Initial version
 ------------+---------------+-------------------------------------------------------------------------------------------------------
@@ -339,9 +342,10 @@ Description:    Creates a materialized view log against the base table, which is
 
 Notes:          This is mandatory for a Fast Refresh Materialized View
 
-Arguments:      IN      pTableName          The name of the base table upon which the materialized view is created
-                IN      pOwner              Optional, the owner of the base table, defaults to current user
-                IN      pStorageClause      Optional, storage clause for the materialized view log
+Arguments:      IN      pTableName          	The name of the base table upon which the materialized view is created
+                IN      pOwner              	Optional, the owner of the base table, defaults to current user
+                IN      pStorageClause      	Optional, storage clause for the materialized view log
+				IN		pAddRow$ToSourceTable	Optional, add m_row$ column to source table linked to materialized view log
 Returns:                VOID
 
 ************************************************************************************************************************************
@@ -360,8 +364,12 @@ BEGIN
     rConst          := mv$buildAllConstants();
     tLog$Name       := rConst.MV_LOG_TABLE_PREFIX   || SUBSTRING( pTableName, 1, rConst.MV_MAX_BASE_TABLE_LEN );
     tTriggerName    := rConst.MV_TRIGGER_PREFIX     || SUBSTRING( pTableName, 1, rConst.MV_MAX_BASE_TABLE_LEN );
-
-    CALL mv$addRow$ToSourceTable(    rConst, pOwner, pTableName );
+	
+	IF pAddRow$ToSourceTable = 'Y' THEN 
+		CALL mv$addRow$ToSourceTable( rConst, pOwner, pTableName );
+	ELSE
+		CALL mv$checkRow$ExistsOnSourceTable( pOwner, pTableName );				  
+	END IF;
     CALL mv$createMvLog$Table(       rConst, pOwner, tLog$Name,  pStorageClause );
     CALL mv$addIndexToMvLog$Table(   rConst, pOwner, tLog$Name                  );
     CALL mv$createMvLogTrigger(      rConst, pOwner, pTableName, tTriggerName   );
@@ -373,13 +381,6 @@ BEGIN
                     pTableName,
                     tTriggerName
                 );
-
-    EXCEPTION
-    WHEN OTHERS
-    THEN
-        RAISE INFO      'Exception in procedure mv$createMaterializedViewlog';
-        RAISE INFO      'Error %:- %:',     SQLSTATE, SQLERRM;
-        RAISE EXCEPTION '%',                SQLSTATE;
 
 END;
 $BODY$
@@ -545,8 +546,9 @@ LANGUAGE    plpgsql;
 CREATE OR REPLACE
 PROCEDURE    mv$removeMaterializedViewLog
             (
-                pTableName          IN      TEXT,
-                pOwner              IN      TEXT        DEFAULT USER
+                pTableName          	IN      TEXT,
+                pOwner              	IN      TEXT     DEFAULT USER,
+				pDropRow$ToSourceTable	IN		TEXT	 DEFAULT 'Y'
             )
 AS
 $BODY$
@@ -559,6 +561,7 @@ Revision History    Push Down List
 ------------------------------------------------------------------------------------------------------------------------------------
 Date        | Name          | Description
 ------------+---------------+-------------------------------------------------------------------------------------------------------
+27/07/2021	| D Day			| Add new parameter pDropRow$ToSourceTable to provide user option of not dropping the m_row$ column.
 03/06/2020	| D Day			| Changed function to procedure to allow support/control of COMMITS within the refresh process.
 15/01/2020  | M Revitt      | Changed bitmap check to look at all values in the bitmap array
 11/03/2018  | M Revitt      | Initial version
@@ -598,7 +601,9 @@ BEGIN
     THEN
         CALL mv$dropTrigger(                 rConst, pOwner, aViewLog.trigger_name, pTableName   );
         CALL mv$dropTable(                   rConst, pOwner, aViewLog.pglog$_name                );
-        CALL mv$removeRow$FromSourceTable(   rConst, pOwner, pTableName                          );
+		IF pDropRow$ToSourceTable= 'Y' THEN
+			CALL mv$removeRow$FromSourceTable(   rConst, pOwner, pTableName                          );
+		END IF;
         CALL mv$deletePgMviewLog(                    pOwner, pTableName                          );
     ELSE
         RAISE EXCEPTION 'The Materialized View Log on Table % is still in use', pTableName;

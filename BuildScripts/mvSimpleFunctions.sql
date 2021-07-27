@@ -54,6 +54,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 SET     CLIENT_MIN_MESSAGES = ERROR;
 
 DROP PROCEDURE IF EXISTS mv$addIndexToMvLog$Table;
+DROP PROCEDURE IF EXISTS mv$checkRow$ExistsOnSourceTable;
 DROP PROCEDURE IF EXISTS mv$addRow$ToMv$Table;
 DROP PROCEDURE IF EXISTS mv$addRow$ToSourceTable;
 DROP FUNCTION IF EXISTS mv$checkIfOuterJoinedTable;
@@ -142,6 +143,77 @@ BEGIN
     WHEN OTHERS
     THEN
         RAISE INFO      'Exception in procedure mv$addIndexToMvLog$Table';
+        RAISE INFO      'Error %:- %:',     SQLSTATE, SQLERRM;
+        RAISE INFO      'Error Context:% %',CHR(10),  tSqlStatement;
+        RAISE EXCEPTION '%',                SQLSTATE;
+END;
+$BODY$
+LANGUAGE    plpgsql;
+------------------------------------------------------------------------------------------------------------------------------------
+CREATE OR REPLACE
+PROCEDURE    mv$checkRow$ExistsOnSourceTable
+            (
+                pOwner          IN      TEXT,
+                pTableName      IN      TEXT
+            )
+AS
+$BODY$
+/* ---------------------------------------------------------------------------------------------------------------------------------
+Routine Name: mv$checkRow$ExistsOnSourceTable
+Author:       David Day
+Date:         27/07/2021
+------------------------------------------------------------------------------------------------------------------------------------
+Revision History    Push Down List
+------------------------------------------------------------------------------------------------------------------------------------
+Date        | Name          | Description
+------------+---------------+-------------------------------------------------------------------------------------------------------
+27/07/2021  | D Day      	| Initial version
+------------+---------------+-------------------------------------------------------------------------------------------------------
+Description:    PostGre does not have a ROWID pseudo column and so a ROWID column has to be added to the source table. This procedure
+				checks to confirm if the m_row$ exists as this is a pre-requisite if the materialized view log creation has been 
+				selected to NOT add this column as part of the build of the source table log. This option has been added to provide 
+				the user to add this outside of the log creation process due to performance issues on how long this can take to add 
+				due to populating the UUID values during automated routines.
+
+Arguments:      IN      pOwner              The owner of the object
+                IN      pTableName          The name of the materialized view source table
+
+************************************************************************************************************************************
+Copyright 2019 Amazon.com, Inc. or its affiliates. All Rights Reserved. SPDX-License-Identifier: MIT-0
+***********************************************************************************************************************************/
+DECLARE
+
+    tIndexName      TEXT;
+    tSqlStatement   TEXT;
+
+BEGIN
+
+	IF NOT EXISTS(SELECT
+				  FROM   information_schema.columns
+				  WHERE  table_schema    = LOWER( pOwner )
+				  AND    table_name      = LOWER( pTableName )
+				  AND	 column_name 	 = 'm_row$') THEN
+	
+		RAISE INFO      'Exception in procedure mv$createMaterializedViewlog';
+		RAISE EXCEPTION 'Error: Column m_row$ does not exist. If parameter pAddRow$ToSourceTable is set to N there is a pre-requisite to add m_row$ to materialized view log source table %.%.'; 
+
+	ELSE
+	
+		IF NOT EXISTS(SELECT
+					  FROM pg_indexes
+					  WHERE tablename  = LOWER( pTableName )
+					  AND   schemaname = LOWER( pOwner ) 
+					  AND   indexdef   LIKE '%m_row$%' ) THEN
+					  
+		RAISE INFO      'Exception in procedure mv$createMaterializedViewlog';
+		RAISE EXCEPTION 'Error: Column m_row$ exists however there has been no index built on the column. If parameter pAddRow$ToSourceTable is set to N there is a pre-requisite to build index on column m_row$ a to materialized view log source table %.%.'; 
+		
+	END IF;
+
+    EXCEPTION
+    WHEN OTHERS
+    THEN
+        RAISE INFO      'Exception in procedure mv$checkRow$ExistsOnSourceTable';
         RAISE INFO      'Error %:- %:',     SQLSTATE, SQLERRM;
         RAISE INFO      'Error Context:% %',CHR(10),  tSqlStatement;
         RAISE EXCEPTION '%',                SQLSTATE;
@@ -266,6 +338,8 @@ Revision History    Push Down List
 ------------------------------------------------------------------------------------------------------------------------------------
 Date        | Name          | Description
 ------------+---------------+-------------------------------------------------------------------------------------------------------
+27/07/2021	| D Day			| Added check to only add m_row$ column on the source table if it does not already exist. Added committing
+			|				| to support running in parallel.
 04/06/2020  | D Day         | Change functions with RETURNS VOID to procedures allowing support/control of COMMITS during refresh process.
 11/03/2018  | M Revitt      | Initial version
 ------------+---------------+-------------------------------------------------------------------------------------------------------
@@ -285,18 +359,22 @@ DECLARE
 
 BEGIN
 
-    tSqlStatement := pConst.ALTER_TABLE || pOwner || pConst.DOT_CHARACTER || pTableName || pConst.ADD_M_ROW$_COLUMN_TO_TABLE;
-
-    EXECUTE tSqlStatement;
-    RETURN;
-
-    EXCEPTION
-    WHEN OTHERS
-    THEN
-        RAISE INFO      'Exception in procedure mv$addRow$ToSourceTable';
-        RAISE INFO      'Error %:- %:',     SQLSTATE, SQLERRM;
-        RAISE INFO      'Error Context:% %',CHR(10),  tSqlStatement;
-        RAISE EXCEPTION '%',                SQLSTATE;
+	tSqlStatement := pConst.ALTER_TABLE || pOwner || pConst.DOT_CHARACTER || pTableName || pConst.ADD_M_ROW$_COLUMN_TO_TABLE;
+	
+	IF NOT EXISTS(SELECT
+			  FROM   information_schema.columns
+			  WHERE  table_schema    = LOWER( pOwner )
+			  AND    table_name      = LOWER( pTableName )
+			  AND	 column_name 	 = 'm_row$') THEN
+			  
+	    EXECUTE tSqlStatement;
+		
+		--RETURN;
+		
+		COMMIT;
+	
+	END IF;
+	
 END;
 $BODY$
 LANGUAGE    plpgsql;
@@ -2717,13 +2795,11 @@ BEGIN
 	MINUTE FROM TIMESTAMP '''||tsCurrentDate||''')';
 
 	EXECUTE tSql INTO iMinutes;
-	RAISE INFO '%', iMinutes;
 
 	tSql := 'SELECT extract(
 	HOUR FROM TIMESTAMP '''||tsCurrentDate||''')';
 
 	EXECUTE tSql INTO iHours;
-	RAISE INFO '%', iHours;
 
 	IF iMinutes IN (58,59) THEN
 
@@ -2810,8 +2886,6 @@ BEGIN
 	SELECT (pMaxDate-pMinDate)/pParallelJobs AS days_diff INTO iDaysSplit;
 	
 	iDaysSplit := iDaysSplit||' day';
-	
-	RAISE INFO '%', iDaysSplit;
 	
 	lSql := 'SELECT CAST(min(inline.dates)::date||'' 00:00:00'' AS TIMESTAMP) AS from_date, CAST(max(inline.dates)::date||'' 23:59:59'' AS TIMESTAMP) AS to_date 
 	FROM (SELECT dates, ROW_NUMBER() OVER(ORDER BY dates ASC) AS id
