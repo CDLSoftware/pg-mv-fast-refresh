@@ -2022,13 +2022,22 @@ Copyright 2019 Amazon.com, Inc. or its affiliates. All Rights Reserved. SPDX-Lic
 DECLARE
 
     tSqlStatement TEXT;
+	ret			  TEXT;
 
 BEGIN
 
     tSqlStatement :=    pConst.GRANT_SELECT_ON    || pOwner   || pConst.DOT_CHARACTER   || pObjectName  ||
                         pConst.TO_COMMAND                     || pConst.PGMV_SELECT_ROLE;
 
-    EXECUTE tSqlStatement;
+	IF pParallel = 'Y' THEN
+	
+		PERFORM * FROM dblink('pgmv$_instance',tSqlStatement) AS p (ret TEXT);
+	
+	ELSE
+
+		EXECUTE tSqlStatement;
+		
+	END IF;
 
     EXCEPTION
     WHEN OTHERS
