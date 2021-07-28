@@ -29,7 +29,7 @@ echo "INFO: Remove cron permissions" >> $LOG_FILE
 
 PGPASSWORD=$PGPASS
 
-  psql --host=$HOSTNAME --port=$PORT --username=$MODULEOWNER --dbname=postgres -v MODULE_HOME=$MODULE_HOME -v MODULEOWNER=$MODULEOWNER << EOF1 >> $LOG_FILE 2>&1
+  psql --host=$HOSTNAME --port=$PORT --username=$PGUSERNAME --dbname=postgres -v MODULE_HOME=$MODULE_HOME -v MODULEOWNER=$MODULEOWNER << EOF1 >> $LOG_FILE 2>&1
 	
 	\i :MODULE_HOME/BuildScripts/revokeCronPrivs.sql;
 
@@ -69,7 +69,7 @@ EOF2
 read -p "Are you sure you want to remove the module schema - $MODULEOWNER (y/n)?" choice
 case "$choice" in
   y|Y ) echo "yes selected the schemas - $MODULEOWNER will be dropped"
-        removecronperms;;
+        removecronperms
 		dropmodule;;
   n|N ) echo "no selected so exiting";;
   * ) echo "invalid choice exiting";;
