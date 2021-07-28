@@ -601,7 +601,7 @@ BEGIN
     THEN
         CALL mv$dropTrigger(                 rConst, pOwner, aViewLog.trigger_name, pTableName   );
         CALL mv$dropTable(                   rConst, pOwner, aViewLog.pglog$_name                );
-		IF pDropRow$ToSourceTable= 'Y' THEN
+		IF pDropRow$ToSourceTable = 'Y' THEN
 			CALL mv$removeRow$FromSourceTable(   rConst, pOwner, pTableName                          );
 		END IF;
         CALL mv$deletePgMviewLog(                    pOwner, pTableName                          );

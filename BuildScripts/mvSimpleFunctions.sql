@@ -367,11 +367,11 @@ BEGIN
 			  
 	    EXECUTE tSqlStatement;
 		
-		--RETURN;
-		
 		COMMIT;
 	
 	END IF;
+	
+	RETURN;
 	
 END;
 $BODY$
