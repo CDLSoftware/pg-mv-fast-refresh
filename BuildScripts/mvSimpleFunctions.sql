@@ -183,9 +183,6 @@ Copyright 2019 Amazon.com, Inc. or its affiliates. All Rights Reserved. SPDX-Lic
 ***********************************************************************************************************************************/
 DECLARE
 
-    tIndexName      TEXT;
-    tSqlStatement   TEXT;
-
 BEGIN
 
 	IF NOT EXISTS(SELECT
@@ -195,7 +192,7 @@ BEGIN
 				  AND	 column_name 	 = 'm_row$') THEN
 	
 		RAISE INFO      'Exception in procedure mv$createMaterializedViewlog';
-		RAISE EXCEPTION 'Error: Column m_row$ does not exist. If parameter pAddRow$ToSourceTable is set to N there is a pre-requisite to add m_row$ to materialized view log source table %.%.'; 
+		RAISE EXCEPTION 'Error: Column m_row$ does not exist. If parameter pAddRow$ToSourceTable is set to N there is a pre-requisite to add m_row$ to materialized view log source table %.%.', pOwner, pTableName; 
 
 	ELSE
 	
@@ -206,16 +203,17 @@ BEGIN
 					  AND   indexdef   LIKE '%m_row$%' ) THEN
 					  
 		RAISE INFO      'Exception in procedure mv$createMaterializedViewlog';
-		RAISE EXCEPTION 'Error: Column m_row$ exists however there has been no index built on the column. If parameter pAddRow$ToSourceTable is set to N there is a pre-requisite to build index on column m_row$ a to materialized view log source table %.%.'; 
+		RAISE EXCEPTION 'Error: Column m_row$ exists however there has been no index built on the column. If parameter pAddRow$ToSourceTable is set to N there is a pre-requisite to build index on column m_row$ a to materialized view log source table %.%.', pOwner, pTableName;  
+		
+		END IF;
 		
 	END IF;
 
-    EXCEPTION
+EXCEPTION
     WHEN OTHERS
     THEN
         RAISE INFO      'Exception in procedure mv$checkRow$ExistsOnSourceTable';
         RAISE INFO      'Error %:- %:',     SQLSTATE, SQLERRM;
-        RAISE INFO      'Error Context:% %',CHR(10),  tSqlStatement;
         RAISE EXCEPTION '%',                SQLSTATE;
 END;
 $BODY$
