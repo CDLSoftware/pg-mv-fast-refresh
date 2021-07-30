@@ -16,8 +16,7 @@ Build:
        - sleep 10
        - echo Starting pipeline build
        - cd /builds/cheshire-datasystems/dba-team/pg-mv-fast-refresh-githubrunner
-       - chmod 777 /builds/cheshire-datasystems/dba-team/pg-mv-fast-refresh-githubrunner/*
-       - sudo -i -u postgres /builds/cheshire-datasystems/dba-team/pg-mv-fast-refresh-githubrunner/setup_cron.sh
+       - /builds/cheshire-datasystems/dba-team/pg-mv-fast-refresh-githubrunner/setup_cron.sh
        - cp .pipeline_module_set_variables.sh module_set_variables.sh 
        - /builds/cheshire-datasystems/dba-team/pg-mv-fast-refresh-githubrunner/run_pipeline_checks.sh build
        
@@ -34,7 +33,7 @@ MV-Refresh:
        - echo Starting pipeline build
        - cd /builds/cheshire-datasystems/dba-team/pg-mv-fast-refresh-githubrunner
        - chmod 777 /builds/cheshire-datasystems/dba-team/pg-mv-fast-refresh-githubrunner/*
-       - sudo -i -u postgres /builds/cheshire-datasystems/dba-team/pg-mv-fast-refresh-githubrunner/setup_cron.sh
+       - /builds/cheshire-datasystems/dba-team/pg-mv-fast-refresh-githubrunner/setup_cron.sh
        - cp .pipeline_module_set_variables.sh module_set_variables.sh 
        - /builds/cheshire-datasystems/dba-team/pg-mv-fast-refresh-githubrunner/run_pipeline_checks.sh build
        - echo Starting pipeline MV refresh
@@ -53,8 +52,8 @@ Module-Destroy:
        - sleep 10
        - echo Starting pipeline build
        - cd /builds/cheshire-datasystems/dba-team/pg-mv-fast-refresh-githubrunner
-        - chmod 777 /builds/cheshire-datasystems/dba-team/pg-mv-fast-refresh-githubrunner/*
-       - sudo -i -u postgres /builds/cheshire-datasystems/dba-team/pg-mv-fast-refresh-githubrunner/setup_cron.sh
+       - chmod 777 /builds/cheshire-datasystems/dba-team/pg-mv-fast-refresh-githubrunner/*
+       - /builds/cheshire-datasystems/dba-team/pg-mv-fast-refresh-githubrunner/setup_cron.sh
        - cp .pipeline_module_set_variables.sh module_set_variables.sh 
        - /builds/cheshire-datasystems/dba-team/pg-mv-fast-refresh-githubrunner/run_pipeline_checks.sh build
        - echo Starting destroy of module
