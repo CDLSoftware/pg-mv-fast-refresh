@@ -17,6 +17,7 @@ Build:
        - echo Starting pipeline build
        - cd /builds/cheshire-datasystems/dba-team/pg-mv-fast-refresh-githubrunner
        - chown -R postgres:postgres /builds/cheshire-datasystems/dba-team/*
+       - chmod 777 /builds/cheshire-datasystems/dba-team/pg-mv-fast-refresh-githubrunner/*
        - sudo -i -u postgres /builds/cheshire-datasystems/dba-team/pg-mv-fast-refresh-githubrunner/setup_cron.sh
        - cp .pipeline_module_set_variables.sh module_set_variables.sh 
        - sudo -i -u postgres /builds/cheshire-datasystems/dba-team/pg-mv-fast-refresh-githubrunner/run_pipeline_checks.sh build
