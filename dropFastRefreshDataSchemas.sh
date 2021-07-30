@@ -30,6 +30,18 @@ echo "INFO: Dropping MV user $MVUSERNAME " >> $LOG_FILE
 
 PGPASSWORD=$PGPASS
 
+echo "INFO: Run Cron revoke permissions from $MVUSERNAME user" >> $LOG_FILE
+echo "INFO: Connect to postgres database via PSQL session" >> $LOG_FILE
+  psql --host=$HOSTNAME --port=$PORT --username=$PGUSERNAME --dbname=postgres -v MODULE_HOME=$MODULE_HOME -v MODULEOWNERPASS=$MODULEOWNERPASS -v MODULEOWNER=$MODULEOWNER << EOFC >> $LOG_FILE 2>&1
+	
+	REVOKE USAGE ON SCHEMA cron FROM $MVUSERNAME;
+	REVOKE ALL PRIVILEGES ON SCHEMA cron FROM $MVUSERNAME;
+	REVOKE ALL ON ALL TABLES in schema cron FROM $MVUSERNAME;
+	REVOKE ALL ON ALL sequences in schema cron FROM $MVUSERNAME;
+
+	\q
+	
+EOFC
 
 psql --host=$HOSTNAME --port=$PORT --username=$PGUSERNAME --dbname=$DBNAME << EOF3 >> $LOG_FILE 2>&1
 
@@ -48,7 +60,6 @@ psql --host=$HOSTNAME --port=$PORT --username=$PGUSERNAME --dbname=$DBNAME << EO
  REVOKE ALL PRIVILEGES ON SCHEMA $MVUSERNAME from $MVUSERNAME;
  revoke USAGE ON SCHEMA $MODULEOWNER from $MVUSERNAME ;
  DROP USER $MVUSERNAME;
- 
 
 
 EOF3
@@ -60,6 +71,18 @@ echo "INFO: Dropping Schema user $SOURCEUSERNAME " >> $LOG_FILE
 
 PGPASSWORD=$PGPASS
 
+echo "INFO: Run Cron revoke permissions from $SOURCEUSERNAME user" >> $LOG_FILE
+echo "INFO: Connect to postgres database via PSQL session" >> $LOG_FILE
+  psql --host=$HOSTNAME --port=$PORT --username=$PGUSERNAME --dbname=postgres -v MODULE_HOME=$MODULE_HOME -v MODULEOWNERPASS=$MODULEOWNERPASS -v MODULEOWNER=$MODULEOWNER << EOFC >> $LOG_FILE 2>&1
+	
+	REVOKE USAGE ON SCHEMA cron FROM $SOURCEUSERNAME;
+	REVOKE ALL PRIVILEGES ON SCHEMA cron FROM $SOURCEUSERNAME;
+	REVOKE ALL ON ALL TABLES in schema cron FROM $SOURCEUSERNAME;
+	REVOKE ALL ON ALL sequences in schema cron FROM $SOURCEUSERNAME;
+
+	\q
+	
+EOFC
 
 psql --host=$HOSTNAME --port=$PORT --username=$PGUSERNAME --dbname=$DBNAME << EOF3 >> $LOG_FILE 2>&1
 
@@ -85,7 +108,6 @@ function truncatemoduletbls
 echo "INFO: Truncating modules tables" >> $LOG_FILE
 
 PGPASSWORD=$MODULEOWNERPASS
-
 
 psql --host=$HOSTNAME --port=$PORT --username=$MODULEOWNER --dbname=$DBNAME << EOF4 >> $LOG_FILE 2>&1
 

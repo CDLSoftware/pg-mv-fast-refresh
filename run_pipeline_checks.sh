@@ -36,6 +36,16 @@ chmod 771 $MODULE_HOME/*.sh
 function buildmodule
 {
 
+echo "INFO: Run Cron setup script" >> $LOG_FILE
+echo "INFO: Connect to postgres database via PSQL session" >> $LOG_FILE
+  psql --host=$HOSTNAME --port=$PORT --username=$PGUSERNAME --dbname=postgres -v MODULE_HOME=$MODULE_HOME -v MODULEOWNERPASS=$MODULEOWNERPASS -v MODULEOWNER=$MODULEOWNER << EOFC >> $LOG_FILE 2>&1
+	
+	\i :MODULE_HOME/BuildScripts/createCronSetup.sql;
+
+	\q
+	
+EOFC
+
 echo "INFO: Run $MODULEOWNER schema build script" >> $LOG_FILE
 echo "INFO: Connect to postgres database $DBNAME via PSQL session" >> $LOG_FILE
   psql --host=$HOSTNAME --port=$PORT --username=$PGUSERNAME --dbname=$DBNAME -v MODULE_HOME=$MODULE_HOME -v MODULEOWNERPASS=$MODULEOWNERPASS -v MODULEOWNER=$MODULEOWNER -v PGUSERNAME=$PGUSERNAME -v DBNAME=$DBNAME -v HOSTNAME=$HOSTNAME -v PORT=$PORT << EOF1 >> $LOG_FILE 2>&1
@@ -112,11 +122,21 @@ END
  GRANT ALL ON SCHEMA $MODULEOWNER TO $SOURCEUSERNAME;
  GRANT USAGE ON FOREIGN SERVER pgmv\$_instance TO $SOURCEUSERNAME;
  GRANT USAGE ON FOREIGN SERVER pgmv\$cron_instance TO $SOURCEUSERNAME;
- GRANT USAGE ON SCHEMA cron TO $SOURCEUSERNAME;
- GRANT ALL ON SCHEMA cron TO $SOURCEUSERNAME;
-
 
 EOF1
+
+echo "INFO: Run Cron permissions to $SOURCEUSERNAME user" >> $LOG_FILE
+echo "INFO: Connect to postgres database via PSQL session" >> $LOG_FILE
+  psql --host=$HOSTNAME --port=$PORT --username=$PGUSERNAME --dbname=postgres -v MODULE_HOME=$MODULE_HOME -v MODULEOWNERPASS=$MODULEOWNERPASS -v MODULEOWNER=$MODULEOWNER << EOFC >> $LOG_FILE 2>&1
+	
+	GRANT USAGE ON SCHEMA cron TO $SOURCEUSERNAME;
+	GRANT ALL PRIVILEGES ON SCHEMA cron to $SOURCEUSERNAME;
+	GRANT ALL ON ALL TABLES in schema cron to $SOURCEUSERNAME;
+	GRANT ALL ON ALL sequences in schema cron to $SOURCEUSERNAME;
+
+	\q
+	
+EOFC
 
 }
 
@@ -176,10 +196,22 @@ GRANT   pgmv\$_view, pgmv\$_usage TO $MVUSERNAME;
 GRANT   pgmv\$_view, pgmv\$_usage, pgmv\$_execute, pgmv\$_role TO $SOURCEUSERNAME;
 GRANT USAGE ON FOREIGN SERVER pgmv\$_instance TO $MVUSERNAME;
 GRANT USAGE ON FOREIGN SERVER pgmv\$cron_instance TO $MVUSERNAME;
-GRANT USAGE ON SCHEMA cron TO $MVUSERNAME;
-GRANT ALL ON SCHEMA cron TO $MVUSERNAME;
 
 EOF2
+
+echo "INFO: Run Cron permissions to $SOURCEUSERNAME user" >> $LOG_FILE
+echo "INFO: Connect to postgres database via PSQL session" >> $LOG_FILE
+  psql --host=$HOSTNAME --port=$PORT --username=$PGUSERNAME --dbname=postgres -v MODULE_HOME=$MODULE_HOME -v MODULEOWNERPASS=$MODULEOWNERPASS -v MODULEOWNER=$MODULEOWNER << EOFC >> $LOG_FILE 2>&1
+	
+	GRANT USAGE ON SCHEMA cron TO $MVUSERNAME;
+	GRANT ALL PRIVILEGES ON SCHEMA cron to $MVUSERNAME;
+	GRANT ALL ON ALL TABLES in schema cron to $MVUSERNAME;
+	GRANT ALL ON ALL sequences in schema cron to $MVUSERNAME;
+
+	\q
+	
+EOFC
+
 }
 
 function createtestdata
@@ -547,12 +579,22 @@ echo "INFO: Dropping MV user $MVUSERNAME " >> $LOG_FILE
 
 PGPASSWORD=$PGPASS
 
+echo "INFO: Run Cron revoke permissions from $MVUSERNAME user" >> $LOG_FILE
+echo "INFO: Connect to postgres database via PSQL session" >> $LOG_FILE
+  psql --host=$HOSTNAME --port=$PORT --username=$PGUSERNAME --dbname=postgres -v MODULE_HOME=$MODULE_HOME -v MODULEOWNERPASS=$MODULEOWNERPASS -v MODULEOWNER=$MODULEOWNER << EOFC >> $LOG_FILE 2>&1
+	
+	REVOKE USAGE ON SCHEMA cron FROM $MVUSERNAME;
+	REVOKE ALL PRIVILEGES ON SCHEMA cron FROM $MVUSERNAME;
+	REVOKE ALL ON ALL TABLES in schema cron FROM $MVUSERNAME;
+	REVOKE ALL ON ALL sequences in schema cron FROM $MVUSERNAME;
+
+	\q
+	
+EOFC
 
 psql --host=$HOSTNAME --port=$PORT --username=$PGUSERNAME --dbname=$DBNAME << EOF3 >> $LOG_FILE 2>&1
  
  REVOKE USAGE ON FOREIGN SERVER pgmv\$cron_instance TO $MVUSERNAME;
- REVOKE USAGE ON SCHEMA cron TO $MVUSERNAME;
- REVOKE ALL ON SCHEMA cron TO $MVUSERNAME; 
  REVOKE ALL PRIVILEGES ON DATABASE "$DBNAME" from $MVUSERNAME;
  GRANT ALL PRIVILEGES ON SCHEMA $MVUSERNAME to $PGUSERNAME;
  REVOKE USAGE ON FOREIGN SERVER pgmv\$_instance FROM $MVUSERNAME;
@@ -575,6 +617,18 @@ echo "INFO: Dropping Schema user $SCHEMAUSERNAME " >> $LOG_FILE
 
 PGPASSWORD=$PGPASS
 
+echo "INFO: Run Cron revoke permissions from $MVUSERNAME user" >> $LOG_FILE
+echo "INFO: Connect to postgres database via PSQL session" >> $LOG_FILE
+  psql --host=$HOSTNAME --port=$PORT --username=$PGUSERNAME --dbname=postgres -v MODULE_HOME=$MODULE_HOME -v MODULEOWNERPASS=$MODULEOWNERPASS -v MODULEOWNER=$MODULEOWNER << EOFC >> $LOG_FILE 2>&1
+	
+	REVOKE USAGE ON SCHEMA cron FROM $SCHEMAUSERNAME;
+	REVOKE ALL PRIVILEGES ON SCHEMA cron FROM $SCHEMAUSERNAME;
+	REVOKE ALL ON ALL TABLES in schema cron FROM $SCHEMAUSERNAME;
+	REVOKE ALL ON ALL sequences in schema cron FROM $SCHEMAUSERNAME;
+
+	\q
+	
+EOFC
 
 psql --host=$HOSTNAME --port=$PORT --username=$PGUSERNAME --dbname=$DBNAME << EOF4 >> $LOG_FILE 2>&1
  
@@ -602,12 +656,22 @@ echo "INFO: Dropping modules objects" >> $LOG_FILE
 
 PGPASSWORD=$PGPASS
 
+echo "INFO: Run Cron revoke permissions from $MODULEOWNER user" >> $LOG_FILE
+echo "INFO: Connect to postgres database via PSQL session" >> $LOG_FILE
+  psql --host=$HOSTNAME --port=$PORT --username=$PGUSERNAME --dbname=postgres -v MODULE_HOME=$MODULE_HOME -v MODULEOWNERPASS=$MODULEOWNERPASS -v MODULEOWNER=$MODULEOWNER << EOFC >> $LOG_FILE 2>&1
+	
+	REVOKE USAGE ON SCHEMA cron FROM $MODULEOWNER;
+	REVOKE ALL PRIVILEGES ON SCHEMA cron FROM $MODULEOWNER;
+	REVOKE ALL ON ALL TABLES in schema cron FROM $MODULEOWNER;
+	REVOKE ALL ON ALL sequences in schema cron FROM $MODULEOWNER;
+
+	\q
+	
+EOFC
 
 psql --host=$HOSTNAME --port=$PORT --username=$PGUSERNAME --dbname=$DBNAME << EOF1 >> $LOG_FILE 2>&1
 
  REVOKE USAGE ON FOREIGN SERVER pgmv\$cron_instance TO $MODULEOWNER;
- REVOKE USAGE ON SCHEMA cron TO $MODULEOWNER;
- REVOKE ALL ON SCHEMA cron TO $MODULEOWNER; 
  REVOKE ALL PRIVILEGES ON DATABASE "$DBNAME" from $MODULEOWNER;
  REVOKE USAGE ON FOREIGN SERVER pgmv\$_instance FROM $MODULEOWNER;
  DROP SERVER IF EXISTS pgmv\$cron_instance CASCADE;

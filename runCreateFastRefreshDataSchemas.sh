@@ -64,6 +64,19 @@ END
 
 EOF1
 
+echo "INFO: Run Cron permissions to $SOURCEUSERNAME user" >> $LOG_FILE
+echo "INFO: Connect to postgres database via PSQL session" >> $LOG_FILE
+  psql --host=$HOSTNAME --port=$PORT --username=$PGUSERNAME --dbname=postgres -v MODULE_HOME=$MODULE_HOME -v MODULEOWNERPASS=$MODULEOWNERPASS -v MODULEOWNER=$MODULEOWNER << EOFC >> $LOG_FILE 2>&1
+	
+	GRANT USAGE ON SCHEMA cron TO $SOURCEUSERNAME;
+	GRANT ALL PRIVILEGES ON SCHEMA cron to $SOURCEUSERNAME;
+	GRANT ALL ON ALL TABLES in schema cron to $SOURCEUSERNAME;
+	GRANT ALL ON ALL sequences in schema cron to $SOURCEUSERNAME;
+
+	\q
+	
+EOFC
+
 }
 
 function createmvschema
@@ -128,6 +141,19 @@ GRANT USAGE ON FOREIGN SERVER pgmv\$cron_instance TO $MVUSERNAME;
 
 
 EOF2
+
+echo "INFO: Run Cron permissions to $MVUSERNAME user" >> $LOG_FILE
+echo "INFO: Connect to postgres database via PSQL session" >> $LOG_FILE
+  psql --host=$HOSTNAME --port=$PORT --username=$PGUSERNAME --dbname=postgres -v MODULE_HOME=$MODULE_HOME -v MODULEOWNERPASS=$MODULEOWNERPASS -v MODULEOWNER=$MODULEOWNER << EOFC >> $LOG_FILE 2>&1
+	
+	GRANT USAGE ON SCHEMA cron TO $MVUSERNAME;
+	GRANT ALL PRIVILEGES ON SCHEMA cron to $MVUSERNAME;
+	GRANT ALL ON ALL TABLES in schema cron to $MVUSERNAME;
+	GRANT ALL ON ALL sequences in schema cron to $MVUSERNAME;
+
+	\q
+	
+EOFC
 }
 
 createsourceschema

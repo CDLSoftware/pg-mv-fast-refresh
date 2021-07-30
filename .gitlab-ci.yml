@@ -1,4 +1,8 @@
-image: postgres:12.5
+image: cdlawsnexus.prod.cdlcloud.co.uk:5000/postgres:12.5
+
+variables:
+  POSTGRES_HOST_AUTH_METHOD: trust
+  POSTGRESQL_SHARED_PRELOAD_LIBRARIES: "pg_cron"  
 
 Build:
      stage: build
@@ -11,6 +15,7 @@ Build:
        - apt-get -y install postgresql-12-cron
        - echo Starting pipeline build
        - cd /builds/cheshire-datasystems/dba-team/pg-mv-fast-refresh-githubrunner
+       - sudo -i -u postgres /builds/cheshire-datasystems/dba-team/pg-mv-fast-refresh-githubrunner/setup_cron.sh
        - cp .pipeline_module_set_variables.sh module_set_variables.sh 
        - /builds/cheshire-datasystems/dba-team/pg-mv-fast-refresh-githubrunner/run_pipeline_checks.sh build
        
@@ -22,9 +27,10 @@ MV-Refresh:
        - echo Starting postgres
        - /usr/local/bin/docker-entrypoint.sh postgres &
        - sleep 10
-       - apt-get -y install postgresql-10-cron
+       - apt-get -y install postgresql-12-cron
        - echo Starting pipeline build
        - cd /builds/cheshire-datasystems/dba-team/pg-mv-fast-refresh-githubrunner
+       - sudo -i -u postgres /builds/cheshire-datasystems/dba-team/pg-mv-fast-refresh-githubrunner/setup_cron.sh
        - cp .pipeline_module_set_variables.sh module_set_variables.sh 
        - /builds/cheshire-datasystems/dba-team/pg-mv-fast-refresh-githubrunner/run_pipeline_checks.sh build
        - echo Starting pipeline MV refresh
@@ -39,9 +45,10 @@ Module-Destroy:
        - echo Starting postgres
        - /usr/local/bin/docker-entrypoint.sh postgres &
        - sleep 10
-       - apt-get -y install postgresql-10-cron
+       - apt-get -y install postgresql-12-cron
        - echo Starting pipeline build
        - cd /builds/cheshire-datasystems/dba-team/pg-mv-fast-refresh-githubrunner
+       - sudo -i -u postgres /builds/cheshire-datasystems/dba-team/pg-mv-fast-refresh-githubrunner/setup_cron.sh
        - cp .pipeline_module_set_variables.sh module_set_variables.sh 
        - /builds/cheshire-datasystems/dba-team/pg-mv-fast-refresh-githubrunner/run_pipeline_checks.sh build
        - echo Starting destroy of module
