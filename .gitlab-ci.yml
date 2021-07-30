@@ -16,9 +16,10 @@ Build:
        - sleep 10
        - echo Starting pipeline build
        - cd /builds/cheshire-datasystems/dba-team/pg-mv-fast-refresh-githubrunner
-       - /builds/cheshire-datasystems/dba-team/pg-mv-fast-refresh-githubrunner/setup_cron.sh
+       - chown -R postgres:postgres /builds/cheshire-datasystems/dba-team/*
+       - sudo -i -u postgres /builds/cheshire-datasystems/dba-team/pg-mv-fast-refresh-githubrunner/setup_cron.sh
        - cp .pipeline_module_set_variables.sh module_set_variables.sh 
-       - /builds/cheshire-datasystems/dba-team/pg-mv-fast-refresh-githubrunner/run_pipeline_checks.sh build
+       - sudo -i -u postgres /builds/cheshire-datasystems/dba-team/pg-mv-fast-refresh-githubrunner/run_pipeline_checks.sh build
        
 MV-Refresh:
      stage: test
@@ -32,13 +33,14 @@ MV-Refresh:
        - sleep 10
        - echo Starting pipeline build
        - cd /builds/cheshire-datasystems/dba-team/pg-mv-fast-refresh-githubrunner
+       - chown -R postgres:postgres /builds/cheshire-datasystems/dba-team/*
        - chmod 777 /builds/cheshire-datasystems/dba-team/pg-mv-fast-refresh-githubrunner/*
-       - /builds/cheshire-datasystems/dba-team/pg-mv-fast-refresh-githubrunner/setup_cron.sh
+       - sudo -i -u postgres /builds/cheshire-datasystems/dba-team/pg-mv-fast-refresh-githubrunner/setup_cron.sh
        - cp .pipeline_module_set_variables.sh module_set_variables.sh 
-       - /builds/cheshire-datasystems/dba-team/pg-mv-fast-refresh-githubrunner/run_pipeline_checks.sh build
+       - sudo -i -u postgres /builds/cheshire-datasystems/dba-team/pg-mv-fast-refresh-githubrunner/run_pipeline_checks.sh build
        - echo Starting pipeline MV refresh
        - cd /builds/cheshire-datasystems/dba-team/pg-mv-fast-refresh-githubrunner
-       - /builds/cheshire-datasystems/dba-team/pg-mv-fast-refresh-githubrunner/run_pipeline_checks.sh test
+       - sudo -i -u postgres /builds/cheshire-datasystems/dba-team/pg-mv-fast-refresh-githubrunner/run_pipeline_checks.sh test
 
 Module-Destroy:
      stage: test
@@ -52,13 +54,14 @@ Module-Destroy:
        - sleep 10
        - echo Starting pipeline build
        - cd /builds/cheshire-datasystems/dba-team/pg-mv-fast-refresh-githubrunner
+       - chown -R postgres:postgres /builds/cheshire-datasystems/dba-team/*
        - chmod 777 /builds/cheshire-datasystems/dba-team/pg-mv-fast-refresh-githubrunner/*
-       - /builds/cheshire-datasystems/dba-team/pg-mv-fast-refresh-githubrunner/setup_cron.sh
+       - sudo -i -u postgres /builds/cheshire-datasystems/dba-team/pg-mv-fast-refresh-githubrunner/setup_cron.sh
        - cp .pipeline_module_set_variables.sh module_set_variables.sh 
-       - /builds/cheshire-datasystems/dba-team/pg-mv-fast-refresh-githubrunner/run_pipeline_checks.sh build
+       - sudo -i -u postgres /builds/cheshire-datasystems/dba-team/pg-mv-fast-refresh-githubrunner/run_pipeline_checks.sh build
        - echo Starting destroy of module
        - cd /builds/cheshire-datasystems/dba-team/pg-mv-fast-refresh-githubrunner
-       - /builds/cheshire-datasystems/dba-team/pg-mv-fast-refresh-githubrunner/run_pipeline_checks.sh destroy     
+       - sudo -i -u postgres /builds/cheshire-datasystems/dba-team/pg-mv-fast-refresh-githubrunner/run_pipeline_checks.sh destroy     
 
 
 
