@@ -15,11 +15,13 @@ Build:
        - apt-get -y install postgresql-12-cron
        - sleep 10
        - echo Starting pipeline build
-       - cd /builds/cheshire-datasystems/dba-team/pg-mv-fast-refresh-githubrunner
        - chown -R postgres:postgres /builds/cheshire-datasystems/dba-team/*
-       - chmod 777 /builds/cheshire-datasystems/dba-team/pg-mv-fast-refresh-githubrunner/*
+       - chmod 777 /builds/cheshire-datasystems/dba-team/*
+       - cd /builds/cheshire-datasystems/dba-team/pg-mv-fast-refresh-githubrunner
        - sudo -i -u postgres /builds/cheshire-datasystems/dba-team/pg-mv-fast-refresh-githubrunner/setup_cron.sh
-       - cp .pipeline_module_set_variables.sh module_set_variables.sh 
+       - cp .pipeline_module_set_variables.sh module_set_variables.sh
+       - chown -R postgres:postgres /builds/cheshire-datasystems/dba-team/*
+       - chmod 777 /builds/cheshire-datasystems/dba-team/*
        - sudo -i -u postgres /builds/cheshire-datasystems/dba-team/pg-mv-fast-refresh-githubrunner/run_pipeline_checks.sh build
        
 MV-Refresh:
@@ -33,14 +35,15 @@ MV-Refresh:
        - apt-get -y install postgresql-12-cron
        - sleep 10
        - echo Starting pipeline build
-       - cd /builds/cheshire-datasystems/dba-team/pg-mv-fast-refresh-githubrunner
        - chown -R postgres:postgres /builds/cheshire-datasystems/dba-team/*
-       - chmod 777 /builds/cheshire-datasystems/dba-team/pg-mv-fast-refresh-githubrunner/*
+       - chmod 777 /builds/cheshire-datasystems/dba-team/*
+       - cd /builds/cheshire-datasystems/dba-team/pg-mv-fast-refresh-githubrunner
        - sudo -i -u postgres /builds/cheshire-datasystems/dba-team/pg-mv-fast-refresh-githubrunner/setup_cron.sh
-       - cp .pipeline_module_set_variables.sh module_set_variables.sh 
+       - cp .pipeline_module_set_variables.sh module_set_variables.sh
+       - chown -R postgres:postgres /builds/cheshire-datasystems/dba-team/*
+       - chmod 777 /builds/cheshire-datasystems/dba-team/*       
        - sudo -i -u postgres /builds/cheshire-datasystems/dba-team/pg-mv-fast-refresh-githubrunner/run_pipeline_checks.sh build
        - echo Starting pipeline MV refresh
-       - cd /builds/cheshire-datasystems/dba-team/pg-mv-fast-refresh-githubrunner
        - sudo -i -u postgres /builds/cheshire-datasystems/dba-team/pg-mv-fast-refresh-githubrunner/run_pipeline_checks.sh test
 
 Module-Destroy:
@@ -54,15 +57,14 @@ Module-Destroy:
        - apt-get -y install postgresql-12-cron
        - sleep 10
        - echo Starting pipeline build
-       - cd /builds/cheshire-datasystems/dba-team/pg-mv-fast-refresh-githubrunner
        - chown -R postgres:postgres /builds/cheshire-datasystems/dba-team/*
-       - chmod 777 /builds/cheshire-datasystems/dba-team/pg-mv-fast-refresh-githubrunner/*
+       - chmod 777 /builds/cheshire-datasystems/dba-team/*
+       - cd /builds/cheshire-datasystems/dba-team/pg-mv-fast-refresh-githubrunner
        - sudo -i -u postgres /builds/cheshire-datasystems/dba-team/pg-mv-fast-refresh-githubrunner/setup_cron.sh
-       - cp .pipeline_module_set_variables.sh module_set_variables.sh 
+       - cp .pipeline_module_set_variables.sh module_set_variables.sh
+       - chown -R postgres:postgres /builds/cheshire-datasystems/dba-team/*
+       - chmod 777 /builds/cheshire-datasystems/dba-team/*
        - sudo -i -u postgres /builds/cheshire-datasystems/dba-team/pg-mv-fast-refresh-githubrunner/run_pipeline_checks.sh build
        - echo Starting destroy of module
        - cd /builds/cheshire-datasystems/dba-team/pg-mv-fast-refresh-githubrunner
-       - sudo -i -u postgres /builds/cheshire-datasystems/dba-team/pg-mv-fast-refresh-githubrunner/run_pipeline_checks.sh destroy     
-
-
-
+       - sudo -i -u postgres /builds/cheshire-datasystems/dba-team/pg-mv-fast-refresh-githubrunner/run_pipeline_checks.sh destroy
