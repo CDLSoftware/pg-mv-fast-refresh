@@ -76,8 +76,6 @@ DECLARE
 	addWhereClauseJoinConditions TEXT;
 	whereClauseConditionExists 	 CHAR := 'N';
 	
-	tMatchedTable_Alias		TEXT;
-	
 	iAliasCnt 				INTEGER := 0;
 	iAndCnt 				INTEGER := 0;
 	iAliasLoopCnt 			INTEGER := 0;
@@ -88,6 +86,8 @@ DECLARE
 	tTable_Alias			TEXT;
 	
 	rec						RECORD;
+	
+	tMatchedTable_Alias		TEXT;
 
 BEGIN
 
@@ -155,9 +155,9 @@ IF iLeftJoinCnt > 0 THEN
 			ELSE 
 			
 				SELECT count(1) INTO iLeftJoinAliasCnt FROM regexp_matches(tLeftJoinLine,tTableName||'+[[:space:]]+'||tTableAlias||pConst.ON_TOKEN,'g');
-				
+			
 			END IF;
-
+			
 			IF iLeftJoinAliasCnt > 0 THEN
 				
 				iStartPosition :=  mv$regexpinstr(tLeftJoinLine,pConst.ON_TOKEN,
@@ -298,9 +298,9 @@ IF tLeftColumnAlias = tTableAlias THEN
 	
 		tOtherTableName := rec.table_name;
 		tOtherAlias := tRightColumnAlias;
-		tJoinConditions := COALESCE(tLeftJoinConditions,tRightJoinConditions);
+		tJoinConditions := COALESCE(tLeftJoinConditions,tRightJoinConditions);		
 		tJoinConditions := CONCAT(' ', tJoinConditions);		
-		tMatchedTable_Alias := tLeftColumnAlias;		
+		tMatchedTable_Alias := tLeftColumnAlias;
 			
 	END IF;
 	
@@ -311,9 +311,7 @@ ELSE
 		tOtherTableName := rec.table_name;
 		tOtherAlias := tLeftColumnAlias;
 		tJoinConditions := COALESCE(tLeftJoinConditions,tRightJoinConditions);
-		
-		tJoinConditions := CONCAT(' ', tJoinConditions);
-		
+		tJoinConditions := CONCAT(' ', tJoinConditions);		
 		tMatchedTable_Alias := tRightColumnAlias;
 			
 	END IF;
@@ -324,7 +322,6 @@ END LOOP;
 
 tJoinConditions := REPLACE(tJoinConditions,CONCAT(' ',tMatchedTable_Alias||'.'),' src$.');
 tJoinConditions := REPLACE(tJoinConditions,CONCAT(' ',tOtherAlias||'.'),' src$99.');
-
 tJoinConditions := LTRIM(tJoinConditions);
 
 IF pWhereClause <> '' THEN
