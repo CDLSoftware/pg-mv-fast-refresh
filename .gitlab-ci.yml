@@ -16,12 +16,12 @@ Build:
        - sleep 10
        - echo Starting pipeline build
        - chown -R postgres:postgres /builds/cheshire-datasystems/dba-team/*
-       - chmod 777 /builds/cheshire-datasystems/dba-team/*
+       - chmod 777 -R /builds/cheshire-datasystems/dba-team/*
        - cd /builds/cheshire-datasystems/dba-team/pg-mv-fast-refresh-githubrunner
        - sudo -i -u postgres /builds/cheshire-datasystems/dba-team/pg-mv-fast-refresh-githubrunner/setup_cron.sh
        - cp .pipeline_module_set_variables.sh module_set_variables.sh
        - chown -R postgres:postgres /builds/cheshire-datasystems/dba-team/*
-       - chmod 777 /builds/cheshire-datasystems/dba-team/*
+       - chmod 777 -R /builds/cheshire-datasystems/dba-team/*
        - sudo -i -u postgres /builds/cheshire-datasystems/dba-team/pg-mv-fast-refresh-githubrunner/run_pipeline_checks.sh build
        
 MV-Refresh:
@@ -36,12 +36,12 @@ MV-Refresh:
        - sleep 10
        - echo Starting pipeline build
        - chown -R postgres:postgres /builds/cheshire-datasystems/dba-team/*
-       - chmod 777 /builds/cheshire-datasystems/dba-team/*
+       - chmod 777 -R /builds/cheshire-datasystems/dba-team/*
        - cd /builds/cheshire-datasystems/dba-team/pg-mv-fast-refresh-githubrunner
        - sudo -i -u postgres /builds/cheshire-datasystems/dba-team/pg-mv-fast-refresh-githubrunner/setup_cron.sh
        - cp .pipeline_module_set_variables.sh module_set_variables.sh
        - chown -R postgres:postgres /builds/cheshire-datasystems/dba-team/*
-       - chmod 777 /builds/cheshire-datasystems/dba-team/*       
+       - chmod 777 -R /builds/cheshire-datasystems/dba-team/*       
        - sudo -i -u postgres /builds/cheshire-datasystems/dba-team/pg-mv-fast-refresh-githubrunner/run_pipeline_checks.sh build
        - echo Starting pipeline MV refresh
        - sudo -i -u postgres /builds/cheshire-datasystems/dba-team/pg-mv-fast-refresh-githubrunner/run_pipeline_checks.sh test
@@ -58,12 +58,12 @@ Module-Destroy:
        - sleep 10
        - echo Starting pipeline build
        - chown -R postgres:postgres /builds/cheshire-datasystems/dba-team/*
-       - chmod 777 /builds/cheshire-datasystems/dba-team/*
+       - chmod 777 -R /builds/cheshire-datasystems/dba-team/*
        - cd /builds/cheshire-datasystems/dba-team/pg-mv-fast-refresh-githubrunner
        - sudo -i -u postgres /builds/cheshire-datasystems/dba-team/pg-mv-fast-refresh-githubrunner/setup_cron.sh
        - cp .pipeline_module_set_variables.sh module_set_variables.sh
        - chown -R postgres:postgres /builds/cheshire-datasystems/dba-team/*
-       - chmod 777 /builds/cheshire-datasystems/dba-team/*
+       - chmod 777 -R /builds/cheshire-datasystems/dba-team/*
        - sudo -i -u postgres /builds/cheshire-datasystems/dba-team/pg-mv-fast-refresh-githubrunner/run_pipeline_checks.sh build
        - echo Starting destroy of module
        - cd /builds/cheshire-datasystems/dba-team/pg-mv-fast-refresh-githubrunner
