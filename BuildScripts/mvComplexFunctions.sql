@@ -1446,20 +1446,17 @@ BEGIN
     aPgMview    		 := mv$getPgMviewTableData( pConst, pOwner, pViewName );
     aPgMviewOjDetails    := mv$getPgMviewOjDetailsTableData( pConst, pOwner, pViewName, pTableAlias);
 	
-	--tFromClause		:= pConst.FROM_COMMAND  || aPgMview.table_names    || pConst.WHERE_COMMAND;
-	--tDeleteFromClause := pConst.FROM_COMMAND  || aPgMview.table_names    || pConst.WHERE_COMMAND;
-	tInsertFromClause := pConst.FROM_COMMAND  || aPgMviewOjDetails.join_replacement_from_sql    || pConst.WHERE_COMMAND;
+	tFromClause		:= pConst.FROM_COMMAND  || aPgMview.table_names    || pConst.WHERE_COMMAND;
+	--tInsertFromClause := pConst.FROM_COMMAND  || aPgMviewOjDetails.join_replacement_from_sql    || pConst.WHERE_COMMAND;
 
     IF LENGTH( aPgMview.where_clause ) > 0
     THEN
-		--tFromClause := tFromClause      || aPgMview.where_clause    || pConst.AND_COMMAND;
-        --tDeleteFromClause := tDeleteFromClause      || aPgMview.where_clause    || pConst.AND_COMMAND;
-		tInsertFromClause := tInsertFromClause      || aPgMview.where_clause    || pConst.AND_COMMAND;
+		tFromClause := tFromClause      || aPgMview.where_clause    || pConst.AND_COMMAND;
+		--tInsertFromClause := tInsertFromClause      || aPgMview.where_clause    || pConst.AND_COMMAND;
     END IF;
 	
-    --tFromClause := tFromClause  || pTableAlias   || pConst.MV_M_ROW$_SOURCE_COLUMN   || pConst.IN_ROWID_LIST;
-    --tDeleteFromClause := tDeleteFromClause  || pTableAlias   || pConst.MV_M_ROW$_SOURCE_COLUMN   || pConst.IN_ROWID_LIST;
-    tInsertFromClause := tInsertFromClause  || pTableAlias   || pConst.MV_M_ROW$_SOURCE_COLUMN   || pConst.IN_ROWID_LIST;
+    tFromClause := tFromClause  || pTableAlias   || pConst.MV_M_ROW$_SOURCE_COLUMN   || pConst.IN_ROWID_LIST;
+    --tInsertFromClause := tInsertFromClause  || pTableAlias   || pConst.MV_M_ROW$_SOURCE_COLUMN   || pConst.IN_ROWID_LIST;
 
 	tSqlStatement	  :=  aPgMviewOjDetails.delete_sql;
 
@@ -1481,7 +1478,8 @@ BEGIN
     tSqlStatement :=    pConst.INSERT_INTO       ||
                         aPgMview.owner           || pConst.DOT_CHARACTER    || aPgMview.view_name   ||
                         pConst.OPEN_BRACKET      || aPgMview.pgmv_columns   || pConst.CLOSE_BRACKET ||
-                        tSqlSelectColumns 		 || tInsertFromClause;
+                        --tSqlSelectColumns 		 || tInsertFromClause;
+						tSqlSelectColumns 		 || tFromClause;
 						
 	IF ( pViewName = 'mv_policy' AND pTabPkExist = 1 )  THEN		
 		tSqlStatement := tSqlStatement || pConst.ON_CONFLICT_DO_NOTHING;
