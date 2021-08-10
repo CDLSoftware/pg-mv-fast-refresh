@@ -10,7 +10,7 @@
 # 13/03/20   T.Mullen   updating the permissions for module home;
 #
 
-. ./module_set_variables.sh
+source /builds/cheshire-datasystems/dba-team/pg-mv-fast-refresh-githubrunner/module_set_variables.sh
 
 export INSTALLTYPE=$1
 
