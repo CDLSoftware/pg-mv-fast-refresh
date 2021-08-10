@@ -504,8 +504,7 @@ t5.rep_ind test5_rep_ind,
 t5.trans_id test5_trans_id,
 t6.trans_id test6_trans_id,
 t6.payment_reference test6_payment_ref
-FROM
-test1 t1
+FROM test1 t1
 INNER JOIN test2 t2 ON t1.id = t2.id
 LEFT JOIN test3 t3 ON t1.lookup_id = t3.lookup_id
 LEFT JOIN test4 t4 ON t2.metavals_id = t4.metavals_id
