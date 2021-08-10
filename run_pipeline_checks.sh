@@ -489,7 +489,7 @@ BEGIN
 t1.lookup_id test1_lookup_id,
 t1.code test1_code,
 t1.created test1_created,
-t1.id test2_id,
+t2.id test2_id,
 t2.description test2_desc,
 t2.metavals_id test2_metavals_id,
 t2.age test2_age,
