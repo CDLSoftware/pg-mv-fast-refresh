@@ -36,16 +36,6 @@ chmod 771 $MODULE_HOME/*.sh
 function buildmodule
 {
 
-echo "INFO: Run Cron setup script" >> $LOG_FILE
-echo "INFO: Connect to postgres database via PSQL session" >> $LOG_FILE
-  psql --host=$HOSTNAME --port=$PORT --username=$PGUSERNAME --dbname=postgres -v MODULE_HOME=$MODULE_HOME -v MODULEOWNERPASS=$MODULEOWNERPASS -v MODULEOWNER=$MODULEOWNER << EOFC >> $LOG_FILE 2>&1
-	
-	\i :MODULE_HOME/BuildScripts/createCronSetup.sql;
-
-	\q
-	
-EOFC
-
 echo "INFO: Run $MODULEOWNER schema build script" >> $LOG_FILE
 echo "INFO: Connect to postgres database $DBNAME via PSQL session" >> $LOG_FILE
   psql --host=$HOSTNAME --port=$PORT --username=$PGUSERNAME --dbname=$DBNAME -v MODULE_HOME=$MODULE_HOME -v MODULEOWNERPASS=$MODULEOWNERPASS -v MODULEOWNER=$MODULEOWNER -v PGUSERNAME=$PGUSERNAME -v DBNAME=$DBNAME -v HOSTNAME=$HOSTNAME -v PORT=$PORT << EOF1 >> $LOG_FILE 2>&1
@@ -55,6 +45,16 @@ echo "INFO: Connect to postgres database $DBNAME via PSQL session" >> $LOG_FILE
 	\q
 
 EOF1
+
+echo "INFO: Run Cron setup script" >> $LOG_FILE
+echo "INFO: Connect to postgres database via PSQL session" >> $LOG_FILE
+  psql --host=$HOSTNAME --port=$PORT --username=$PGUSERNAME --dbname=postgres -v MODULE_HOME=$MODULE_HOME -v MODULEOWNERPASS=$MODULEOWNERPASS -v MODULEOWNER=$MODULEOWNER << EOFC >> $LOG_FILE 2>&1
+	
+	\i :MODULE_HOME/BuildScripts/createCronSetup.sql;
+
+	\q
+	
+EOFC
 
 PGPASSWORD=$MODULEOWNERPASS
 
