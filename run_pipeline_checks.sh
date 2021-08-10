@@ -136,12 +136,13 @@ EOF1
 echo "INFO: Run Cron permissions to $SOURCEUSERNAME user" >> $LOG_FILE
 echo "INFO: Connect to postgres database via PSQL session" >> $LOG_FILE
   psql --host=$HOSTNAME --port=$PORT --username=$PGUSERNAME --dbname=postgres -v MODULE_HOME=$MODULE_HOME -v SOURCEUSERNAME=$SOURCEUSERNAME << EOFC >> $LOG_FILE 2>&1
-	
+
 	GRANT USAGE ON SCHEMA cron TO :SOURCEUSERNAME;
+	GRANT ALL ON SCHEMA cron TO :SOURCEUSERNAME;
 	GRANT ALL PRIVILEGES ON SCHEMA cron to :SOURCEUSERNAME;
 	GRANT ALL ON ALL TABLES in schema cron to :SOURCEUSERNAME;
 	GRANT ALL ON ALL sequences in schema cron to :SOURCEUSERNAME;
-
+	
 	\q
 	
 EOFC
@@ -215,6 +216,7 @@ echo "INFO: Connect to postgres database via PSQL session" >> $LOG_FILE
   psql --host=$HOSTNAME --port=$PORT --username=$PGUSERNAME --dbname=postgres -v MODULE_HOME=$MODULE_HOME -v MVUSERNAME=$MVUSERNAME << EOFC >> $LOG_FILE 2>&1
 	
 	GRANT USAGE ON SCHEMA cron TO :MVUSERNAME;
+	GRANT ALL ON SCHEMA cron TO :MVUSERNAME;
 	GRANT ALL PRIVILEGES ON SCHEMA cron to :MVUSERNAME;
 	GRANT ALL ON ALL TABLES in schema cron to :MVUSERNAME;
 	GRANT ALL ON ALL sequences in schema cron to :MVUSERNAME;
@@ -484,33 +486,33 @@ DECLARE
     pSqlStatement   TEXT;
 BEGIN
     pSqlStatement := 'SELECT test1.id test1_id,
-test1.lookup_id test1_lookup_id,
-test1.code test1_code,
-test1.created test1_created,
-test2.id test2_id,
-test2.description test2_desc,
-test2.metavals_id test2_metavals_id,
-test2.age test2_age,
-test3.lookup_id test3_lookup_id,
-test3.lookup_code test3_lookup_code,
-test3.lookup_description test3_lookup_desc,
-test4.metavals_id test4_metavals_id,
-test4.code test4_code,
-test4.description test4_desc,
-test5.id test5_id,
-test5.rep_ind test5_rep_ind,
-test5.trans_id test5_trans_id,
-test6.trans_id test6_trans_id,
-test6.payment_reference test6_payment_ref
+t1.lookup_id test1_lookup_id,
+t1.code test1_code,
+t1.created test1_created,
+t1.id test2_id,
+t2.description test2_desc,
+t2.metavals_id test2_metavals_id,
+t2.age test2_age,
+t3.lookup_id test3_lookup_id,
+t3.lookup_code test3_lookup_code,
+t3.lookup_description test3_lookup_desc,
+t4.metavals_id test4_metavals_id,
+t4.code test4_code,
+t4.description test4_desc,
+t4.id test5_id,
+t5.rep_ind test5_rep_ind,
+t5.trans_id test5_trans_id,
+t6.trans_id test6_trans_id,
+t6.payment_reference test6_payment_ref
 FROM
-test1
-INNER JOIN test2 ON test1.id = test2.id
-LEFT JOIN test3 ON test1.lookup_id = test3.lookup_id
-LEFT JOIN test4 ON test2.metavals_id = test4.metavals_id
-INNER JOIN test5 ON test1.id = test5.id
-LEFT JOIN test6 ON test5.trans_id = test6.trans_id';
+test1 t1
+INNER JOIN test2 t2 ON t1.id = t2.id
+LEFT JOIN test3 t3 ON t1.lookup_id = t3.lookup_id
+LEFT JOIN test4 t4 ON t2.metavals_id = t4.metavals_id
+INNER JOIN test5 t5 ON t1.id = t5.id
+LEFT JOIN test6 t6 ON t5.trans_id = t6.trans_id';
 
-    FOR iTableCounter IN 10 .. 100
+    FOR iTableCounter IN 10 .. 101
     LOOP
         CALL mv\$createMaterializedView
         (
@@ -521,7 +523,7 @@ LEFT JOIN test6 ON test5.trans_id = test6.trans_id';
         );
     END LOOP;
 	
-	/*CALL mv\$createMaterializedView
+	CALL mv\$createMaterializedView
         (
             pViewName           => 'mvtesting101',
             pSelectStatement    =>  pSqlStatement,
@@ -530,8 +532,8 @@ LEFT JOIN test6 ON test5.trans_id = test6.trans_id';
 			pParallel			=> 'Y',
 			pParallelJobs		=> 4,
 			pParallelColumn		=> 'created',
-			pParallelAlias		=> 'test1'
-        ); */
+			pParallelAlias		=> 't1'
+        );
 
     RAISE NOTICE 'Simple Snapshot Creation took %', clock_timestamp() - tStartTime;
 END
@@ -595,6 +597,7 @@ echo "INFO: Connect to postgres database via PSQL session" >> $LOG_FILE
   psql --host=$HOSTNAME --port=$PORT --username=$PGUSERNAME --dbname=postgres -v MODULE_HOME=$MODULE_HOME -v MODULEOWNERPASS=$MODULEOWNERPASS -v MODULEOWNER=$MODULEOWNER << EOFC >> $LOG_FILE 2>&1
 	
 	REVOKE USAGE ON SCHEMA cron FROM $MVUSERNAME;
+	REVOKE ALL ON SCHEMA cron FROM $MVUSERNAME;
 	REVOKE ALL PRIVILEGES ON SCHEMA cron FROM $MVUSERNAME;
 	REVOKE ALL ON ALL TABLES in schema cron FROM $MVUSERNAME;
 	REVOKE ALL ON ALL sequences in schema cron FROM $MVUSERNAME;
@@ -633,6 +636,7 @@ echo "INFO: Connect to postgres database via PSQL session" >> $LOG_FILE
   psql --host=$HOSTNAME --port=$PORT --username=$PGUSERNAME --dbname=postgres -v MODULE_HOME=$MODULE_HOME -v MODULEOWNERPASS=$MODULEOWNERPASS -v MODULEOWNER=$MODULEOWNER << EOFC >> $LOG_FILE 2>&1
 	
 	REVOKE USAGE ON SCHEMA cron FROM $SCHEMAUSERNAME;
+	REVOKE ALL ON SCHEMA cron FROM $SCHEMAUSERNAME;
 	REVOKE ALL PRIVILEGES ON SCHEMA cron FROM $SCHEMAUSERNAME;
 	REVOKE ALL ON ALL TABLES in schema cron FROM $SCHEMAUSERNAME;
 	REVOKE ALL ON ALL sequences in schema cron FROM $SCHEMAUSERNAME;
@@ -672,6 +676,7 @@ echo "INFO: Connect to postgres database via PSQL session" >> $LOG_FILE
   psql --host=$HOSTNAME --port=$PORT --username=$PGUSERNAME --dbname=postgres -v MODULE_HOME=$MODULE_HOME -v MODULEOWNERPASS=$MODULEOWNERPASS -v MODULEOWNER=$MODULEOWNER << EOFC >> $LOG_FILE 2>&1
 	
 	REVOKE USAGE ON SCHEMA cron FROM $MODULEOWNER;
+	REVOKE ALL ON SCHEMA cron FROM $MODULEOWNER;
 	REVOKE ALL PRIVILEGES ON SCHEMA cron FROM $MODULEOWNER;
 	REVOKE ALL ON ALL TABLES in schema cron FROM $MODULEOWNER;
 	REVOKE ALL ON ALL sequences in schema cron FROM $MODULEOWNER;
