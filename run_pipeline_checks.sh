@@ -93,7 +93,7 @@ echo "Starting building schemas " >> $LOG_FILE
 
 echo "INFO: Creating Source Schema $SOURCEUSERNAME " >> $LOG_FILE
 
-psql --host=$HOSTNAME --port=$PORT --username=$PGUSERNAME --dbname=$DBNAME << EOF1 >> $LOG_FILE 2>&1
+psql --host=$HOSTNAME --port=$PORT --username=$PGUSERNAME --dbname=$DBNAME -v MODULEOWNERPASS=$SOURCEPASSWORD -v MODULEOWNER=$SOURCEUSERNAME << EOF1 >> $LOG_FILE 2>&1
 
 DO
 \$do\$
@@ -127,17 +127,19 @@ END
  GRANT ALL ON SCHEMA $MODULEOWNER TO $SOURCEUSERNAME;
  GRANT USAGE ON FOREIGN SERVER pgmv\$_instance TO $SOURCEUSERNAME;
  GRANT USAGE ON FOREIGN SERVER pgmv\$cron_instance TO $SOURCEUSERNAME;
+ 
+ CREATE USER MAPPING IF NOT EXISTS for :SOURCEUSERNAME SERVER pgmv\$cron_instance OPTIONS (user :'SOURCEUSERNAME', password :'SOURCEPASSWORD');
 
 EOF1
 
 echo "INFO: Run Cron permissions to $SOURCEUSERNAME user" >> $LOG_FILE
 echo "INFO: Connect to postgres database via PSQL session" >> $LOG_FILE
-  psql --host=$HOSTNAME --port=$PORT --username=$PGUSERNAME --dbname=postgres -v MODULE_HOME=$MODULE_HOME -v MODULEOWNERPASS=$MODULEOWNERPASS -v MODULEOWNER=$MODULEOWNER << EOFC >> $LOG_FILE 2>&1
+  psql --host=$HOSTNAME --port=$PORT --username=$PGUSERNAME --dbname=postgres -v MODULE_HOME=$MODULE_HOME -v MODULEOWNERPASS=$SOURCEPASSWORD -v MODULEOWNER=$SOURCEUSERNAME << EOFC >> $LOG_FILE 2>&1
 	
-	GRANT USAGE ON SCHEMA cron TO $SOURCEUSERNAME;
-	GRANT ALL PRIVILEGES ON SCHEMA cron to $SOURCEUSERNAME;
-	GRANT ALL ON ALL TABLES in schema cron to $SOURCEUSERNAME;
-	GRANT ALL ON ALL sequences in schema cron to $SOURCEUSERNAME;
+	GRANT USAGE ON SCHEMA cron TO :SOURCEUSERNAME;
+	GRANT ALL PRIVILEGES ON SCHEMA cron to :SOURCEUSERNAME;
+	GRANT ALL ON ALL TABLES in schema cron to :SOURCEUSERNAME;
+	GRANT ALL ON ALL sequences in schema cron to :SOURCEUSERNAME;
 
 	\q
 	
@@ -153,7 +155,7 @@ echo "INFO: Creating MV Schema $MVUSERNAME " >> $LOG_FILE
 PGPASSWORD=$PGPASSWORD
 
 
-psql --host=$HOSTNAME --port=$PORT --username=$PGUSERNAME --dbname=$DBNAME << EOF2 >> $LOG_FILE 2>&1
+psql --host=$HOSTNAME --port=$PORT --username=$PGUSERNAME --dbname=$DBNAME -v MODULEOWNERPASS=$MVPASSWORD -v MODULEOWNER=$MVUSERNAME  << EOF2 >> $LOG_FILE 2>&1
 
 DO
 \$do\$
@@ -201,6 +203,8 @@ GRANT   pgmv\$_view, pgmv\$_usage TO $MVUSERNAME;
 GRANT   pgmv\$_view, pgmv\$_usage, pgmv\$_execute, pgmv\$_role TO $SOURCEUSERNAME;
 GRANT USAGE ON FOREIGN SERVER pgmv\$_instance TO $MVUSERNAME;
 GRANT USAGE ON FOREIGN SERVER pgmv\$cron_instance TO $MVUSERNAME;
+
+CREATE USER MAPPING IF NOT EXISTS for :MVUSERNAME SERVER pgmv\$cron_instance OPTIONS (user :'MVUSERNAME', password :'MVPASSWORD');
 
 EOF2
 
