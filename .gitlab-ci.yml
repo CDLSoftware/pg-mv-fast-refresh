@@ -2,7 +2,8 @@ image: cdlawsnexus.prod.cdlcloud.co.uk:5000/postgres:12.5
 
 variables:
   POSTGRES_HOST_AUTH_METHOD: trust
-  POSTGRESQL_SHARED_PRELOAD_LIBRARIES: "pg_cron"  
+  POSTGRESQL_SHARED_PRELOAD_LIBRARIES: "pg_cron"
+  PROJECT_HOME: /builds/cheshire-datasystems/dba-team/pg-mv-fast-refresh-githubrunner
 
 Build:
      stage: build
@@ -17,12 +18,12 @@ Build:
        - echo Starting pipeline build
        - chown -R postgres:postgres /builds/cheshire-datasystems/dba-team/*
        - chmod 777 -R /builds/cheshire-datasystems/dba-team/*
-       - cd /builds/cheshire-datasystems/dba-team/pg-mv-fast-refresh-githubrunner
-       - sudo -i -u postgres /builds/cheshire-datasystems/dba-team/pg-mv-fast-refresh-githubrunner/setup_cron.sh
-       - cp .pipeline_module_set_variables.sh module_set_variables.sh
+       - cd $PROJECT_HOME
+       - sudo -i -u postgres $PROJECT_HOME/setup_cron.sh
+       - cp $PROJECT_HOME/.pipeline_module_set_variables.sh $PROJECT_HOME/module_set_variables.sh
        - chown -R postgres:postgres /builds/cheshire-datasystems/dba-team/*
        - chmod 777 -R /builds/cheshire-datasystems/dba-team/*
-       - sudo -i -u postgres /builds/cheshire-datasystems/dba-team/pg-mv-fast-refresh-githubrunner/run_pipeline_checks.sh build
+       - sudo -i -u postgres $PROJECT_HOME/run_pipeline_checks.sh build
        
 MV-Refresh:
      stage: test
@@ -37,14 +38,14 @@ MV-Refresh:
        - echo Starting pipeline build
        - chown -R postgres:postgres /builds/cheshire-datasystems/dba-team/*
        - chmod 777 -R /builds/cheshire-datasystems/dba-team/*
-       - cd /builds/cheshire-datasystems/dba-team/pg-mv-fast-refresh-githubrunner
-       - sudo -i -u postgres /builds/cheshire-datasystems/dba-team/pg-mv-fast-refresh-githubrunner/setup_cron.sh
+       - cd $PROJECT_HOME
+       - sudo -i -u postgres $PROJECT_HOME/setup_cron.sh
        - cp .pipeline_module_set_variables.sh module_set_variables.sh
        - chown -R postgres:postgres /builds/cheshire-datasystems/dba-team/*
        - chmod 777 -R /builds/cheshire-datasystems/dba-team/*       
-       - sudo -i -u postgres /builds/cheshire-datasystems/dba-team/pg-mv-fast-refresh-githubrunner/run_pipeline_checks.sh build
+       - sudo -i -u postgres $PROJECT_HOME/run_pipeline_checks.sh build
        - echo Starting pipeline MV refresh
-       - sudo -i -u postgres /builds/cheshire-datasystems/dba-team/pg-mv-fast-refresh-githubrunner/run_pipeline_checks.sh test
+       - sudo -i -u postgres $PROJECT_HOME/run_pipeline_checks.sh test
 
 Module-Destroy:
      stage: test
@@ -59,12 +60,12 @@ Module-Destroy:
        - echo Starting pipeline build
        - chown -R postgres:postgres /builds/cheshire-datasystems/dba-team/*
        - chmod 777 -R /builds/cheshire-datasystems/dba-team/*
-       - cd /builds/cheshire-datasystems/dba-team/pg-mv-fast-refresh-githubrunner
-       - sudo -i -u postgres /builds/cheshire-datasystems/dba-team/pg-mv-fast-refresh-githubrunner/setup_cron.sh
+       - cd $PROJECT_HOME
+       - sudo -i -u postgres $PROJECT_HOME/setup_cron.sh
        - cp .pipeline_module_set_variables.sh module_set_variables.sh
        - chown -R postgres:postgres /builds/cheshire-datasystems/dba-team/*
        - chmod 777 -R /builds/cheshire-datasystems/dba-team/*
-       - sudo -i -u postgres /builds/cheshire-datasystems/dba-team/pg-mv-fast-refresh-githubrunner/run_pipeline_checks.sh build
+       - sudo -i -u postgres $PROJECT_HOME/run_pipeline_checks.sh build
        - echo Starting destroy of module
-       - cd /builds/cheshire-datasystems/dba-team/pg-mv-fast-refresh-githubrunner
-       - sudo -i -u postgres /builds/cheshire-datasystems/dba-team/pg-mv-fast-refresh-githubrunner/run_pipeline_checks.sh destroy
+       - cd $PROJECT_HOME
+       - sudo -i -u postgres $PROJECT_HOME/run_pipeline_checks.sh destroy
