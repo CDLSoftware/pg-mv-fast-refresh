@@ -521,7 +521,7 @@ LEFT JOIN test6 ON test5.trans_id = test6.trans_id';
         );
     END LOOP;
 	
-	CALL mv\$createMaterializedView
+	/*CALL mv\$createMaterializedView
         (
             pViewName           => 'mvtesting101',
             pSelectStatement    =>  pSqlStatement,
@@ -531,7 +531,7 @@ LEFT JOIN test6 ON test5.trans_id = test6.trans_id';
 			pParallelJobs		=> 4,
 			pParallelColumn		=> 'created',
 			pParallelAlias		=> 'test1'
-        );
+        ); */
 
     RAISE NOTICE 'Simple Snapshot Creation took %', clock_timestamp() - tStartTime;
 END
