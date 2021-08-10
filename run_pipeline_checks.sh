@@ -295,27 +295,27 @@ CREATE TABLE $SOURCEUSERNAME.test6
 -- insert records into test1 table
 
 INSERT INTO $SOURCEUSERNAME.test1(
-	id, lookup_id, code)
+	id, lookup_id, code, created)
 	VALUES (1, 10, 'hello','2015-04-21 09:40:27.364');
 
 INSERT INTO $SOURCEUSERNAME.test1(
-	id, lookup_id, code)
+	id, lookup_id, code, created)
 	VALUES (2, 20, 'bye','2016-04-21 21:40:20.364');
 
 INSERT INTO $SOURCEUSERNAME.test1(
-	id, lookup_id, code)
+	id, lookup_id, code, created)
 	VALUES (3, 30, 'cya','2016-07-01 17:00:20.364');
 
 INSERT INTO $SOURCEUSERNAME.test1(
-	id, lookup_id, code)
+	id, lookup_id, code, created)
 	VALUES (4, 50, 'goodbye','2017-02-12 19:01:20.364');
 
 INSERT INTO $SOURCEUSERNAME.test1(
-	id, lookup_id, code)
+	id, lookup_id, code, created)
 	VALUES (5, 50, 'hi','2018-03-27 01:01:20.364');
 
 INSERT INTO $SOURCEUSERNAME.test1(
-	id, lookup_id, code)
+	id, lookup_id, code, created)
 	VALUES (6, 20, 'bye','2020-06-25 23:59:20.364');
 
 -- insert records into test2 table
