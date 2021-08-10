@@ -485,7 +485,7 @@ DECLARE
     iTableCounter   SMALLINT    := 10;
     pSqlStatement   TEXT;
 BEGIN
-    pSqlStatement := 'SELECT test1.id test1_id,
+    pSqlStatement := 'SELECT t1.id test1_id,
 t1.lookup_id test1_lookup_id,
 t1.code test1_code,
 t1.created test1_created,
