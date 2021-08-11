@@ -97,6 +97,8 @@ psql --host=$HOSTNAME --port=$PORT --username=$PGUSERNAME --dbname=$DBNAME -v SO
 
 DO
 \$do\$
+DECLARE
+ls_sql TEXT;
 BEGIN
    IF NOT EXISTS (
       SELECT                       -- SELECT list can stay empty for this
@@ -114,8 +116,27 @@ BEGIN
  	PASSWORD '$SOURCEPASSWORD';
 
     END IF;
+	
+	IF NOT EXISTS (
+	  SELECT
+	  FROM   pg_roles
+	  WHERE  rolname = 'rds_superuser') THEN
+	  
+	  ls_sql := 'ALTER USER ''$SOURCEUSERNAME'' with superuser;';
+				
+	  EXECUTE ls_sql;
+	  
+	ELSE
+
+	  ls_sql := 'GRANT rds_superuser TO ''$SOURCEUSERNAME'';';
+	  
+	  EXECUTE ls_sql;
+	  
+	END IF;
 END
 \$do\$;
+
+
 
 
  GRANT ALL PRIVILEGES ON DATABASE "$DBNAME" to $SOURCEUSERNAME;
@@ -161,6 +182,8 @@ psql --host=$HOSTNAME --port=$PORT --username=$PGUSERNAME --dbname=$DBNAME -v MV
 
 DO
 \$do\$
+DECLARE
+ls_sql TEXT;
 BEGIN
    IF NOT EXISTS (
       SELECT                       -- SELECT list can stay empty for this
@@ -178,6 +201,24 @@ BEGIN
  	PASSWORD '$MVPASSWORD';
 
     END IF;
+	
+	IF NOT EXISTS (
+	  SELECT
+	  FROM   pg_roles
+	  WHERE  rolname = 'rds_superuser') THEN
+	  
+	  ls_sql := 'ALTER USER ''$SOURCEUSERNAME'' with superuser;';
+				
+	  EXECUTE ls_sql;
+	  
+	ELSE
+
+	  ls_sql := 'GRANT rds_superuser TO ''$SOURCEUSERNAME'';';
+	  
+	  EXECUTE ls_sql;
+	  
+	END IF;
+	
 END
 \$do\$;
 
