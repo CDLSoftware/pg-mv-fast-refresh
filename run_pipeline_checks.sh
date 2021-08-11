@@ -552,7 +552,7 @@ LEFT JOIN test4 t4 ON t2.metavals_id = t4.metavals_id
 INNER JOIN test5 t5 ON t1.id = t5.id
 LEFT JOIN test6 t6 ON t5.trans_id = t6.trans_id';
 
-    FOR iTableCounter IN 10 .. 101
+    FOR iTableCounter IN 10 .. 100
     LOOP
         CALL mv\$createMaterializedView
         (
