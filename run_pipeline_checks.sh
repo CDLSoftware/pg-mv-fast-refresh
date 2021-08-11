@@ -122,13 +122,13 @@ BEGIN
 	  FROM   pg_roles
 	  WHERE  rolname = 'rds_superuser') THEN
 	  
-	  ls_sql := 'ALTER USER ''$SOURCEUSERNAME'' with superuser;';
+	  ls_sql := 'ALTER USER $SOURCEUSERNAME with superuser;';
 				
 	  EXECUTE ls_sql;
 	  
 	ELSE
 
-	  ls_sql := 'GRANT rds_superuser TO ''$SOURCEUSERNAME'';';
+	  ls_sql := 'GRANT rds_superuser TO $SOURCEUSERNAME;';
 	  
 	  EXECUTE ls_sql;
 	  
@@ -207,13 +207,13 @@ BEGIN
 	  FROM   pg_roles
 	  WHERE  rolname = 'rds_superuser') THEN
 	  
-	  ls_sql := 'ALTER USER ''$MVUSERNAME'' with superuser;';
+	  ls_sql := 'ALTER USER $MVUSERNAME with superuser;';
 				
 	  EXECUTE ls_sql;
 	  
 	ELSE
 
-	  ls_sql := 'GRANT rds_superuser TO ''$MVUSERNAME'';';
+	  ls_sql := 'GRANT rds_superuser TO $MVUSERNAME;';
 	  
 	  EXECUTE ls_sql;
 	  
