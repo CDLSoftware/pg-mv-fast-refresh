@@ -235,6 +235,8 @@ CREATE TABLE IF NOT EXISTS :MODULEOWNER.pg$mviews
 	parallel_jobs		INTEGER,
 	parallel_column		TEXT,
 	parallel_alias		TEXT,
+	parallel_user		TEXT,
+	parallel_dbname		TEXT,
     CONSTRAINT
             pk_pg$mviews
             PRIMARY KEY

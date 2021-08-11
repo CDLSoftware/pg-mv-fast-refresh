@@ -684,8 +684,6 @@ DECLARE
 	tCronJobSchedule		TEXT;
 	
 	tsCurrentDate			TIMESTAMP;
-	tUsername				TEXT := 'biadmin';
-	tDatabase				TEXT := 'strata';
 	tJobName				TEXT;
 	tTableName				TEXT;
 	
@@ -756,7 +754,7 @@ BEGIN
 		tSqlStatement := REPLACE(tSqlStatement,'''','''''');
 		
 		tCronSqlStatement := 'INSERT INTO cron.job(schedule, command, database, username, jobname)
-						  VALUES ('''||tCronJobSchedule||''','''||tSqlStatement||''','''||tDatabase||''','''||tUsername||''','''||tJobName||''')';
+						  VALUES ('''||tCronJobSchedule||''','''||tSqlStatement||''','''||aPgMview.parallel_dbname||''','''||aPgMview.parallel_user||''','''||tJobName||''')';
 						  
 		--RAISE INFO '%', tCronSqlStatement;
 		
@@ -873,6 +871,8 @@ PROCEDURE    mv$insertPgMview
 				pParallelJobs		IN		INTEGER,
 				pParallelColumn		IN		TEXT,
 				pParallelAlias		IN		TEXT,
+				pParallelUser		IN		TEXT,
+				pParallelDbname		IN		TEXT,
                 pFastRefresh        IN      BOOLEAN
             )
 AS
@@ -1025,7 +1025,9 @@ BEGIN
 			parallel,
 			parallel_jobs,
 			parallel_column,
-			parallel_alias
+			parallel_alias,
+			parallel_user,
+			parallel_dbname
     )
     VALUES
     (
@@ -1054,7 +1056,9 @@ BEGIN
 			pParallel,
 			pParallelJobs,
 			pParallelColumn,
-			pParallelAlias
+			pParallelAlias,
+			pParallelUser,
+			pParallelDbname
     );
 
     EXCEPTION

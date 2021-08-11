@@ -78,7 +78,9 @@ PROCEDURE    mv$createMaterializedView
 				pParallel			IN		TEXT		DEFAULT 'N',
 				pParallelJobs		IN		INTEGER		DEFAULT 0,
 				pParallelColumn		IN		TEXT		DEFAULT NULL,
-				pParallelAlias		IN 		TEXT		DEFAULT NULL
+				pParallelAlias		IN 		TEXT		DEFAULT NULL,
+				pParallelUser		IN 		TEXT		DEFAULT NULL,
+				pParallelDbname		IN 		TEXT		DEFAULT NULL				
             )
 AS
 $BODY$
@@ -129,6 +131,8 @@ Arguments:      IN      pViewName           The name of the materialized view to
 											cron sessions by date range.
 				IN		pParallelAlias		Optional, if pParallel set to Y then add date column alias you want to split insert into parallel 
 											cron sessions by date range.
+				IN		pParallelUser		Optional, if pParallel set to Y then add user for pg_cron job sessions.
+				IN		pParallelDbname		Optional, if pParallel set to Y then add dbname for pg_cron job sessions.
                 IN      pFastRefresh        Defaults to FALSE, but if set to yes then materialized view fast refresh is supported
 Returns:                VOID
 ************************************************************************************************************************************
@@ -280,6 +284,8 @@ BEGIN
 					pParallelJobs,
 					pParallelColumn,
 					pParallelAlias,
+					pParallelUser,
+					pParallelDbname,
                     pFastRefresh
                 );
 				

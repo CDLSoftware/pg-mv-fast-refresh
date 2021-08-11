@@ -572,7 +572,9 @@ LEFT JOIN test6 t6 ON t5.trans_id = t6.trans_id';
 			pParallel			=> 'Y',
 			pParallelJobs		=> 4,
 			pParallelColumn		=> 'created',
-			pParallelAlias		=> 't1'
+			pParallelAlias		=> 't1',
+			pParallelUser		=> '$MVUSERNAME',
+			pParallelDbname		=> 'postgres'
         );
 
     RAISE NOTICE 'Simple Snapshot Creation took %', clock_timestamp() - tStartTime;
@@ -673,13 +675,13 @@ PGPASSWORD=$PGPASS
 
 echo "INFO: Run Cron revoke permissions from $MVUSERNAME user" >> $LOG_FILE
 echo "INFO: Connect to postgres database via PSQL session" >> $LOG_FILE
-  psql --host=$HOSTNAME --port=$PORT --username=$PGUSERNAME --dbname=postgres -v MODULE_HOME=$MODULE_HOME -v MODULEOWNERPASS=$MODULEOWNERPASS -v MODULEOWNER=$MODULEOWNER << EOFC >> $LOG_FILE 2>&1
+  psql --host=$HOSTNAME --port=$PORT --username=$PGUSERNAME --dbname=postgres -v MODULE_HOME=$MODULE_HOME << EOFC >> $LOG_FILE 2>&1
 	
-	REVOKE USAGE ON SCHEMA cron FROM $SCHEMAUSERNAME;
-	REVOKE ALL ON SCHEMA cron FROM $SCHEMAUSERNAME;
-	REVOKE ALL PRIVILEGES ON SCHEMA cron FROM $SCHEMAUSERNAME;
-	REVOKE ALL ON ALL TABLES in schema cron FROM $SCHEMAUSERNAME;
-	REVOKE ALL ON ALL sequences in schema cron FROM $SCHEMAUSERNAME;
+	REVOKE USAGE ON SCHEMA cron FROM $MVUSERNAME;
+	REVOKE ALL ON SCHEMA cron FROM $MVUSERNAME;
+	REVOKE ALL PRIVILEGES ON SCHEMA cron FROM $MVUSERNAME;
+	REVOKE ALL ON ALL TABLES in schema cron FROM $MVUSERNAME;
+	REVOKE ALL ON ALL sequences in schema cron FROM $MVUSERNAME;
 
 	\q
 	
@@ -713,7 +715,7 @@ PGPASSWORD=$PGPASS
 
 echo "INFO: Run Cron revoke permissions from $MODULEOWNER user" >> $LOG_FILE
 echo "INFO: Connect to postgres database via PSQL session" >> $LOG_FILE
-  psql --host=$HOSTNAME --port=$PORT --username=$PGUSERNAME --dbname=postgres -v MODULE_HOME=$MODULE_HOME -v MODULEOWNERPASS=$MODULEOWNERPASS -v MODULEOWNER=$MODULEOWNER << EOFC >> $LOG_FILE 2>&1
+  psql --host=$HOSTNAME --port=$PORT --username=$PGUSERNAME --dbname=postgres -v MODULE_HOME=$MODULE_HOME << EOFC >> $LOG_FILE 2>&1
 	
 	REVOKE USAGE ON SCHEMA cron FROM $MODULEOWNER;
 	REVOKE ALL ON SCHEMA cron FROM $MODULEOWNER;
