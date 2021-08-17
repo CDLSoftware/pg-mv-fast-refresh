@@ -2327,7 +2327,7 @@ Revision History    Push Down List
 ------------------------------------------------------------------------------------------------------------------------------------
 Date        | Name          | Description
 ------------+---------------+-------------------------------------------------------------------------------------------------------
-23/07/2020	| D Day			| Added parallel running logic into truncate as this needs committing in the background due to locking
+23/07/2021	| D Day			| Added parallel running logic into truncate as this needs committing in the background due to locking
 			|				| the cron jobs for the split insert sessions.
 05/06/2020  | D Day         | Change functions with RETURNS VOID to procedures allowing support/control of COMMITS during refresh process.
 11/03/2018  | M Revitt      | Initial version
