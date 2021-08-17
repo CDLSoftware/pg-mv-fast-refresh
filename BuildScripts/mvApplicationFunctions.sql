@@ -170,7 +170,7 @@ BEGIN
 	
 	IF pParallel = 'Y' THEN
 	
-		IF pParallelColumn IS NULL AND pParallelColumn IS NULL AND pParallelJobs = 0 THEN
+		IF pParallelColumn IS NULL OR pParallelColumn IS NULL OR pParallelJobs = 0 THEN
 		
 			RAISE INFO      'Exception in procedure mv$createMaterializedView';
 			RAISE EXCEPTION 'Error: Procedure input parameter pParallel set to Y but either pParallelColumn OR pParallelAlias OR pParallelJobs have not been set from their default value';
