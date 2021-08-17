@@ -90,6 +90,7 @@ DROP PROCEDURE IF EXISTS mv$setQueryJoinsMultiTableCount;
 DROP PROCEDURE IF EXISTS mv$setQueryJoinsMultiTablePosition;
 DROP FUNCTION IF EXISTS mv$setCronSchedule;
 DROP FUNCTION IF EXISTS mv$setFromAndToTimestampRange;
+DROP PROCEDURE IF EXISTS mv$updatePgMviewTableParallelData;
 
 ----------------------- Write CREATE-FUNCTION-stage scripts --------------------
 SET CLIENT_MIN_MESSAGES = NOTICE;
@@ -2378,7 +2379,8 @@ CREATE OR REPLACE
 PROCEDURE    mv$createindexestemptable
             (
                 pOwner      IN      TEXT,
-                pViewName   IN      TEXT
+                pViewName   IN      TEXT,
+				pParallel 	IN 		TEXT	
             )
 AS
 $BODY$
@@ -2392,12 +2394,15 @@ Revision History    Push Down List
 ------------------------------------------------------------------------------------------------------------------------------------
 Date        | Name          | Description
 ------------+---------------+-------------------------------------------------------------------------------------------------------
-13/08/2020  | J Bills      | Initial version
+17/08/2021	| D Day			| Added logic to create temp table via dblink to support parallel rollback to not loose the indexes
+			|				| list that needs recreating as part of the complete refresh process.
+13/08/2020  | J Bills       | Initial version
 ------------+---------------+-------------------------------------------------------------------------------------------------------
 Description:    This will store the create indexes SQL in a temporary table for when its removed from the pg_indexes database table
 
 Arguments:      IN      pOwner             The owner of the object
                 IN      pViewName          The name of the materialized view base table
+				IN		pParallel		   Optional, build in parallel
 Returns:                VOID
 
 ************************************************************************************************************************************
@@ -2406,6 +2411,8 @@ Copyright 2019 Amazon.com, Inc. or its affiliates. All Rights Reserved. SPDX-Lic
 
 DECLARE
   i RECORD;
+  tSqlStatement 	TEXT;
+  tTempTableName	TEXT;
 BEGIN
   FOR i IN 
     (
@@ -2416,7 +2423,7 @@ and schemaname = pOwner
 	)
   LOOP
 
-EXECUTE 'CREATE TEMP TABLE temp' ||'_'|| i.tablename ||' AS select indexdef from pg_indexes 
+tSqlStatement := 'CREATE TEMP TABLE temp' ||'_'|| i.tablename ||' AS select indexdef from pg_indexes 
 where indexname  NOT IN ((SELECT  distinct i.relname
                       FROM
                           pg_class t,
@@ -2436,6 +2443,26 @@ where indexname  NOT IN ((SELECT  distinct i.relname
                           AND    ix.indisprimary))  
 and tablename = '|| ''''|| i.tablename ||''''||' and schemaname =  '||''''||  i.schemaname ||''''||' 	
  ';
+ 
+IF pParallel = 'Y' THEN
+
+	tTempTableName := 'temp_'|| i.tablename;
+
+	IF NOT EXISTS (
+	  SELECT
+	  FROM   pg_tables
+	  WHERE  tablename = tTempTableName) THEN
+
+		PERFORM * FROM dblink('pgmv$_instance',tSqlStatement) AS p (ret TEXT);
+		
+	END IF;
+	
+ELSE
+
+	EXECUTE tSqlStatement;
+	
+END IF;
+ 
   END LOOP;
    EXCEPTION
     WHEN OTHERS
@@ -2453,7 +2480,8 @@ CREATE OR REPLACE
 PROCEDURE    mv$dropmvindexes
             (
                 pOwner      IN      TEXT,
-                pViewName   IN      TEXT
+                pViewName   IN      TEXT,
+				pParallel	IN		TEXT
             )
 AS
 $BODY$
@@ -2467,12 +2495,14 @@ Revision History    Push Down List
 ------------------------------------------------------------------------------------------------------------------------------------
 Date        | Name          | Description
 ------------+---------------+-------------------------------------------------------------------------------------------------------
-13/08/2020  | J Bills      | Initial version
+17/08/2021	| D Day			| Added logic to commit dropping the indexes to support running in parallel
+13/08/2020  | J Bills       | Initial version
 ------------+---------------+-------------------------------------------------------------------------------------------------------
 Description:    This will drop the indexes from the materialised view
 
 Arguments:      IN      pOwner             The owner of the object
                 IN      pViewName          The name of the materialized view base table
+				IN		pParallel		   Optional, build in parallel
 Returns:                VOID
 
 ************************************************************************************************************************************
@@ -2510,17 +2540,18 @@ and indexname  NOT IN
   LOOP
 
     EXECUTE 'DROP INDEX ' || i.relname;
+	
   END LOOP;
-  EXCEPTION
-    WHEN OTHERS
-    THEN
-        RAISE INFO      'Exception in procedure mv$dropmvindexes';
-        RAISE INFO      'Error %:- %:',     SQLSTATE, SQLERRM;
-        RAISE EXCEPTION '%',                SQLSTATE;
+  
+  IF pParallel = 'Y' THEN
+
+	COMMIT;
+	
+  END IF;
+	
 END;
 $BODY$
 LANGUAGE    plpgsql;
-
 
 ------------------------------------------------------------------------------------------------------------------------------------
 CREATE OR REPLACE
@@ -2911,6 +2942,72 @@ BEGIN
 
 	RETURN tWhereClauseSql;
 	
+END;
+$BODY$
+LANGUAGE    plpgsql;
+------------------------------------------------------------------------------------------------------------------------------------
+CREATE OR REPLACE
+PROCEDURE    mv$updatePgMviewTableParallelData
+            (
+                pViewName    	IN      TEXT,
+				pParallel		IN      TEXT DEFAULT 'N',
+                pParallelJobs   IN      INTEGER DEFAULT 0,
+                pParallelColumn IN      TEXT DEFAULT NULL,
+                pParallelAlias  IN      TEXT DEFAULT NULL,
+                pParallelUser   IN      TEXT DEFAULT NULL,
+				pParallelDbname IN      TEXT DEFAULT NULL
+            )
+AS
+$BODY$
+/* ---------------------------------------------------------------------------------------------------------------------------------
+Routine Name: mv$updatePgMviewTableParallelData
+Author:       David Day
+Date:         17/08/2021
+------------------------------------------------------------------------------------------------------------------------------------
+Revision History    Push Down List
+------------------------------------------------------------------------------------------------------------------------------------
+Date        | Name          | Description
+------------+---------------+-------------------------------------------------------------------------------------------------------
+17/08/2021  |D Day      	| Initial version
+------------+---------------+-------------------------------------------------------------------------------------------------------
+Description:    This procedure updates parallel values held in pg$mviews to support full refresh
+
+Arguments:      IN      pViewName           The name of the materialized view
+				IN		pParallel			Optional, set to Y if you want to run build insert in parallel
+				IN		pParallelJobs		Optional, if pParallel set to Y then set how many parallel jobs are required
+				IN		pParallelColumn		Optional, if pParallel set to Y then add date column you want to split insert into parallel 
+											cron sessions by date range.
+				IN		pParallelAlias		Optional, if pParallel set to Y then add date column alias you want to split insert into parallel 
+											cron sessions by date range.
+				IN		pParallelUser		Optional, if pParallel set to Y then add user for pg_cron job sessions.
+				IN		pParallelDbname		Optional, if pParallel set to Y then add dbname for pg_cron job sessions.
+Returns:                RECORD              The row of data from the data dictionary relating to this materialized view
+
+************************************************************************************************************************************
+Copyright 2019 Amazon.com, Inc. or its affiliates. All Rights Reserved. SPDX-License-Identifier: MIT-0
+***********************************************************************************************************************************/
+DECLARE
+    tSqlStatement TEXT;
+BEGIN
+
+	tSqlStatement := 'UPDATE pg$mviews SET
+		parallel 		= '''||pParallel||''',
+		parallel_jobs   = '''||pParallelJobs||''',
+		parallel_column = '''||pParallelColumn||''',
+		parallel_alias  = '''||pParallelAlias||''',
+		parallel_user   = '''||pParallelUser||''',
+		parallel_dbname = '''||pParallelDbname||'''
+	WHERE view_name = '''||pViewName||'''';
+	
+	EXECUTE tSqlStatement;
+
+    EXCEPTION
+    WHEN OTHERS
+    THEN
+        RAISE INFO      'Exception in procedure mv$updatePgMviewTableParallelData';
+        RAISE INFO      'Error %:- %:',     SQLSTATE, SQLERRM;
+        RAISE INFO      'Error Context:% %',CHR(10),  tSqlStatement;
+        RAISE EXCEPTION '%',                SQLSTATE;
 END;
 $BODY$
 LANGUAGE    plpgsql;

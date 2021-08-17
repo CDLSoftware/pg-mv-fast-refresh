@@ -170,7 +170,7 @@ BEGIN
 	
 	IF pParallel = 'Y' THEN
 	
-		IF pParallelColumn IS NULL OR pParallelColumn IS NULL OR pParallelJobs = 0 OR pParallelUser IS NULL OR pParallelDbname IS NULL THEN
+		IF pParallelColumn IS NULL OR pParallelAlias IS NULL OR pParallelJobs = 0 OR pParallelUser IS NULL OR pParallelDbname IS NULL THEN
 		
 			RAISE INFO      'Exception in procedure mv$createMaterializedView';
 			RAISE EXCEPTION 'Error: Procedure input parameter pParallel set to Y but either pParallelColumn OR pParallelAlias OR pParallelJobs OR pParallelUser OR pParallelDbname have not been set from their default value';
@@ -442,7 +442,12 @@ PROCEDURE    mv$refreshMaterializedView
                 pViewName           IN      TEXT,
                 pOwner              IN      TEXT    DEFAULT USER,
                 pFastRefresh        IN      BOOLEAN DEFAULT FALSE,
-				pParallel			IN		TEXT DEFAULT 'N'	
+				pParallel			IN		TEXT		DEFAULT 'N',
+				pParallelJobs		IN		INTEGER		DEFAULT 0,
+				pParallelColumn		IN		TEXT		DEFAULT NULL,
+				pParallelAlias		IN 		TEXT		DEFAULT NULL,
+				pParallelUser		IN 		TEXT		DEFAULT NULL,
+				pParallelDbname		IN 		TEXT		DEFAULT NULL
             )
 AS
 $BODY$
@@ -469,7 +474,14 @@ Notes:          This procedure must come after the creation of the 2 procedures 
 Arguments:      IN      pViewName           The name of the materialized view
                 IN      pOwner              Optional, the owner of the materialized view, defaults to user
                 IN      pFastRefresh        Defaults to FALSE, but if set to yes then materialized view fast refresh is performed
-				IN		pParallel			Optional, build in parallel	
+				IN		pParallel			Optional, set to Y if you want to run build insert in parallel
+				IN		pParallelJobs		Optional, if pParallel set to Y then set how many parallel jobs are required
+				IN		pParallelColumn		Optional, if pParallel set to Y then add date column you want to split insert into parallel 
+											cron sessions by date range.
+				IN		pParallelAlias		Optional, if pParallel set to Y then add date column alias you want to split insert into parallel 
+											cron sessions by date range.
+				IN		pParallelUser		Optional, if pParallel set to Y then add user for pg_cron job sessions.
+				IN		pParallelDbname		Optional, if pParallel set to Y then add dbname for pg_cron job sessions.
 Returns:                VOID
 
 ************************************************************************************************************************************
@@ -487,7 +499,23 @@ BEGIN
     THEN
         CALL mv$refreshMaterializedViewFast( rConst, pOwner, pViewName );
     ELSE
-        CALL mv$refreshMaterializedViewFull( rConst, pOwner, pViewName, pParallel );
+	
+		BEGIN
+		
+			IF pParallel = 'Y' THEN
+		
+				IF pParallelColumn IS NULL OR pParallelAlias IS NULL OR pParallelJobs = 0 OR pParallelUser IS NULL OR pParallelDbname IS NULL THEN
+				
+					RAISE INFO      'Exception in procedure mv$refreshMaterializedView';
+					RAISE EXCEPTION 'Error: Procedure input parameter pParallel set to Y but either pParallelColumn OR pParallelAlias OR pParallelJobs OR pParallelUser OR pParallelDbname have not been set from their default value';
+					
+				END IF;
+			
+			END IF;
+		
+		END;
+	
+        CALL mv$refreshMaterializedViewFull( rConst, pOwner, pViewName, pParallel, pParallelJobs, pParallelColumn, pParallelAlias, pParallelUser, pParallelDbname );
     END IF;
 
 END;

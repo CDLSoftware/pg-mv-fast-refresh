@@ -709,6 +709,8 @@ DECLARE
 	tTimestampRangeSql		TEXT;
 	tResult					TEXT;
 	tDeleteSql				TEXT;
+	
+	iDaysSplit				INTEGER;
 
 BEGIN
 
@@ -726,6 +728,26 @@ BEGIN
 	
 	-- set Min and Max Date with Timestamp
 	EXECUTE tMinMaxTimestampSql INTO tsMinTimestamp, tsMaxTimestamp;
+	
+	SELECT (tsMinTimestamp::DATE-tsMinTimestamp::DATE)/pParallelJobs AS days_diff INTO iDaysSplit;
+	
+	IF iDaysSplit = 0 THEN
+	
+		IF EXISTS (
+			SELECT
+			FROM   pg_tables
+			WHERE  tablename = pViewName) THEN
+		
+			tDeleteSql := 'DROP TABLE '||pViewName;
+							   
+			PERFORM * FROM dblink('pgmv$_instance',tDeleteSql) AS p (ret TEXT);
+				
+		END IF;
+	
+		RAISE INFO      'Exception in procedure mv$insertParallelMaterializedViewRows';
+		RAISE EXCEPTION 'Error: The max timestamp % and min timestamp difference divided by the parallel jobs configuration setting of % is not greater than 0 which is a prerequisite to support running in parallel', tsMaxTimestamp, tsMinTimestamp, pParallelJobs;
+		
+	END IF;
 	
 	tsJobCreation := clock_timestamp();
 	
@@ -1460,7 +1482,12 @@ PROCEDURE    mv$refreshMaterializedViewFull
                 pConst      IN      mv$allConstants,
                 pOwner      IN      TEXT,
                 pViewName   IN      TEXT,
-				pParallel	IN      TEXT
+				pParallel			IN		TEXT		DEFAULT 'N',
+				pParallelJobs		IN		INTEGER		DEFAULT 0,
+				pParallelColumn		IN		TEXT		DEFAULT NULL,
+				pParallelAlias		IN 		TEXT		DEFAULT NULL,
+				pParallelUser		IN 		TEXT		DEFAULT NULL,
+				pParallelDbname		IN 		TEXT		DEFAULT NULL
             )
 AS
 $BODY$
@@ -1495,7 +1522,14 @@ Note:           This procedure requires the SEARCH_PATH to be set to the current
 Arguments:      IN      pConst              The memory structure containing all constants
 				IN      pOwner              The owner of the object
                 IN      pViewName           The name of the materialized view
-				IN		pParallel			Optional, build in parallel	
+				IN		pParallel			Optional, set to Y if you want to run full refresh insert in parallel
+				IN		pParallelJobs		Optional, if pParallel set to Y then set how many parallel jobs are required
+				IN		pParallelColumn		Optional, if pParallel set to Y then add date column you want to split insert into parallel 
+											cron sessions by date range.
+				IN		pParallelAlias		Optional, if pParallel set to Y then add date column alias you want to split insert into parallel 
+											cron sessions by date range.
+				IN		pParallelUser		Optional, if pParallel set to Y then add user for pg_cron job sessions.
+				IN		pParallelDbname		Optional, if pParallel set to Y then add dbname for pg_cron job sessions.
 
 ************************************************************************************************************************************
 Copyright 2018 Amazon.com, Inc. or its affiliates. All Rights Reserved. SPDX-License-Identifier: MIT-0
@@ -1506,17 +1540,20 @@ DECLARE
 
 BEGIN
 
+	CALL mv$updatePgMviewTableParallelData(pViewName,pParallel,pParallelJobs,pParallelColumn,pParallelAlias,pParallelUser,pParallelDbname);
+
     aPgMview    := mv$getPgMviewTableData(        pConst, pOwner, pViewName );
-    CALL mv$createindexestemptable(pOwner, pViewName);
-	CALL mv$dropmvindexes(pOwner, pViewName);
+	
+	CALL mv$createindexestemptable(pOwner, pViewName ,pParallel);
+	CALL mv$dropmvindexes(pOwner, pViewName, pParallel);
 	CALL mv$truncateMaterializedView(   pConst, pOwner, aPgMview.view_name, pParallel );
-    CALL mv$clearAllPgMvLogTableBitsCompleteRefresh(   pConst, pOwner, pViewName );
+	CALL mv$clearAllPgMvLogTableBitsCompleteRefresh(   pConst, pOwner, pViewName );
 	IF pParallel = 'Y' THEN
 		CALL mv$insertParallelMaterializedViewRows( pConst, pOwner, pViewName );
 	ELSE
 		CALL mv$insertMaterializedViewRows( pConst, pOwner, pViewName );
 	END IF; 
-    CALL mv$readdmvindexes (pViewName);
+	CALL mv$readdmvindexes (pViewName);
 	CALL mv$dropindexestemptable (pViewName);
 
 END;
