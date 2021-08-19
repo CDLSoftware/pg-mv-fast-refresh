@@ -252,6 +252,7 @@ BEGIN
 -- SQL Statement commands
 ------------------------------------------------------------------------------------------------------------------------------------
     rMvConstants.ADD_COLUMN                     := ' ADD COLUMN ';
+    rMvConstants.ALTER_INDEX                    := 'ALTER INDEX ';
     rMvConstants.ALTER_TABLE                    := 'ALTER TABLE ';
     rMvConstants.AND_COMMAND                    := ' AND ';
     rMvConstants.AS_COMMAND                     := ' AS ';
@@ -274,6 +275,7 @@ BEGIN
     rMvConstants.ON_COMMAND                     := ' ON ';
     rMvConstants.OR_COMMAND                     := ' OR ';
     rMvConstants.ORDER_BY_COMMAND               := ' ORDER BY ';
+    rMvConstants.RENAME_TO_COMMAND              := ' RENAME TO ';
     rMvConstants.SELECT_TRUE_FROM               := 'SELECT TRUE FROM ';
     rMvConstants.SET_COMMAND                    := ' SET ';
     rMvConstants.TO_COMMAND                     := ' TO ';

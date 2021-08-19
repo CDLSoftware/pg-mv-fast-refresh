@@ -60,6 +60,7 @@ echo "INFO: Connect to postgres database $DBNAME via PSQL session" >> $LOG_FILE
    \i :MODULE_HOME/BuildScripts/mvComplexFunctions.sql;
    \i :MODULE_HOME/BuildScripts/mvApplicationFunctions.sql;
    \i :MODULE_HOME/BuildScripts/mvTriggerFunction.sql;
+   \i :MODULE_HOME/BuildScripts/mvBESFunctions.sql;
 
   \q
 

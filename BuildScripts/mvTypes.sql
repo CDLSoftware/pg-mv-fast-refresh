@@ -139,6 +139,7 @@ AS
 -- SQL Statement commands
 ------------------------------------------------------------------------------------------------------------------------------------
     ADD_COLUMN                      TEXT,
+    ALTER_INDEX                     TEXT,
     ALTER_TABLE                     TEXT,
     AND_COMMAND                     TEXT,
     AS_COMMAND                      TEXT,
@@ -161,6 +162,7 @@ AS
     ON_COMMAND                      TEXT,
     OR_COMMAND                      TEXT,
     ORDER_BY_COMMAND                TEXT,
+    RENAME_TO_COMMAND               TEXT,
     SELECT_COMMAND                  TEXT,
     SELECT_TRUE_FROM                TEXT,
     SET_COMMAND                     TEXT,

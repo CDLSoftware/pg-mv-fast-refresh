@@ -50,6 +50,7 @@ echo "INFO: Connect to postgres database $DBNAME via PSQL session" >> $LOG_FILE
    \i :MODULE_HOME/BuildScripts/mvComplexFunctions.sql;
    \i :MODULE_HOME/BuildScripts/mvApplicationFunctions.sql;
    \i :MODULE_HOME/BuildScripts/mvTriggerFunction.sql;
+   \i :MODULE_HOME/BuildScripts/mvBESFunctions.sql;
 	
   \q
 
@@ -80,6 +81,8 @@ echo $UPDATE_FUNCTIONS >> $MODULE_HOME/fast_refresh_module_update_patch_objects.
 UPDATE_FUNCTIONS=$(echo "\\i $MODULE_HOME/BuildScripts/mvComplexFunctions.sql;")$'\n'
 echo $UPDATE_FUNCTIONS >> $MODULE_HOME/fast_refresh_module_update_patch_objects.sql
 UPDATE_FUNCTIONS=$(echo "\\i $MODULE_HOME/BuildScripts/mvApplicationFunctions.sql;")$'\n'
+echo $UPDATE_FUNCTIONS >> $MODULE_HOME/fast_refresh_module_update_patch_objects.sql
+UPDATE_FUNCTIONS=$(echo "\\i $MODULE_HOME/BuildScripts/mvBESFunctions.sql;")$'\n'
 echo $UPDATE_FUNCTIONS >> $MODULE_HOME/fast_refresh_module_update_patch_objects.sql
 
 PGPASSWORD=$MODULEOWNERPASS
