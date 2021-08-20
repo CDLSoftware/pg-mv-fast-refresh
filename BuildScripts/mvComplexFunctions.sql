@@ -729,7 +729,7 @@ BEGIN
 	-- set Min and Max Date with Timestamp
 	EXECUTE tMinMaxTimestampSql INTO tsMinTimestamp, tsMaxTimestamp;
 	
-	SELECT (tsMinTimestamp::DATE-tsMinTimestamp::DATE)/pParallelJobs AS days_diff INTO iDaysSplit;
+	SELECT (tsMaxTimestamp::DATE-tsMinTimestamp::DATE)/aPgMview.parallel_jobs AS days_diff INTO iDaysSplit;
 	
 	IF iDaysSplit = 0 THEN
 	
@@ -745,7 +745,7 @@ BEGIN
 		END IF;
 	
 		RAISE INFO      'Exception in procedure mv$insertParallelMaterializedViewRows';
-		RAISE EXCEPTION 'Error: The max timestamp % and min timestamp % difference divided by the parallel jobs configuration setting of % is not greater than 0 which is a prerequisite to support running in parallel', tsMaxTimestamp, tsMinTimestamp, pParallelJobs;
+		RAISE EXCEPTION 'Error: The max timestamp % and min timestamp % difference divided by the parallel jobs configuration setting of % is not greater than 0 which is a prerequisite to support running in parallel', tsMaxTimestamp, tsMinTimestamp, aPgMview.parallel_jobs;
 		
 	END IF;
 	
