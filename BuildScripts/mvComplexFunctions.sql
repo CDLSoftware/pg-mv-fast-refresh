@@ -745,7 +745,7 @@ BEGIN
 		END IF;
 	
 		RAISE INFO      'Exception in procedure mv$insertParallelMaterializedViewRows';
-		RAISE EXCEPTION 'Error: The max timestamp % and min timestamp difference divided by the parallel jobs configuration setting of % is not greater than 0 which is a prerequisite to support running in parallel', tsMaxTimestamp, tsMinTimestamp, pParallelJobs;
+		RAISE EXCEPTION 'Error: The max timestamp % and min timestamp % difference divided by the parallel jobs configuration setting of % is not greater than 0 which is a prerequisite to support running in parallel', tsMaxTimestamp, tsMinTimestamp, pParallelJobs;
 		
 	END IF;
 	
