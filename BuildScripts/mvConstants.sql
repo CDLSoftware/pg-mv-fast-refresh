@@ -141,6 +141,8 @@ BEGIN
 ------------------------------------------------------------------------------------------------------------------------------------
     rMvConstants.INSERT_INTO                    := 'INSERT INTO ';
     rMvConstants.SELECT_COMMAND                 := 'SELECT ';
+	rMvConstants.DISTINCT_CLAUSE				:= 'DISTINCT ';
+	rMvConstants.SELECT_ARRAY					:= 'SELECT ARRAY(SELECT ';
 
 -- Materialied View Log Table commands
 ------------------------------------------------------------------------------------------------------------------------------------

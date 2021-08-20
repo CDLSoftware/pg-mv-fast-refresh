@@ -64,6 +64,7 @@ DROP PROCEDURE IF EXISTS mv$createPgMv$Table;
 DROP PROCEDURE IF EXISTS mv$insertMaterializedViewRows;
 DROP PROCEDURE IF EXISTS mv$insertPgMview;
 DROP PROCEDURE IF EXISTS mv$insertOuterJoinRows;
+DROP PROCEDURE IF EXISTS mv$deleteOuterJoinRowsComboPK;
 DROP PROCEDURE IF EXISTS mv$insertPgMviewOuterJoinDetails;
 DROP FUNCTION IF EXISTS mv$checkParentToChildOuterJoinAlias;
 DROP PROCEDURE IF EXISTS mv$executeMVFastRefresh;
@@ -878,16 +879,37 @@ BEGIN
     THEN
 	    IF TRUE = pOuterTable
         THEN	
-		
-			CALL  mv$updateOuterJoinColumnsNull
-							(
-								pConst,
-								pOwner,
-								pViewName,
-								pTableAlias,
-								pRowidColumn,
-								pRowIDArray
-							);
+			IF (pViewName = 'mv_named_driver' AND pTableAlias = 'lcncctgy.')
+				OR (pViewName = 'mv_imtm_employment_activity' AND pTableAlias = 'a.')
+				OR (pViewName = 'mv_imtm_professional_indemn' AND pTableAlias = 'q.')
+				OR (pViewName = 'mv_imtm_prsnal_accident_cover' AND pTableAlias = 'm.')
+				OR (pViewName = 'mv_imtm_travel_addtional_cover' AND pTableAlias = 'a.')
+				OR (pViewName = 'mv_bstr_addl_cover_options' AND pTableAlias = 'o.')
+				OR (pViewName = 'mv_instalment_scheme_settings' AND pTableAlias = 'if.')
+				OR (pViewName = 'mv_bsca_caravan_cover_det' AND pTableAlias = 'b.')				
+				OR (pViewName = 'mv_imtm_gen_bus_trade_details' AND pTableAlias = 'td.') 
+				THEN
+				CALL  mv$deleteOuterJoinRowsComboPK
+								(
+									pConst,
+									pOwner,
+									pViewName,
+									pInnerAlias,
+									pInnerRowid,
+									pRowidColumn,
+									pRowIDArray
+								);					
+			ELSE
+				CALL  mv$updateOuterJoinColumnsNull
+								(
+									pConst,
+									pOwner,
+									pViewName,
+									pTableAlias,
+									pRowidColumn,
+									pRowIDArray
+								);
+			END IF;
 		
 		ELSE
 			CALL mv$deleteMaterializedViewRows( pConst, pOwner, pViewName, pConst.DELETE_DML_TYPE, pRowidColumn, pRowIDArray );
@@ -1446,6 +1468,100 @@ END;
 $BODY$
 LANGUAGE    plpgsql;
 
+------------------------------------------------------------------------------------------------------------------------------------
+CREATE OR REPLACE
+PROCEDURE    mv$deleteOuterJoinRowsComboPK
+            (
+                pConst          IN      mv$allConstants,
+                pOwner          IN      TEXT,
+                pViewName       IN      TEXT,
+                pInnerAlias     IN      TEXT,
+                pInnerRowid     IN      TEXT,
+				pRowidColumn	IN 		TEXT,
+                pRowIDs         IN      UUID[]
+            )
+AS
+$BODY$
+/* ---------------------------------------------------------------------------------------------------------------------------------
+Routine Name: mv$deleteOuterJoinRowsComboPK
+Author:       Rami Achouri
+Date:         19/08/2018
+------------------------------------------------------------------------------------------------------------------------------------
+Revision History    Push Down List
+------------------------------------------------------------------------------------------------------------------------------------
+Date        | Name          | Description
+------------+---------------+-------------------------------------------------------------------------------------------------------
+19/08/2021  | R Achouri     | Initial version
+------------+---------------+-------------------------------------------------------------------------------------------------------
+Description:    Function that handles deletes on fields from outer joining tables that are used as a part of a primary key with multiple
+				fields on a materialized view table.
+
+Arguments:      IN      pConst              The memory structure containing all constants
+                IN		pOwner
+                IN		pViewName
+                IN		pInnerAlias
+                IN		pInnerRowid
+				IN 		pRowidColumn
+                IN		pRowIDs
+
+************************************************************************************************************************************
+Copyright 2018 Amazon.com, Inc. or its affiliates. All Rights Reserved. SPDX-License-Identifier: MIT-0
+***********************************************************************************************************************************/
+DECLARE
+
+    aPgMview        	pg$mviews;
+	tFromClause			TEXT;
+    tSqlStatement   	TEXT;
+	tParent_array		UUID[];
+
+BEGIN
+
+    aPgMview  := mv$getPgMviewTableData( pConst, pOwner, pViewName );
+	
+	tSqlStatement :=  pConst.SELECT_ARRAY			|| 
+					  pConst.DISTINCT_CLAUSE		|| pInnerRowid             || pConst.FROM_COMMAND			   ||
+					  aPgMview.owner           		|| pConst.DOT_CHARACTER    || aPgMview.view_name			   ||
+					  pConst.WHERE_COMMAND			|| pRowidColumn   		   || pConst.IN_ROWID_LIST;
+					
+	EXECUTE tSqlStatement 
+	USING pRowIDs INTO tParent_array;
+		
+	tSqlStatement :=  pConst.DELETE_FROM || pOwner  || pConst.DOT_CHARACTER   || pViewName        ||
+							pConst.WHERE_COMMAND    || pInnerRowid          || pConst.IN_ROWID_LIST;
+	
+	EXECUTE tSqlStatement 
+	USING tParent_array;
+	
+	tFromClause	 := pConst.FROM_COMMAND  || aPgMview.table_names    || pConst.WHERE_COMMAND;
+
+    IF LENGTH( aPgMview.where_clause ) > 0
+    THEN
+		tFromClause := tFromClause      || aPgMview.where_clause    || pConst.AND_COMMAND;
+
+    END IF;
+	
+    tFromClause := tFromClause  || pInnerAlias   || pConst.MV_M_ROW$_SOURCE_COLUMN   || pConst.IN_ROWID_LIST;
+
+    tSqlStatement :=    pConst.INSERT_INTO       ||
+                        aPgMview.owner           || pConst.DOT_CHARACTER    || aPgMview.view_name   ||
+                        pConst.OPEN_BRACKET      || aPgMview.pgmv_columns   || pConst.CLOSE_BRACKET ||
+                        pConst.SELECT_COMMAND    || aPgMview.select_columns ||
+                        tFromClause;
+	
+	EXECUTE tSqlStatement
+	USING tParent_array;
+	
+
+    EXCEPTION
+    WHEN OTHERS
+    THEN
+        RAISE INFO      'Exception in procedure mv$deleteOuterJoinRowsComboPK';
+        RAISE INFO      'Error %:- %:',     SQLSTATE, SQLERRM;
+        RAISE INFO      'Error Context:% %',CHR(10),  tSqlStatement;
+        RAISE EXCEPTION '%',                SQLSTATE;
+END;
+$BODY$
+LANGUAGE    plpgsql;
 ------------------------------------------------------------------------------------------------------------------------------------
 CREATE OR REPLACE
 PROCEDURE    mv$insertPgMviewOuterJoinDetails
