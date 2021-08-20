@@ -97,18 +97,26 @@ echo $UPDATE_FUNCTIONS >> $MODULE_HOME/fast_refresh_module_update_patch_objects.
 UPDATE_FUNCTIONS=$(echo "\\i $MODULE_HOME/BuildScripts/mvApplicationFunctions.sql;")$'\n'
 echo $UPDATE_FUNCTIONS >> $MODULE_HOME/fast_refresh_module_update_patch_objects.sql
 
+ psql --host=$HOSTNAME --port=$PORT --username=$PGUSERNAME --dbname=postgres -v MODULE_HOME=$MODULE_HOME -v MODULEOWNERPASS=$MODULEOWNERPASS -v MODULEOWNER=$MODULEOWNER << EOF5 >> $LOG_FILE 2>&1
+	
+	\i :MODULE_HOME/BuildScripts/createCronSetup.sql;
+
+	\q
+	
+EOF5
+
 PGPASSWORD=$MODULEOWNERPASS
 
 echo "INFO: Run $MODULEOWNER schema UPDATE patch scripts" >> $LOG_FILE
 echo "INFO: Connect to postgres database $DBNAME via PSQL session" >> $LOG_FILE
 
-psql --host=$HOSTNAME --port=$PORT --username=$MODULEOWNER --dbname=$DBNAME -v MODULE_HOME=$MODULE_HOME -v MODULEOWNER=$MODULEOWNER << EOF4 >> $LOG_FILE 2>&1
+psql --host=$HOSTNAME --port=$PORT --username=$MODULEOWNER --dbname=$DBNAME -v MODULE_HOME=$MODULE_HOME -v MODULEOWNERPASS=$MODULEOWNERPASS -v MODULEOWNER=$MODULEOWNER -v HOSTNAME=$HOSTNAME -v PORT=$PORT  << EOF6 >> $LOG_FILE 2>&1
  
 	SET search_path = :MODULEOWNER,catalog,public;
  
    \i :MODULE_HOME/fast_refresh_module_update_patch_objects.sql;
 
-EOF4
+EOF6
 
 fi
 
