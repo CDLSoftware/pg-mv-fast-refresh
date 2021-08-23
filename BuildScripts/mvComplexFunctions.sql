@@ -1521,7 +1521,8 @@ BEGIN
 	tSqlStatement :=  pConst.SELECT_ARRAY			|| 
 					  pConst.DISTINCT_CLAUSE		|| pInnerRowid             || pConst.FROM_COMMAND			   ||
 					  aPgMview.owner           		|| pConst.DOT_CHARACTER    || aPgMview.view_name			   ||
-					  pConst.WHERE_COMMAND			|| pRowidColumn   		   || pConst.IN_ROWID_LIST;
+					  pConst.WHERE_COMMAND			|| pRowidColumn   		   || pConst.IN_ROWID_LIST			   ||
+					  pConst.CLOSE_BRACKET;
 					
 	EXECUTE tSqlStatement 
 	USING pRowIDs INTO tParent_array;
