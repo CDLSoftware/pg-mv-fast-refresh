@@ -171,6 +171,8 @@ AS
     WHERE_NO_DATA                   TEXT,
     LEFT_OUTER_JOIN                 TEXT,
     RIGHT_OUTER_JOIN                TEXT,
+    DISTINCT_CLAUSE                 TEXT,
+    SELECT_ARRAY                    TEXT,
 --
 -- Table and column name definitions
 ------------------------------------------------------------------------------------------------------------------------------------

@@ -141,8 +141,6 @@ BEGIN
 ------------------------------------------------------------------------------------------------------------------------------------
     rMvConstants.INSERT_INTO                    := 'INSERT INTO ';
     rMvConstants.SELECT_COMMAND                 := 'SELECT ';
-	rMvConstants.DISTINCT_CLAUSE				:= 'DISTINCT ';
-	rMvConstants.SELECT_ARRAY					:= 'SELECT ARRAY(SELECT ';
 
 -- Materialied View Log Table commands
 ------------------------------------------------------------------------------------------------------------------------------------
@@ -283,7 +281,9 @@ BEGIN
     rMvConstants.WHERE_COMMAND                  := ' WHERE ';
     rMvConstants.WHERE_NO_DATA                  := ' WHERE 1 = 2 ';
 	rMvConstants.LEFT_OUTER_JOIN				:= 'LOJ';
-	rMvConstants.RIGHT_OUTER_JOIN				:= 'ROJ';	
+	rMvConstants.RIGHT_OUTER_JOIN				:= 'ROJ';
+	rMvConstants.DISTINCT_CLAUSE				:= 'DISTINCT ';
+	rMvConstants.SELECT_ARRAY					:= 'SELECT ARRAY(SELECT ';	
 
 -- Table and column name definitions
 ------------------------------------------------------------------------------------------------------------------------------------
