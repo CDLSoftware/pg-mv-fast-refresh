@@ -121,6 +121,6 @@ $BODY$
 LANGUAGE    plpgsql
 SECURITY    DEFINER;
 
-SELECT v701_add_parallel_columns_to_pg$mviews();
+SELECT v702_add_parallel_columns_to_pg$mviews();
 
-DROP FUNCTION v701_add_parallel_columns_to_pg$mviews;
+DROP FUNCTION v702_add_parallel_columns_to_pg$mviews;
