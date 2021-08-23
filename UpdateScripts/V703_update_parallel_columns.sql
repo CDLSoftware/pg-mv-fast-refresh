@@ -1,4 +1,4 @@
-CREATE OR REPLACE FUNCTION V702_update_parallel_columns()
+CREATE OR REPLACE FUNCTION V703_update_parallel_columns()
     RETURNS VOID
 AS
 $BODY$
@@ -35,16 +35,10 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 DECLARE
 
 iColumnCnt						INTEGER := 0;
-
-rMviewsOjDetails				RECORD;
-tOuterJoinDeleteStatement 		TEXT;
-iDeleteSqlIsNull				INTEGER := 0;
-
-rConst              			mv$allConstants;
+rPgMviews						RECORD;
+iParallelIsNull					INTEGER := 0;
 
 BEGIN
-
-rConst      := mv$buildAllConstants();
 
 SELECT count(1) INTO iColumnCnt
 FROM information_schema.columns 
@@ -73,7 +67,7 @@ IF iColumnCnt = 6 THEN
 	WHERE  parallel IS NULL;
 
 	IF iParallelIsNull > 0 THEN
-			RAISE EXCEPTION 'The UPDATE patch script V702_update_parallel_columns.sql has not successfully updated all the linking parallel data for each mview in data dictionary table pg$mviews';
+			RAISE EXCEPTION 'The UPDATE patch script V703_update_parallel_columns.sql has not successfully updated all the linking parallel data for each mview in data dictionary table pg$mviews';
 	END IF;
 	
 END IF;
@@ -83,6 +77,6 @@ $BODY$
 LANGUAGE    plpgsql
 SECURITY    DEFINER;
 
-SELECT V702_update_parallel_columns();
+SELECT V703_update_parallel_columns();
 
-DROP FUNCTION V702_update_parallel_columns;
+DROP FUNCTION V703_update_parallel_columns;

@@ -1,4 +1,4 @@
-CREATE OR REPLACE FUNCTION v701_add_parallel_columns_to_pg$mviews()
+CREATE OR REPLACE FUNCTION v702_add_parallel_columns_to_pg$mviews()
     RETURNS VOID
 AS
 $BODY$
