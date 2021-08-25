@@ -2453,7 +2453,10 @@ IF pParallel = 'Y' THEN
 	  FROM   pg_tables
 	  WHERE  tablename = tTempTableName) THEN
 
-		PERFORM * FROM dblink('pgmv$_instance',tSqlStatement) AS p (ret TEXT);
+		--PERFORM * FROM dblink('pgmv$_instance',tSqlStatement) AS p (ret TEXT);
+		EXECUTE tSqlStatement;
+		
+		COMMIT;
 		
 	END IF;
 	
@@ -2464,12 +2467,6 @@ ELSE
 END IF;
  
   END LOOP;
-   EXCEPTION
-    WHEN OTHERS
-    THEN
-        RAISE INFO      'Exception in function mv$createindexestemptable';
-        RAISE INFO      'Error %:- %:',     SQLSTATE, SQLERRM;
-        RAISE EXCEPTION '%',                SQLSTATE;
 END;
 $BODY$
 LANGUAGE    plpgsql;
