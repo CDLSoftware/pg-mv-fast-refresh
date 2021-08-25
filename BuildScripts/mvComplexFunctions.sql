@@ -1541,7 +1541,7 @@ BEGIN
 
     END IF;
 	
-    tFromClause := tFromClause  || pInnerAlias   || pConst.MV_M_ROW$_SOURCE_COLUMN   || pConst.IN_ROWID_LIST;
+    tFromClause := tFromClause  || pInnerAlias   || pConst.DOT_CHARACTER    || pConst.MV_M_ROW$_SOURCE_COLUMN   || pConst.IN_ROWID_LIST;
 
     tSqlStatement :=    pConst.INSERT_INTO       ||
                         aPgMview.owner           || pConst.DOT_CHARACTER    || aPgMview.view_name   ||
