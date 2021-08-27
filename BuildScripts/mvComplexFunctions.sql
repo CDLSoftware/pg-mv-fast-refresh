@@ -791,9 +791,19 @@ BEGIN
 							JOIN cron.job j ON j.jobid = jrd.jobid
 							WHERE j.jobname LIKE '''||pViewName||'_job_%''
 							AND jrd.start_time >= '''||tsJobCreation||'''';
+							
+		BEGIN
 										
-		SELECT * FROM
-		dblink('pgmv$cron_instance', tStatusCheckSql) AS p (iDblinkCount INT) INTO iJobCount;
+			SELECT * FROM
+			dblink('pgmv$cron_instance', tStatusCheckSql) AS p (iDblinkCount INT) INTO iJobCount;
+			
+		EXCEPTION	
+		WHEN OTHERS
+		THEN
+		iJobCount := 0;
+		RAISE INFO 'Dblink error - ignore and set iJobCount variable to 0 until next loop.';
+		NULL;		
+		END;
 		
 		IF iJobCount < aPgMview.parallel_jobs THEN		
 			SELECT pg_sleep(60) INTO tResult;			
@@ -807,9 +817,19 @@ BEGIN
 							JOIN cron.job j ON j.jobid = jrd.jobid
 							WHERE j.jobname LIKE '''||pViewName||'_job_%''
 							AND jrd.status = ''running''';
-							
-		SELECT * FROM
-		dblink('pgmv$cron_instance', tStatusCheckSql) AS p (iDblinkCount INT) INTO iStatusCount;
+		
+		BEGIN
+		
+			SELECT * FROM
+			dblink('pgmv$cron_instance', tStatusCheckSql) AS p (iDblinkCount INT) INTO iStatusCount;
+		
+		EXCEPTION
+		WHEN OTHERS
+		THEN
+		iStatusCount := 1;
+		RAISE INFO 'Dblink error - ignore and set iStatusCount variable to 1 until next loop.';
+		NULL;		
+		END;
 		
 		tErrorCheckSql := 'SELECT count(1) FROM cron.job_run_details jrd
 							JOIN cron.job j ON j.jobid = jrd.jobid
@@ -817,8 +837,18 @@ BEGIN
 							AND jrd.start_time >= '''||tsJobCreation||'''
 							AND jrd.status = ''failed''';
 							
-		SELECT * FROM
-		dblink('pgmv$cron_instance', tStatusCheckSql) AS p (iDblinkCount INT) INTO iJobErrorCount;
+		BEGIN
+							
+			SELECT * FROM
+			dblink('pgmv$cron_instance', tErrorCheckSql) AS p (iDblinkCount INT) INTO iJobErrorCount;
+			
+		EXCEPTION
+		WHEN OTHERS
+		THEN
+		iJobErrorCount := 0;
+		RAISE INFO 'Dblink error - ignore and set iJobErrorCount variable to 1 until next loop.';
+		NULL;		
+		END;		
 		
 		IF iJobErrorCount > 0 THEN
 		
