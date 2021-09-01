@@ -881,7 +881,7 @@ BEGIN
         THEN	
 			IF (pViewName = 'mv_named_driver' AND pTableAlias = 'lcncctgy.')
 				OR (pViewName = 'mv_imtm_employment_activity' AND pTableAlias = 'a.')
-				OR (pViewName = 'mv_imtm_professional_indemn' AND pTableAlias = 'q.')
+				OR (pViewName = 'mv_imtm_professional_indemnity' AND pTableAlias = 'q.')
 				OR (pViewName = 'mv_imtm_prsnal_accident_cover' AND pTableAlias = 'm.')
 				OR (pViewName = 'mv_imtm_travel_addtional_cover' AND pTableAlias = 'a.')
 				OR (pViewName = 'mv_bstr_addl_cover_options' AND pTableAlias = 'o.')
