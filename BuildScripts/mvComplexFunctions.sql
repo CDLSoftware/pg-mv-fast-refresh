@@ -1493,8 +1493,8 @@ Date        | Name          | Description
 ------------+---------------+-------------------------------------------------------------------------------------------------------
 19/08/2021  | R Achouri     | Initial version
 ------------+---------------+-------------------------------------------------------------------------------------------------------
-Description:    Function that handles deletes on fields from outer joining tables that are used as a part of a primary key with multiple
-				fields on a materialized view table.
+Description:    Function that handles deletes on outer joining tables with fields that are used as a part of a composite primary key
+				on a materialized view table.
 
 Arguments:      IN      pConst              The memory structure containing all constants
                 IN		pOwner
