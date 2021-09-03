@@ -283,6 +283,8 @@ BEGIN
 	rMvConstants.LEFT_OUTER_JOIN				:= 'LOJ';
 	rMvConstants.RIGHT_OUTER_JOIN				:= 'ROJ';
 	rMvConstants.ON_CONFLICT_DO_NOTHING			:= rMvConstants.CLOSE_BRACKET || ' ON CONFLICT (policy_id) DO NOTHING';
+	rMvConstants.DISTINCT_CLAUSE				:= 'DISTINCT ';
+	rMvConstants.SELECT_ARRAY					:= 'SELECT ARRAY(SELECT ';
 
 -- Table and column name definitions
 ------------------------------------------------------------------------------------------------------------------------------------
