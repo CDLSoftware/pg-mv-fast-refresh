@@ -171,7 +171,17 @@ AS
     WHERE_NO_DATA                   TEXT,
     LEFT_OUTER_JOIN                 TEXT,
     RIGHT_OUTER_JOIN                TEXT,
-	ON_CONFLICT_DO_NOTHING			TEXT,
+    DISTINCT_CLAUSE                 TEXT,
+    SELECT_ARRAY                    TEXT,
+	POLICY_ID						TEXT,
+	PARTY_ID						TEXT,
+	MOTORRISK_ID					TEXT,
+	NAMEDPARTY_ID					TEXT,
+	WEBUSERPARTYREL_ID				TEXT,
+	ACCOUNT_ENTRY_ID				TEXT,	
+	ON_CONFLICT						TEXT,
+	DO_NOTHING						TEXT,
+	
 --
 -- Table and column name definitions
 ------------------------------------------------------------------------------------------------------------------------------------

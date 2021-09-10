@@ -65,6 +65,7 @@ DROP PROCEDURE IF EXISTS mv$insertMaterializedViewRows;
 DROP PROCEDURE IF EXISTS mv$insertParallelMaterializedViewRows;
 DROP PROCEDURE IF EXISTS mv$insertPgMview;
 DROP PROCEDURE IF EXISTS mv$insertOuterJoinRows;
+DROP PROCEDURE IF EXISTS mv$deleteOuterJoinRowsComboPK;
 DROP PROCEDURE IF EXISTS mv$insertPgMviewOuterJoinDetails;
 DROP FUNCTION IF EXISTS mv$checkParentToChildOuterJoinAlias;
 DROP PROCEDURE IF EXISTS mv$executeMVFastRefresh;
@@ -562,6 +563,7 @@ Revision History    Push Down List
 ------------------------------------------------------------------------------------------------------------------------------------
 Date        | Name          | Description
 ------------+---------------+-------------------------------------------------------------------------------------------------------
+09/09/2021  | D Day			| Added additional materialized views to ignore duplicates.
 25/03/2021	| D Day			| Added workaround to fix primary key issue against mv_policy materialized view to ignore duplicates.
 04/06/2020  | D Day         | Change functions with RETURNS VOID to procedures allowing support/control of COMMITS during refresh process.
 11/03/2018  | M Revitt      | Initial version
@@ -593,7 +595,7 @@ BEGIN
 
     aPgMview := mv$getPgMviewTableData( pConst, pOwner, pViewName );
 	
-	IF ( pViewName = 'mv_policy' AND pDmlType = 'INSERT' AND pTabPkExist = 1 ) THEN
+	IF ( pDmlType = 'INSERT' AND pTabPkExist = 1 ) THEN
 		tSqlSelectColumns := pConst.OPEN_BRACKET   || pConst.SELECT_COMMAND || aPgMview.select_columns;
 	ELSE
 		tSqlSelectColumns := pConst.SELECT_COMMAND || aPgMview.select_columns;
@@ -620,10 +622,24 @@ BEGIN
 
         tSqlStatement :=  tSqlStatement || pTableAlias || pConst.MV_M_ROW$_SOURCE_COLUMN || pConst.IN_ROWID_LIST;
 		
-		IF ( pViewName = 'mv_policy' AND pDmlType = 'INSERT' AND pTabPkExist = 1 ) THEN
-			
-			tSqlStatement := tSqlStatement || pConst.ON_CONFLICT_DO_NOTHING;
-			
+		IF ( pViewName = 'mv_policy' AND pDmlType = 'INSERT' AND pTabPkExist = 1 ) 
+		THEN			
+			tSqlStatement := tSqlStatement || pConst.CLOSE_BRACKET || pConst.ON_CONFLICT || pConst.POLICY_ID || pConst.DO_NOTHING;			
+		ELSIF ( pViewName = 'mv_account' AND pDmlType = 'INSERT' AND pTabPkExist = 1 )
+		THEN
+			tSqlStatement := tSqlStatement || pConst.CLOSE_BRACKET || pConst.ON_CONFLICT || pConst.ACCOUNT_ENTRY_ID || pConst.DO_NOTHING;		
+		ELSIF ( pViewName = 'mv_current_party' AND pDmlType = 'INSERT' AND pTabPkExist = 1 )
+		THEN	
+			tSqlStatement := tSqlStatement || pConst.CLOSE_BRACKET || pConst.ON_CONFLICT || pConst.PARTY_ID || pConst.DO_NOTHING;			
+		ELSIF ( pViewName = 'mv_motorvehicles_risk' AND pDmlType = 'INSERT' AND pTabPkExist = 1 )
+		THEN		
+			tSqlStatement := tSqlStatement || pConst.CLOSE_BRACKET || pConst.ON_CONFLICT || pConst.MOTORRISK_ID || pConst.DO_NOTHING;			
+		ELSIF ( pViewName = 'mv_named_party' AND pDmlType = 'INSERT' AND pTabPkExist = 1 )
+		THEN		
+			tSqlStatement := tSqlStatement || pConst.CLOSE_BRACKET || pConst.ON_CONFLICT || pConst.NAMEDPARTY_ID || pConst.DO_NOTHING;					
+		ELSIF ( pViewName = 'mv_webuser_party_rel' AND pDmlType = 'INSERT' AND pTabPkExist = 1 )
+		THEN		
+			tSqlStatement := tSqlStatement || pConst.CLOSE_BRACKET || pConst.ON_CONFLICT || pConst.WEBUSERPARTYREL_ID || pConst.DO_NOTHING;		
 		END IF;
 		
     END IF;
@@ -1152,6 +1168,8 @@ Date        | Name          | Description
 ------------+---------------+-------------------------------------------------------------------------------------------------------
 30/03/2021  | D Day			| Added new parameter variables for insert process to handle primary key duplicates on mv_policy when
 			|				| calling procedures mv$updateMaterializedViewRows and mv$insertMaterializedViewRows.
+20/08/2021  | R Achouri     | Added procedure mv$deleteOuterJoinRowsComboPK to handle deletes on outer joining tables with fields that
+			|               | are used as a part of a composite primary key.
 04/06/2020  | D Day         | Change functions with RETURNS VOID to procedures allowing support/control of COMMITS during refresh process.
 01/07/2019	| David Day		| Added function mv$updateOuterJoinColumnsNull to handle outer join deletes.            |               |
 11/03/2018  | M Revitt      | Initial version
@@ -1186,17 +1204,40 @@ BEGIN
     WHEN pConst.DELETE_DML_TYPE
     THEN
 	    IF TRUE = pOuterTable
-        THEN	
+        THEN
 		
-			CALL  mv$updateOuterJoinColumnsNull
-							(
-								pConst,
-								pOwner,
-								pViewName,
-								pTableAlias,
-								pRowidColumn,
-								pRowIDArray
-							);
+			IF (pViewName = 'mv_named_driver' AND pTableAlias = 'lcncctgy.')
+				OR (pViewName = 'mv_imtm_employment_activity' AND pTableAlias = 'a.')
+				OR (pViewName = 'mv_imtm_professional_indemnity' AND pTableAlias = 'q.')
+				OR (pViewName = 'mv_imtm_prsnal_accident_cover' AND pTableAlias = 'm.')
+				OR (pViewName = 'mv_imtm_travel_addtional_cover' AND pTableAlias = 'a.')
+				OR (pViewName = 'mv_bstr_addl_cover_options' AND pTableAlias = 'o.')
+				OR (pViewName = 'mv_instalment_scheme_settings' AND pTableAlias = 'if.')
+				OR (pViewName = 'mv_bsca_caravan_cover_det' AND pTableAlias = 'b.')				
+				OR (pViewName = 'mv_imtm_gen_bus_trade_details' AND pTableAlias = 'td.') 
+				THEN
+				
+				CALL  mv$deleteOuterJoinRowsComboPK
+								(
+									pConst,
+									pOwner,
+									pViewName,
+									pInnerAlias,
+									pInnerRowid,
+									pRowidColumn,
+									pRowIDArray
+								);					
+			ELSE
+				CALL  mv$updateOuterJoinColumnsNull
+								(
+									pConst,
+									pOwner,
+									pViewName,
+									pTableAlias,
+									pRowidColumn,
+									pRowIDArray
+								);
+			END IF;
 		
 		ELSE
 			CALL mv$deleteMaterializedViewRows( pConst, pOwner, pViewName, pConst.DELETE_DML_TYPE, pRowidColumn, pRowIDArray );
@@ -1266,6 +1307,7 @@ Revision History    Push Down List
 ------------------------------------------------------------------------------------------------------------------------------------
 Date        | Name          | Description
 ------------+---------------+-------------------------------------------------------------------------------------------------------
+09/09/2021  | D Day			| Added additional materialized views to ignore duplicates.
 03/09/2021	| D Day			| Ignore DML changes to prtyinst and personxx on MV_LOADINGS_DISCOUNTS as they're causing large
 			|				| delete and insert when the forename and lastname has not changed. The main joining table with reflect
 			|				| any key changes linked to these join conditions.
@@ -1334,7 +1376,7 @@ BEGIN
 		aMultiTablePgMview   := mv$getPgMviewTableData( pConst, pOwner, pViewName );
 	END IF;
 	
-	IF pViewName = 'mv_policy' THEN	
+	IF pViewName IN ('mv_policy','mv_account','mv_current_party','mv_motorvehicles_risk','mv_named_party','mv_webuser_party_rel') THEN
 		SELECT count(1) INTO iTabPkExist
 		FROM   pg_index i
 		JOIN   pg_attribute a ON a.attrelid = i.indrelid
@@ -1718,6 +1760,7 @@ Revision History    Push Down List
 ------------------------------------------------------------------------------------------------------------------------------------
 Date        | Name          | Description
 ------------+---------------+-------------------------------------------------------------------------------------------------------
+09/09/2021  | D Day			| Added additional materialized views to ignore duplicates.
 25/03/2021	| D Day			| Added workaround to fix primary key issue against mv_policy materialized view to ignore
 10/03/2021	| D Day         | Added new delete and insert statements for outer join alias performance improvements
 18/08/2020	| D Day			| Removed outer to inner join logic as this is under further review.
@@ -1787,7 +1830,7 @@ BEGIN
     EXECUTE tSqlStatement
     USING   pRowIDs;
 	
-	IF ( pViewName = 'mv_policy' AND pTabPkExist = 1 ) THEN
+	IF pTabPkExist = 1 THEN
 		tSqlSelectColumns := pConst.OPEN_BRACKET   || pConst.SELECT_COMMAND || aPgMview.select_columns;
 	ELSE
 		tSqlSelectColumns := pConst.SELECT_COMMAND || aPgMview.select_columns;
@@ -1799,8 +1842,24 @@ BEGIN
                         --tSqlSelectColumns 		 || tInsertFromClause;
 						tSqlSelectColumns 		 || tFromClause;
 						
-	IF ( pViewName = 'mv_policy' AND pTabPkExist = 1 )  THEN		
-		tSqlStatement := tSqlStatement || pConst.ON_CONFLICT_DO_NOTHING;
+	IF ( pViewName = 'mv_policy' AND pTabPkExist = 1 ) 
+	THEN			
+		tSqlStatement := tSqlStatement || pConst.CLOSE_BRACKET || pConst.ON_CONFLICT || pConst.POLICY_ID || pConst.DO_NOTHING;			
+	ELSIF ( pViewName = 'mv_account' AND pTabPkExist = 1 )
+	THEN
+		tSqlStatement := tSqlStatement || pConst.CLOSE_BRACKET || pConst.ON_CONFLICT || pConst.ACCOUNT_ENTRY_ID || pConst.DO_NOTHING;		
+	ELSIF ( pViewName = 'mv_current_party' AND pTabPkExist = 1 )
+	THEN	
+		tSqlStatement := tSqlStatement || pConst.CLOSE_BRACKET || pConst.ON_CONFLICT || pConst.PARTY_ID || pConst.DO_NOTHING;			
+	ELSIF ( pViewName = 'mv_motorvehicles_risk' AND pTabPkExist = 1 )
+	THEN		
+		tSqlStatement := tSqlStatement || pConst.CLOSE_BRACKET || pConst.ON_CONFLICT || pConst.MOTORRISK_ID || pConst.DO_NOTHING;			
+	ELSIF ( pViewName = 'mv_named_party' pTabPkExist = 1 )
+	THEN		
+		tSqlStatement := tSqlStatement || pConst.CLOSE_BRACKET || pConst.ON_CONFLICT || pConst.NAMEDPARTY_ID || pConst.DO_NOTHING;					
+	ELSIF ( pViewName = 'mv_webuser_party_rel' AND pTabPkExist = 1 )
+	THEN		
+		tSqlStatement := tSqlStatement || pConst.CLOSE_BRACKET || pConst.ON_CONFLICT || pConst.WEBUSERPARTYREL_ID || pConst.DO_NOTHING;		
 	END IF;
 
     EXECUTE tSqlStatement
@@ -1816,7 +1875,101 @@ BEGIN
 END;
 $BODY$
 LANGUAGE    plpgsql;
+------------------------------------------------------------------------------------------------------------------------------------
+CREATE OR REPLACE
+PROCEDURE    mv$deleteOuterJoinRowsComboPK
+            (
+                pConst          IN      mv$allConstants,
+                pOwner          IN      TEXT,
+                pViewName       IN      TEXT,
+                pInnerAlias     IN      TEXT,
+                pInnerRowid     IN      TEXT,
+				pRowidColumn	IN 		TEXT,
+                pRowIDs         IN      UUID[]
+            )
+AS
+$BODY$
+/* ---------------------------------------------------------------------------------------------------------------------------------
+Routine Name: mv$deleteOuterJoinRowsComboPK
+Author:       Rami Achouri
+Date:         19/08/2021
+------------------------------------------------------------------------------------------------------------------------------------
+Revision History    Push Down List
+------------------------------------------------------------------------------------------------------------------------------------
+Date        | Name          | Description
+------------+---------------+-------------------------------------------------------------------------------------------------------
+19/08/2021  | R Achouri     | Initial version
+------------+---------------+-------------------------------------------------------------------------------------------------------
+Description:    Procedure that handles deletes on outer joining tables with fields that are used as a part of a composite primary key
+				on a materialized view table.
 
+Arguments:      IN      pConst              The memory structure containing all constants
+                IN		pOwner
+                IN		pViewName
+                IN		pInnerAlias
+                IN		pInnerRowid
+				IN 		pRowidColumn
+                IN		pRowIDs
+
+************************************************************************************************************************************
+Copyright 2018 Amazon.com, Inc. or its affiliates. All Rights Reserved. SPDX-License-Identifier: MIT-0
+***********************************************************************************************************************************/
+DECLARE
+
+    aPgMview        	pg$mviews;
+	tFromClause			TEXT;
+    tSqlStatement   	TEXT;
+	tParent_array		UUID[];
+
+BEGIN
+
+    aPgMview  := mv$getPgMviewTableData( pConst, pOwner, pViewName );
+	
+	tSqlStatement :=  pConst.SELECT_ARRAY			|| 
+					  pConst.DISTINCT_CLAUSE		|| pInnerRowid             || pConst.FROM_COMMAND			   ||
+					  aPgMview.owner           		|| pConst.DOT_CHARACTER    || aPgMview.view_name			   ||
+					  pConst.WHERE_COMMAND			|| pRowidColumn   		   || pConst.IN_ROWID_LIST			   ||
+					  pConst.CLOSE_BRACKET;
+					
+	EXECUTE tSqlStatement 
+	USING pRowIDs INTO tParent_array;
+		
+	tSqlStatement :=  pConst.DELETE_FROM || pOwner  || pConst.DOT_CHARACTER   || pViewName        ||
+							pConst.WHERE_COMMAND    || pInnerRowid          || pConst.IN_ROWID_LIST;
+	
+	EXECUTE tSqlStatement 
+	USING tParent_array;
+	
+	tFromClause	 := pConst.FROM_COMMAND  || aPgMview.table_names    || pConst.WHERE_COMMAND;
+
+    IF LENGTH( aPgMview.where_clause ) > 0
+    THEN
+		tFromClause := tFromClause      || aPgMview.where_clause    || pConst.AND_COMMAND;
+
+    END IF;
+	
+    tFromClause := tFromClause  || pInnerAlias   || pConst.DOT_CHARACTER    || pConst.MV_M_ROW$_SOURCE_COLUMN   || pConst.IN_ROWID_LIST;
+
+    tSqlStatement :=    pConst.INSERT_INTO       ||
+                        aPgMview.owner           || pConst.DOT_CHARACTER    || aPgMview.view_name   ||
+                        pConst.OPEN_BRACKET      || aPgMview.pgmv_columns   || pConst.CLOSE_BRACKET ||
+                        pConst.SELECT_COMMAND    || aPgMview.select_columns ||
+                        tFromClause;
+	
+	EXECUTE tSqlStatement
+	USING tParent_array;
+	
+
+    EXCEPTION
+    WHEN OTHERS
+    THEN
+        RAISE INFO      'Exception in procedure mv$deleteOuterJoinRowsComboPK';
+        RAISE INFO      'Error %:- %:',     SQLSTATE, SQLERRM;
+        RAISE INFO      'Error Context:% %',CHR(10),  tSqlStatement;
+        RAISE EXCEPTION '%',                SQLSTATE;
+END;
+$BODY$
+LANGUAGE    plpgsql;
 ------------------------------------------------------------------------------------------------------------------------------------
 CREATE OR REPLACE
 PROCEDURE    mv$insertPgMviewOuterJoinDetails
@@ -2560,6 +2713,7 @@ Revision History    Push Down List
 ------------------------------------------------------------------------------------------------------------------------------------
 Date        | Name          | Description
 ------------+---------------+-------------------------------------------------------------------------------------------------------
+09/09/2021  | D Day			| Added additional materialized views to ignore duplicates.
 30/03/2021	| D Day			| Added workaround to fix primary key issue against mv_policy materialized view to ignore duplicates.
 04/06/2020  | D Day         | Change functions with RETURNS VOID to procedures allowing support/control of COMMITS during refresh process.
 11/03/2018  | M Revitt      | Initial version
@@ -2587,7 +2741,7 @@ BEGIN
 
     aPgMview := mv$getPgMviewTableData( pConst, pOwner, pViewName );
 	
-	IF ( pViewName = 'mv_policy' AND pTabPkExist = 1 ) THEN
+	IF pTabPkExist = 1 THEN
 		tSqlSelectColumns := pConst.OPEN_BRACKET   || pConst.SELECT_COMMAND || aPgMview.select_columns;
 	ELSE
 		tSqlSelectColumns := pConst.SELECT_COMMAND || aPgMview.select_columns;
@@ -2606,11 +2760,25 @@ BEGIN
 
     tSqlStatement :=  tSqlStatement || pTableAlias  || pConst.MV_M_ROW$_SOURCE_COLUMN || pConst.IN_ROWID_LIST;
 	
-	IF ( pViewName = 'mv_policy' AND pTabPkExist = 1 ) THEN
-		
-		tSqlStatement := tSqlStatement || pConst.ON_CONFLICT_DO_NOTHING;
-		
-	END IF;	
+	IF ( pViewName = 'mv_policy' AND pTabPkExist = 1 ) 
+	THEN			
+		tSqlStatement := tSqlStatement || pConst.CLOSE_BRACKET || pConst.ON_CONFLICT || pConst.POLICY_ID || pConst.DO_NOTHING;			
+	ELSIF ( pViewName = 'mv_account' AND pTabPkExist = 1 )
+	THEN
+		tSqlStatement := tSqlStatement || pConst.CLOSE_BRACKET || pConst.ON_CONFLICT || pConst.ACCOUNT_ENTRY_ID || pConst.DO_NOTHING;		
+	ELSIF ( pViewName = 'mv_current_party' AND pTabPkExist = 1 )
+	THEN	
+		tSqlStatement := tSqlStatement || pConst.CLOSE_BRACKET || pConst.ON_CONFLICT || pConst.PARTY_ID || pConst.DO_NOTHING;			
+	ELSIF ( pViewName = 'mv_motorvehicles_risk' AND pTabPkExist = 1 )
+	THEN		
+		tSqlStatement := tSqlStatement || pConst.CLOSE_BRACKET || pConst.ON_CONFLICT || pConst.MOTORRISK_ID || pConst.DO_NOTHING;			
+	ELSIF ( pViewName = 'mv_named_party' pTabPkExist = 1 )
+	THEN		
+		tSqlStatement := tSqlStatement || pConst.CLOSE_BRACKET || pConst.ON_CONFLICT || pConst.NAMEDPARTY_ID || pConst.DO_NOTHING;					
+	ELSIF ( pViewName = 'mv_webuser_party_rel' AND pTabPkExist = 1 )
+	THEN		
+		tSqlStatement := tSqlStatement || pConst.CLOSE_BRACKET || pConst.ON_CONFLICT || pConst.WEBUSERPARTYREL_ID || pConst.DO_NOTHING;				
+	END IF;
 
     EXECUTE tSqlStatement
     USING   pRowIDs;

@@ -282,7 +282,16 @@ BEGIN
     rMvConstants.WHERE_NO_DATA                  := ' WHERE 1 = 2 ';
 	rMvConstants.LEFT_OUTER_JOIN				:= 'LOJ';
 	rMvConstants.RIGHT_OUTER_JOIN				:= 'ROJ';
-	rMvConstants.ON_CONFLICT_DO_NOTHING			:= rMvConstants.CLOSE_BRACKET || ' ON CONFLICT (policy_id) DO NOTHING';
+	rMvConstants.DISTINCT_CLAUSE				:= 'DISTINCT ';
+	rMvConstants.SELECT_ARRAY					:= 'SELECT ARRAY(SELECT ';
+	rMvConstants.POLICY_ID						:= 'policy_id';
+	rMvConstants.PARTY_ID						:= 'party_id';
+	rMvConstants.MOTORRISK_ID					:= 'motorrisk_id';
+	rMvConstants.NAMEDPARTY_ID					:= 'namedparty_id';
+	rMvConstants.WEBUSERPARTYREL_ID				:= 'webuserpartyrel_id';
+	rMvConstants.ACCOUNT_ENTRY_ID				:= 'account_entry_id';
+	rMvConstants.ON_CONFLICT					:= ' ON CONFLICT (';
+	rMvConstants.DO_NOTHING					    := ') DO_NOTHING';
 
 -- Table and column name definitions
 ------------------------------------------------------------------------------------------------------------------------------------
