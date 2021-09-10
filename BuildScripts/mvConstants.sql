@@ -291,7 +291,7 @@ BEGIN
 	rMvConstants.WEBUSERPARTYREL_ID				:= 'webuserpartyrel_id';
 	rMvConstants.ACCOUNT_ENTRY_ID				:= 'account_entry_id';
 	rMvConstants.ON_CONFLICT					:= ' ON CONFLICT (';
-	rMvConstants.DO_NOTHING					    := ') DO_NOTHING';	
+	rMvConstants.DO_NOTHING					    := ') DO NOTHING';	
 
 -- Table and column name definitions
 ------------------------------------------------------------------------------------------------------------------------------------
