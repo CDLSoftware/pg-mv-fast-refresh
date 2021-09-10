@@ -550,6 +550,7 @@ Revision History    Push Down List
 ------------------------------------------------------------------------------------------------------------------------------------
 Date        | Name          | Description
 ------------+---------------+-------------------------------------------------------------------------------------------------------
+09/09/2021  | D Day			| Added additional materialized views to ignore duplicates.
 25/03/2021	| D Day			| Added workaround to fix primary key issue against mv_policy materialized view to ignore duplicates.
 04/06/2020  | D Day         | Change functions with RETURNS VOID to procedures allowing support/control of COMMITS during refresh process.
 11/03/2018  | M Revitt      | Initial version
@@ -581,7 +582,7 @@ BEGIN
 
     aPgMview := mv$getPgMviewTableData( pConst, pOwner, pViewName );
 	
-	IF ( pViewName = 'mv_policy' AND pDmlType = 'INSERT' AND pTabPkExist = 1 ) THEN
+	IF ( 'INSERT' AND pTabPkExist = 1 ) THEN
 		tSqlSelectColumns := pConst.OPEN_BRACKET   || pConst.SELECT_COMMAND || aPgMview.select_columns;
 	ELSE
 		tSqlSelectColumns := pConst.SELECT_COMMAND || aPgMview.select_columns;
@@ -608,10 +609,24 @@ BEGIN
 
         tSqlStatement :=  tSqlStatement || pTableAlias || pConst.MV_M_ROW$_SOURCE_COLUMN || pConst.IN_ROWID_LIST;
 		
-		IF ( pViewName = 'mv_policy' AND pDmlType = 'INSERT' AND pTabPkExist = 1 ) THEN
-			
-			tSqlStatement := tSqlStatement || pConst.ON_CONFLICT_DO_NOTHING;
-			
+		IF ( pViewName = 'mv_policy' AND pDmlType = 'INSERT' AND pTabPkExist = 1 ) 
+		THEN			
+			tSqlStatement := tSqlStatement || pConst.CLOSE_BRACKET || pConst.ON_CONFLICT || pConst.POLICY_ID || pConst.DO_NOTHING;			
+		ELSIF ( pViewName = 'mv_account' AND pDmlType = 'INSERT' AND pTabPkExist = 1 )
+		THEN
+			tSqlStatement := tSqlStatement || pConst.CLOSE_BRACKET || pConst.ON_CONFLICT || pConst.ACCOUNT_ENTRY_ID || pConst.DO_NOTHING;		
+		ELSIF ( pViewName = 'mv_current_party' AND pDmlType = 'INSERT' AND pTabPkExist = 1 )
+		THEN	
+			tSqlStatement := tSqlStatement || pConst.CLOSE_BRACKET || pConst.ON_CONFLICT || pConst.PARTY_ID || pConst.DO_NOTHING;			
+		ELSIF ( pViewName = 'mv_motorvehicles_risk' AND pDmlType = 'INSERT' AND pTabPkExist = 1 )
+		THEN		
+			tSqlStatement := tSqlStatement || pConst.CLOSE_BRACKET || pConst.ON_CONFLICT || pConst.MOTORRISK_ID || pConst.DO_NOTHING;			
+		ELSIF ( pViewName = 'mv_named_party' AND pDmlType = 'INSERT' AND pTabPkExist = 1 )
+		THEN		
+			tSqlStatement := tSqlStatement || pConst.CLOSE_BRACKET || pConst.ON_CONFLICT || pConst.NAMEDPARTY_ID || pConst.DO_NOTHING;					
+		ELSIF ( pViewName = 'mv_webuser_party_rel' AND pDmlType = 'INSERT' AND pTabPkExist = 1 )
+		THEN		
+			tSqlStatement := tSqlStatement || pConst.CLOSE_BRACKET || pConst.ON_CONFLICT || pConst.WEBUSERPARTYREL_ID || pConst.DO_NOTHING;		
 		END IF;
 		
     END IF;
@@ -1006,6 +1021,7 @@ Revision History    Push Down List
 ------------------------------------------------------------------------------------------------------------------------------------
 Date        | Name          | Description
 ------------+---------------+-------------------------------------------------------------------------------------------------------
+09/09/2021  | D Day			| Added additional materialized views to ignore duplicates.
 20/05/2020  | D Day			| Bug fix - to ignore DML changes to prtyinst, currprty, personxx for materialized views that only
 			|				| use these table joins to get forename and surname. If the main joining table changes for the linking id
 			|				| this will update the row i.e. createdby or updatedby columns for the forename and surname.
@@ -1071,7 +1087,7 @@ BEGIN
 		aMultiTablePgMview   := mv$getPgMviewTableData( pConst, pOwner, pViewName );
 	END IF;
 	
-	IF pViewName = 'mv_policy' THEN	
+	IF pViewName IN ('mv_policy','mv_account','mv_current_party','mv_motorvehicles_risk','mv_named_party','mv_webuser_party_rel') THEN	
 		SELECT count(1) INTO iTabPkExist
 		FROM   pg_index i
 		JOIN   pg_attribute a ON a.attrelid = i.indrelid
@@ -1424,6 +1440,7 @@ Revision History    Push Down List
 ------------------------------------------------------------------------------------------------------------------------------------
 Date        | Name          | Description
 ------------+---------------+-------------------------------------------------------------------------------------------------------
+09/09/2021  | D Day			| Added additional materialized views to ignore duplicates.
 25/03/2021	| D Day			| Added workaround to fix primary key issue against mv_policy materialized view to ignore
 10/03/2021	| D Day         | Added new delete and insert statements for outer join alias performance improvements
 18/08/2020	| D Day			| Removed outer to inner join logic as this is under further review.
@@ -1493,7 +1510,7 @@ BEGIN
     EXECUTE tSqlStatement
     USING   pRowIDs;
 	
-	IF ( pViewName = 'mv_policy' AND pTabPkExist = 1 ) THEN
+	IF pTabPkExist = 1 THEN
 		tSqlSelectColumns := pConst.OPEN_BRACKET   || pConst.SELECT_COMMAND || aPgMview.select_columns;
 	ELSE
 		tSqlSelectColumns := pConst.SELECT_COMMAND || aPgMview.select_columns;
@@ -1505,8 +1522,24 @@ BEGIN
                         --tSqlSelectColumns 		 || tInsertFromClause;
 						tSqlSelectColumns 		 || tFromClause;
 						
-	IF ( pViewName = 'mv_policy' AND pTabPkExist = 1 )  THEN		
-		tSqlStatement := tSqlStatement || pConst.ON_CONFLICT_DO_NOTHING;
+	IF ( pViewName = 'mv_policy' AND pTabPkExist = 1 ) 
+	THEN			
+		tSqlStatement := tSqlStatement || pConst.CLOSE_BRACKET || pConst.ON_CONFLICT || pConst.POLICY_ID || pConst.DO_NOTHING;			
+	ELSIF ( pViewName = 'mv_account' AND pTabPkExist = 1 )
+	THEN
+		tSqlStatement := tSqlStatement || pConst.CLOSE_BRACKET || pConst.ON_CONFLICT || pConst.ACCOUNT_ENTRY_ID || pConst.DO_NOTHING;		
+	ELSIF ( pViewName = 'mv_current_party' AND pTabPkExist = 1 )
+	THEN	
+		tSqlStatement := tSqlStatement || pConst.CLOSE_BRACKET || pConst.ON_CONFLICT || pConst.PARTY_ID || pConst.DO_NOTHING;			
+	ELSIF ( pViewName = 'mv_motorvehicles_risk' AND pTabPkExist = 1 )
+	THEN		
+		tSqlStatement := tSqlStatement || pConst.CLOSE_BRACKET || pConst.ON_CONFLICT || pConst.MOTORRISK_ID || pConst.DO_NOTHING;			
+	ELSIF ( pViewName = 'mv_named_party' pTabPkExist = 1 )
+	THEN		
+		tSqlStatement := tSqlStatement || pConst.CLOSE_BRACKET || pConst.ON_CONFLICT || pConst.NAMEDPARTY_ID || pConst.DO_NOTHING;					
+	ELSIF ( pViewName = 'mv_webuser_party_rel' AND pTabPkExist = 1 )
+	THEN		
+		tSqlStatement := tSqlStatement || pConst.CLOSE_BRACKET || pConst.ON_CONFLICT || pConst.WEBUSERPARTYREL_ID || pConst.DO_NOTHING;		
 	END IF;
 
     EXECUTE tSqlStatement
@@ -2361,6 +2394,7 @@ Revision History    Push Down List
 ------------------------------------------------------------------------------------------------------------------------------------
 Date        | Name          | Description
 ------------+---------------+-------------------------------------------------------------------------------------------------------
+09/09/2021  | D Day			| Added additional materialized views to ignore duplicates.
 30/03/2021	| D Day			| Added workaround to fix primary key issue against mv_policy materialized view to ignore duplicates.
 04/06/2020  | D Day         | Change functions with RETURNS VOID to procedures allowing support/control of COMMITS during refresh process.
 11/03/2018  | M Revitt      | Initial version
@@ -2388,7 +2422,7 @@ BEGIN
 
     aPgMview := mv$getPgMviewTableData( pConst, pOwner, pViewName );
 	
-	IF ( pViewName = 'mv_policy' AND pTabPkExist = 1 ) THEN
+	IF ( pTabPkExist = 1 ) THEN
 		tSqlSelectColumns := pConst.OPEN_BRACKET   || pConst.SELECT_COMMAND || aPgMview.select_columns;
 	ELSE
 		tSqlSelectColumns := pConst.SELECT_COMMAND || aPgMview.select_columns;
@@ -2407,11 +2441,25 @@ BEGIN
 
     tSqlStatement :=  tSqlStatement || pTableAlias  || pConst.MV_M_ROW$_SOURCE_COLUMN || pConst.IN_ROWID_LIST;
 	
-	IF ( pViewName = 'mv_policy' AND pTabPkExist = 1 ) THEN
-		
-		tSqlStatement := tSqlStatement || pConst.ON_CONFLICT_DO_NOTHING;
-		
-	END IF;	
+	IF ( pViewName = 'mv_policy' AND pTabPkExist = 1 ) 
+	THEN			
+		tSqlStatement := tSqlStatement || pConst.CLOSE_BRACKET || pConst.ON_CONFLICT || pConst.POLICY_ID || pConst.DO_NOTHING;			
+	ELSIF ( pViewName = 'mv_account' AND pTabPkExist = 1 )
+	THEN
+		tSqlStatement := tSqlStatement || pConst.CLOSE_BRACKET || pConst.ON_CONFLICT || pConst.ACCOUNT_ENTRY_ID || pConst.DO_NOTHING;		
+	ELSIF ( pViewName = 'mv_current_party' AND pTabPkExist = 1 )
+	THEN	
+		tSqlStatement := tSqlStatement || pConst.CLOSE_BRACKET || pConst.ON_CONFLICT || pConst.PARTY_ID || pConst.DO_NOTHING;			
+	ELSIF ( pViewName = 'mv_motorvehicles_risk' AND pTabPkExist = 1 )
+	THEN		
+		tSqlStatement := tSqlStatement || pConst.CLOSE_BRACKET || pConst.ON_CONFLICT || pConst.MOTORRISK_ID || pConst.DO_NOTHING;			
+	ELSIF ( pViewName = 'mv_named_party' pTabPkExist = 1 )
+	THEN		
+		tSqlStatement := tSqlStatement || pConst.CLOSE_BRACKET || pConst.ON_CONFLICT || pConst.NAMEDPARTY_ID || pConst.DO_NOTHING;					
+	ELSIF ( pViewName = 'mv_webuser_party_rel' AND pTabPkExist = 1 )
+	THEN		
+		tSqlStatement := tSqlStatement || pConst.CLOSE_BRACKET || pConst.ON_CONFLICT || pConst.WEBUSERPARTYREL_ID || pConst.DO_NOTHING;				
+	END IF;
 
     EXECUTE tSqlStatement
     USING   pRowIDs;
