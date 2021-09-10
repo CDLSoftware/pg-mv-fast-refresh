@@ -1534,7 +1534,7 @@ BEGIN
 	ELSIF ( pViewName = 'mv_motorvehicles_risk' AND pTabPkExist = 1 )
 	THEN		
 		tSqlStatement := tSqlStatement || pConst.CLOSE_BRACKET || pConst.ON_CONFLICT || pConst.MOTORRISK_ID || pConst.DO_NOTHING;			
-	ELSIF ( pViewName = 'mv_named_party' pTabPkExist = 1 )
+	ELSIF ( pViewName = 'mv_named_party' AND pTabPkExist = 1 )
 	THEN		
 		tSqlStatement := tSqlStatement || pConst.CLOSE_BRACKET || pConst.ON_CONFLICT || pConst.NAMEDPARTY_ID || pConst.DO_NOTHING;					
 	ELSIF ( pViewName = 'mv_webuser_party_rel' AND pTabPkExist = 1 )
@@ -2453,7 +2453,7 @@ BEGIN
 	ELSIF ( pViewName = 'mv_motorvehicles_risk' AND pTabPkExist = 1 )
 	THEN		
 		tSqlStatement := tSqlStatement || pConst.CLOSE_BRACKET || pConst.ON_CONFLICT || pConst.MOTORRISK_ID || pConst.DO_NOTHING;			
-	ELSIF ( pViewName = 'mv_named_party' pTabPkExist = 1 )
+	ELSIF ( pViewName = 'mv_named_party' AND pTabPkExist = 1 )
 	THEN		
 		tSqlStatement := tSqlStatement || pConst.CLOSE_BRACKET || pConst.ON_CONFLICT || pConst.NAMEDPARTY_ID || pConst.DO_NOTHING;					
 	ELSIF ( pViewName = 'mv_webuser_party_rel' AND pTabPkExist = 1 )
