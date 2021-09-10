@@ -284,7 +284,6 @@ BEGIN
 	rMvConstants.RIGHT_OUTER_JOIN				:= 'ROJ';
 	rMvConstants.DISTINCT_CLAUSE				:= 'DISTINCT ';
 	rMvConstants.SELECT_ARRAY					:= 'SELECT ARRAY(SELECT ';
-
 	rMvConstants.POLICY_ID						:= 'policy_id';
 	rMvConstants.PARTY_ID						:= 'party_id';
 	rMvConstants.MOTORRISK_ID					:= 'motorrisk_id';
