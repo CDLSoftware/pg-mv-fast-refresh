@@ -7,6 +7,8 @@ Revision History    Push Down List
 ------------------------------------------------------------------------------------------------------------------------------------
 Date        | Name          | Description
 ------------+---------------+-------------------------------------------------------------------------------------------------------
+10/09/2021	| D Day			| Added new vars to support workaround for primary key issue POLICY_ID,PARTY_ID,MOTORRISK_ID,
+			|				| NAMEDPARTY_ID,WEBUSERPARTYREL_ID,ACCOUNT_ENTRY_ID,ON_CONFLICT and DO_NOTHING. Removed ON_CONFLICT_DO_NOTHING.
 19/08/2021  | R Achouri     | Added DISTINCT_CLAUSE and SELECT_ARRAY
 25/03/2021  | D Day         | Added ON_CONFLICT_DO_NOTHING to support workaround for primary key issue
 14/01/2020  | M Revitt      | Changes to fix the array boundaries when doing > 61 materialised views per table
@@ -172,9 +174,18 @@ AS
     WHERE_NO_DATA                   TEXT,
     LEFT_OUTER_JOIN                 TEXT,
     RIGHT_OUTER_JOIN                TEXT,
-	ON_CONFLICT_DO_NOTHING			TEXT,
     DISTINCT_CLAUSE                 TEXT,
     SELECT_ARRAY                    TEXT,
+	POLICY_ID						TEXT,
+	PARTY_ID						TEXT,
+	MOTORRISK_ID					TEXT,
+	NAMEDPARTY_ID					TEXT,
+	WEBUSERPARTYREL_ID				TEXT,
+	ACCOUNT_ENTRY_ID				TEXT,
+	ADVEHRSK_ID						TEXT,
+	ON_CONFLICT						TEXT,
+	DO_NOTHING						TEXT,
+
 --
 -- Table and column name definitions
 ------------------------------------------------------------------------------------------------------------------------------------
