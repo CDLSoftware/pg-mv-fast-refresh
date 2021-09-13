@@ -582,7 +582,7 @@ BEGIN
 
     aPgMview := mv$getPgMviewTableData( pConst, pOwner, pViewName );
 	
-	IF ( 'INSERT' AND pTabPkExist = 1 ) THEN
+	IF ( pDmlType = 'INSERT' AND pTabPkExist = 1 ) THEN
 		tSqlSelectColumns := pConst.OPEN_BRACKET   || pConst.SELECT_COMMAND || aPgMview.select_columns;
 	ELSE
 		tSqlSelectColumns := pConst.SELECT_COMMAND || aPgMview.select_columns;
