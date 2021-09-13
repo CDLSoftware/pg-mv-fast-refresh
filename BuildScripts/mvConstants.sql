@@ -290,6 +290,7 @@ BEGIN
 	rMvConstants.NAMEDPARTY_ID					:= 'namedparty_id';
 	rMvConstants.WEBUSERPARTYREL_ID				:= 'webuserpartyrel_id';
 	rMvConstants.ACCOUNT_ENTRY_ID				:= 'account_entry_id';
+	rMvConstants.ADVEHRSK_ID					:= 'advehrsk_id';
 	rMvConstants.ON_CONFLICT					:= ' ON CONFLICT (';
 	rMvConstants.DO_NOTHING					    := ') DO NOTHING';
 

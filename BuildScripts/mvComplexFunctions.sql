@@ -639,7 +639,10 @@ BEGIN
 			tSqlStatement := tSqlStatement || pConst.CLOSE_BRACKET || pConst.ON_CONFLICT || pConst.NAMEDPARTY_ID || pConst.DO_NOTHING;					
 		ELSIF ( pViewName = 'mv_webuser_party_rel' AND pDmlType = 'INSERT' AND pTabPkExist = 1 )
 		THEN		
-			tSqlStatement := tSqlStatement || pConst.CLOSE_BRACKET || pConst.ON_CONFLICT || pConst.WEBUSERPARTYREL_ID || pConst.DO_NOTHING;		
+			tSqlStatement := tSqlStatement || pConst.CLOSE_BRACKET || pConst.ON_CONFLICT || pConst.WEBUSERPARTYREL_ID || pConst.DO_NOTHING;
+		ELSIF ( pViewName = 'mv_additional_vehicle_risk' AND pDmlType = 'INSERT' AND pTabPkExist = 1 )
+		THEN		
+			tSqlStatement := tSqlStatement || pConst.CLOSE_BRACKET || pConst.ON_CONFLICT || pConst.ADVEHRSK_ID || pConst.DO_NOTHING;			
 		END IF;
 		
     END IF;
@@ -1376,7 +1379,7 @@ BEGIN
 		aMultiTablePgMview   := mv$getPgMviewTableData( pConst, pOwner, pViewName );
 	END IF;
 	
-	IF pViewName IN ('mv_policy','mv_account','mv_current_party','mv_motorvehicles_risk','mv_named_party','mv_webuser_party_rel') THEN
+	IF pViewName IN ('mv_policy','mv_account','mv_current_party','mv_motorvehicles_risk','mv_named_party','mv_webuser_party_rel','mv_additional_vehicle_risk') THEN
 		SELECT count(1) INTO iTabPkExist
 		FROM   pg_index i
 		JOIN   pg_attribute a ON a.attrelid = i.indrelid
@@ -1859,7 +1862,10 @@ BEGIN
 		tSqlStatement := tSqlStatement || pConst.CLOSE_BRACKET || pConst.ON_CONFLICT || pConst.NAMEDPARTY_ID || pConst.DO_NOTHING;					
 	ELSIF ( pViewName = 'mv_webuser_party_rel' AND pTabPkExist = 1 )
 	THEN		
-		tSqlStatement := tSqlStatement || pConst.CLOSE_BRACKET || pConst.ON_CONFLICT || pConst.WEBUSERPARTYREL_ID || pConst.DO_NOTHING;		
+		tSqlStatement := tSqlStatement || pConst.CLOSE_BRACKET || pConst.ON_CONFLICT || pConst.WEBUSERPARTYREL_ID || pConst.DO_NOTHING;
+	ELSIF ( pViewName = 'mv_additional_vehicle_risk' AND pTabPkExist = 1 )
+	THEN		
+		tSqlStatement := tSqlStatement || pConst.CLOSE_BRACKET || pConst.ON_CONFLICT || pConst.ADVEHRSK_ID || pConst.DO_NOTHING;		
 	END IF;
 
     EXECUTE tSqlStatement
@@ -2777,7 +2783,10 @@ BEGIN
 		tSqlStatement := tSqlStatement || pConst.CLOSE_BRACKET || pConst.ON_CONFLICT || pConst.NAMEDPARTY_ID || pConst.DO_NOTHING;					
 	ELSIF ( pViewName = 'mv_webuser_party_rel' AND pTabPkExist = 1 )
 	THEN		
-		tSqlStatement := tSqlStatement || pConst.CLOSE_BRACKET || pConst.ON_CONFLICT || pConst.WEBUSERPARTYREL_ID || pConst.DO_NOTHING;				
+		tSqlStatement := tSqlStatement || pConst.CLOSE_BRACKET || pConst.ON_CONFLICT || pConst.WEBUSERPARTYREL_ID || pConst.DO_NOTHING;
+	ELSIF ( pViewName = 'mv_additional_vehicle_risk' AND pTabPkExist = 1 )
+	THEN		
+		tSqlStatement := tSqlStatement || pConst.CLOSE_BRACKET || pConst.ON_CONFLICT || pConst.ADVEHRSK_ID || pConst.DO_NOTHING;		
 	END IF;
 
     EXECUTE tSqlStatement
