@@ -7,7 +7,8 @@ Revision History    Push Down List
 ------------------------------------------------------------------------------------------------------------------------------------
 Date        | Name          | Description
 ------------+---------------+-------------------------------------------------------------------------------------------------------
-            |               |
+10/09/2021	| D Day			| Added new constants to support workaround for primary key issue POLICY_ID,PARTY_ID,MOTORRISK_ID,
+			|				| NAMEDPARTY_ID,WEBUSERPARTYREL_ID,ACCOUNT_ENTRY_ID,ON_CONFLICT and DO_NOTHING. Removed ON_CONFLICT_DO_NOTHING.
 14/01/2020  | M Revitt      | Changes to fix the array boundaries when doing > 61 materialised views per table
             |               | Changed ANY_BITMAP_VALUE to ALL_BITMAP_VALUE, used when clearing the log table
             |               | Added BITMAP_OFFSET
