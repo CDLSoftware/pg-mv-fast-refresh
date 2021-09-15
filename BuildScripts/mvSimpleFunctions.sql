@@ -739,10 +739,9 @@ DECLARE
 BEGIN
 
     tSqlStatement :=    pConst.DELETE_FROM || pOwner  || pConst.DOT_CHARACTER   || pViewName        ||
-                        pConst.WHERE_COMMAND          || pRowidColumn           || pConst.IN_ROWID_LIST;
+                        pConst.WHERE_COMMAND          || pRowidColumn           || ' IN (''' || array_to_string(pRowIDs, ''',''') || ''')';
 
-    EXECUTE tSqlStatement
-    USING   pRowIDs;
+    EXECUTE tSqlStatement;
     RETURN;
 
     EXCEPTION

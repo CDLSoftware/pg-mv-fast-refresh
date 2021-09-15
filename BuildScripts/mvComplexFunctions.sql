@@ -516,11 +516,10 @@ BEGIN
             tSqlStatement := tSqlStatement  || pConst.WHERE_COMMAND;
         END IF;
 
-        tSqlStatement :=  tSqlStatement || pTableAlias || pConst.MV_M_ROW$_SOURCE_COLUMN || pConst.IN_ROWID_LIST;
+        tSqlStatement :=  tSqlStatement || pTableAlias || pConst.MV_M_ROW$_SOURCE_COLUMN || ' IN (''' || array_to_string(pRowIDs, ''',''') || ''')';
     END IF;
 
-    EXECUTE tSqlStatement
-    USING   pRowIDs;
+    EXECUTE tSqlStatement;
 
     RETURN;
 
@@ -1976,10 +1975,9 @@ BEGIN
         tSqlStatement := tSqlStatement || aPgMview.where_clause || pConst.AND_COMMAND;
     END IF;
 
-    tSqlStatement :=  tSqlStatement || pTableAlias  || pConst.MV_M_ROW$_SOURCE_COLUMN || pConst.IN_ROWID_LIST;
+    tSqlStatement :=  tSqlStatement || pTableAlias  || pConst.MV_M_ROW$_SOURCE_COLUMN || ' IN (''' || array_to_string(pRowIDs, ''',''') || ''')';
 
-    EXECUTE tSqlStatement
-    USING   pRowIDs;
+    EXECUTE tSqlStatement;
 
     RETURN;
 
