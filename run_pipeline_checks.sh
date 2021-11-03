@@ -51,21 +51,6 @@ echo "INFO: Connect to postgres database $DBNAME via PSQL session" >> $LOG_FILE
 
 EOF1
 
-echo "INFO: Run $MODULEOWNER version control script" >> $LOG_FILE
-echo "INFO: Connect to postgres database $DBNAME via PSQL session" >> $LOG_FILE
-  psql --host=$HOSTNAME --port=$PORT --username=$PGUSERNAME --dbname=$DBNAME -v MODULE_HOME=$MODULE_HOME -v MODULEOWNER=$MODULEOWNER -v PATCHVERSION=$PATCHVERSION  << EOFV >> $LOG_FILE 2>&1
-
-    \i :MODULE_HOME/BuildScripts/versionCompatibility.sql;
-
-	\q
-	
-EOFV
-
-exitcode=$?
-if [ $exitcode != 0 ]; then
-	exit 1
-fi
-
 echo "INFO: Run Cron setup script" >> $LOG_FILE
 echo "INFO: Connect to postgres database via PSQL session" >> $LOG_FILE
   psql --host=$HOSTNAME --port=$PORT --username=$PGUSERNAME --dbname=postgres -v MODULE_HOME=$MODULE_HOME -v MODULEOWNERPASS=$MODULEOWNERPASS -v MODULEOWNER=$MODULEOWNER << EOFC >> $LOG_FILE 2>&1
@@ -77,6 +62,21 @@ echo "INFO: Connect to postgres database via PSQL session" >> $LOG_FILE
 EOFC
 
 PGPASSWORD=$MODULEOWNERPASS
+
+echo "INFO: Run $MODULEOWNER version control script" >> $LOG_FILE
+echo "INFO: Connect to postgres database $DBNAME via PSQL session" >> $LOG_FILE
+  psql --host=$HOSTNAME --port=$PORT --username=$MODULEOWNER --dbname=$DBNAME -v MODULE_HOME=$MODULE_HOME -v MODULEOWNER=$MODULEOWNER -v PATCHVERSION=$PATCHVERSION  << EOFV >> $LOG_FILE 2>&1
+
+    \i :MODULE_HOME/BuildScripts/versionCompatibility.sql;
+
+	\q
+	
+EOFV
+
+exitcode=$?
+if [ $exitcode != 0 ]; then
+	exit 1
+fi
 
 echo "INFO: Run $MODULEOWNER schema object build scripts" >> $LOG_FILE
 echo "INFO: Connect to postgres database $DBNAME via PSQL session" >> $LOG_FILE

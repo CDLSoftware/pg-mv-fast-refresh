@@ -35,7 +35,7 @@ function versioncontrol
 
 echo "INFO: Run $MODULEOWNER version control script" >> $LOG_FILE
 echo "INFO: Connect to postgres database $DBNAME via PSQL session" >> $LOG_FILE
-  psql --host=$HOSTNAME --port=$PORT --username=$PGUSERNAME --dbname=$DBNAME -v MODULE_HOME=$MODULE_HOME -v MODULEOWNER=$MODULEOWNER -v PATCHVERSION=$PATCHVERSION  << EOFV >> $LOG_FILE 2>&1
+  psql --host=$HOSTNAME --port=$PORT --username=$MODULEOWNER --dbname=$DBNAME -v MODULE_HOME=$MODULE_HOME -v MODULEOWNER=$MODULEOWNER -v PATCHVERSION=$PATCHVERSION  << EOFV >> $LOG_FILE 2>&1
 
     \i :MODULE_HOME/UpdateScripts/V704_create_table_pg$mviews_version_control.sql;
     \i :MODULE_HOME/BuildScripts/versionCompatibility.sql;
@@ -63,8 +63,6 @@ echo "INFO: Connect to postgres database $DBNAME via PSQL session" >> $LOG_FILE
 	
 EOF1
 
-versioncontrol
-
 echo "INFO: Run Cron setup script" >> $LOG_FILE
 echo "INFO: Connect to postgres database via PSQL session" >> $LOG_FILE
   psql --host=$HOSTNAME --port=$PORT --username=$PGUSERNAME --dbname=postgres -v MODULE_HOME=$MODULE_HOME -v MODULEOWNERPASS=$MODULEOWNERPASS -v MODULEOWNER=$MODULEOWNER << EOF2 >> $LOG_FILE 2>&1
@@ -76,6 +74,8 @@ echo "INFO: Connect to postgres database via PSQL session" >> $LOG_FILE
 EOF2
 
 PGPASSWORD=$MODULEOWNERPASS
+
+versioncontrol
 
 echo "INFO: Run $MODULEOWNER schema object build scripts" >> $LOG_FILE
 echo "INFO: Connect to postgres database $DBNAME via PSQL session" >> $LOG_FILE
@@ -126,8 +126,6 @@ echo $UPDATE_FUNCTIONS >> $MODULE_HOME/fast_refresh_module_update_patch_objects.
 UPDATE_FUNCTIONS=$(echo "\\i $MODULE_HOME/BuildScripts/mvApplicationFunctions.sql;")$'\n'
 echo $UPDATE_FUNCTIONS >> $MODULE_HOME/fast_refresh_module_update_patch_objects.sql
 
-versioncontrol
-
  psql --host=$HOSTNAME --port=$PORT --username=$PGUSERNAME --dbname=postgres -v MODULE_HOME=$MODULE_HOME -v MODULEOWNERPASS=$MODULEOWNERPASS -v MODULEOWNER=$MODULEOWNER << EOF4 >> $LOG_FILE 2>&1
 	
 	\i :MODULE_HOME/BuildScripts/createCronSetup.sql;
@@ -137,6 +135,8 @@ versioncontrol
 EOF4
 
 PGPASSWORD=$MODULEOWNERPASS
+
+versioncontrol
 
 echo "INFO: Run $MODULEOWNER schema UPDATE patch scripts" >> $LOG_FILE
 echo "INFO: Connect to postgres database $DBNAME via PSQL session" >> $LOG_FILE
