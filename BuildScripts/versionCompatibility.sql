@@ -28,9 +28,10 @@ BEGIN
         INTO STRICT lt_start_time;
 		
 RAISE INFO 'Apply version control in table PG$MVIEWS_VERSION_CONTROL start time: %', lt_start_time;
-		
-SELECT count(1) INTO ln_version_count
-FROM pg$mviews_version_control;
+	
+EXECUTE 'SELECT count(1)
+FROM '||pis_module_owner||'.pg$mviews_version_control'
+INTO ln_version_count;
 
 ls_sql := 'INSERT INTO '||pis_module_owner||'.pg$mviews_version_control(version, live_version_flag, created)
 	VALUES('''||ls_version||''', ''Y'', clock_timestamp())
@@ -43,9 +44,11 @@ IF ln_version_count = 0 THEN
 
 ELSE
 
-	SELECT version INTO ls_existing_version
-	FROM pg$mviews_version_control 
-	WHERE live_version_flag = 'Y';
+
+	EXECUTE 'SELECT version
+	FROM '||pis_module_owner||'.pg$mviews_version_control
+	WHERE live_version_flag = ''Y'''
+	INTO ls_existing_version;
 
 	SELECT REPLACE(ls_version,'.','')::INTEGER INTO ln_new_version;
 	SELECT REPLACE(ls_existing_version,'.','')::INTEGER INTO ln_existing_version;
@@ -105,12 +108,14 @@ ELSE
 	EXECUTE 'UPDATE '||pis_module_owner||'.pg$mviews_version_control SET live_version_flag = ''N'' WHERE version <> '''||ls_version||'''';
 	
 END IF;
+		
+RAISE INFO 'Apply version control in table PG$MVIEW_VERSION_CONTROL start time: %', lt_start_time;
 
     SELECT
         clock_timestamp()
         INTO STRICT lt_end_time;
 		
-RAISE INFO 'Apply version control in table PG$MVIEWS_VERSION_CONTROL completion time: %', lt_end_time;
+RAISE INFO 'Apply version control in table PG$MVIEW_VERSION_CONTROL completion time: %', lt_end_time;
 
 END;
 $BODY$

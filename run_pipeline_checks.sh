@@ -33,8 +33,10 @@ echo "Starting pipeline script with option $INSTALLTYPE" | tee -a $LOG_FILE
 echo "Starting time - $(date)" | tee -a $LOG_FILE 
 chmod 771 $MODULE_HOME/*.sh
 
-export PATCHVERSION=`cat $MODULE_HOME/read_my_version.txt`
+export PATCHVERSION="$(cat $MODULE_HOME/read_my_version.txt)"
 export PATCHVERSION=echo $PATCHVERSION | tr -d ' '
+
+echo "Patch version: $PATCHVERSION" >> $LOG_FILE
 
 function buildmodule
 {
