@@ -33,6 +33,9 @@ echo "Starting pipeline script with option $INSTALLTYPE" | tee -a $LOG_FILE
 echo "Starting time - $(date)" | tee -a $LOG_FILE 
 chmod 771 $MODULE_HOME/*.sh
 
+export PATCHVERSION=`cat $MODULE_HOME/read_my_version.txt`
+export PATCHVERSION=echo $PATCHVERSION | tr -d ' '
+
 function buildmodule
 {
 
@@ -45,6 +48,21 @@ echo "INFO: Connect to postgres database $DBNAME via PSQL session" >> $LOG_FILE
 	\q
 
 EOF1
+
+echo "INFO: Run $MODULEOWNER version control script" >> $LOG_FILE
+echo "INFO: Connect to postgres database $DBNAME via PSQL session" >> $LOG_FILE
+  psql --host=$HOSTNAME --port=$PORT --username=$PGUSERNAME --dbname=$DBNAME -v MODULE_HOME=$MODULE_HOME -v MODULEOWNER=$MODULEOWNER -v PATCHVERSION=$PATCHVERSION  << EOFV >> $LOG_FILE 2>&1
+
+    \i :MODULE_HOME/BuildScripts/versionCompatibility.sql;
+
+	\q
+	
+EOFV
+
+exitcode=$?
+if [ $exitcode != 0 ]; then
+	exit 1
+fi
 
 echo "INFO: Run Cron setup script" >> $LOG_FILE
 echo "INFO: Connect to postgres database via PSQL session" >> $LOG_FILE

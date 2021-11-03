@@ -24,6 +24,29 @@ fi
 
 chmod 771 -R $MODULE_HOME/
 
+export PATCHVERSION=`cat $MODULE_HOME/read_my_version.txt`
+export PATCHVERSION=echo $PATCHVERSION | tr -d ' '
+
+function versioncontrol
+{
+
+echo "INFO: Run $MODULEOWNER version control script" >> $LOG_FILE
+echo "INFO: Connect to postgres database $DBNAME via PSQL session" >> $LOG_FILE
+  psql --host=$HOSTNAME --port=$PORT --username=$PGUSERNAME --dbname=$DBNAME -v MODULE_HOME=$MODULE_HOME -v MODULEOWNER=$MODULEOWNER -v PATCHVERSION=$PATCHVERSION  << EOFV >> $LOG_FILE 2>&1
+
+    \i :MODULE_HOME/BuildScripts/versionCompatibility.sql;
+
+	\q
+	
+EOFV
+
+exitcode=$?
+if [ $exitcode != 0 ]; then
+	exit 1
+fi
+
+}
+
 if [ "$INSTALL_TYPE" == "FULL" ]; then
 
 echo "INFO: Run $MODULEOWNER schema build script" >> $LOG_FILE
@@ -35,6 +58,8 @@ echo "INFO: Connect to postgres database $DBNAME via PSQL session" >> $LOG_FILE
 	\q
 	
 EOF1
+
+versioncontrol
 
 echo "INFO: Run Cron setup script" >> $LOG_FILE
 echo "INFO: Connect to postgres database via PSQL session" >> $LOG_FILE
@@ -97,26 +122,28 @@ echo $UPDATE_FUNCTIONS >> $MODULE_HOME/fast_refresh_module_update_patch_objects.
 UPDATE_FUNCTIONS=$(echo "\\i $MODULE_HOME/BuildScripts/mvApplicationFunctions.sql;")$'\n'
 echo $UPDATE_FUNCTIONS >> $MODULE_HOME/fast_refresh_module_update_patch_objects.sql
 
- psql --host=$HOSTNAME --port=$PORT --username=$PGUSERNAME --dbname=postgres -v MODULE_HOME=$MODULE_HOME -v MODULEOWNERPASS=$MODULEOWNERPASS -v MODULEOWNER=$MODULEOWNER << EOF5 >> $LOG_FILE 2>&1
+versioncontrol
+
+ psql --host=$HOSTNAME --port=$PORT --username=$PGUSERNAME --dbname=postgres -v MODULE_HOME=$MODULE_HOME -v MODULEOWNERPASS=$MODULEOWNERPASS -v MODULEOWNER=$MODULEOWNER << EOF4 >> $LOG_FILE 2>&1
 	
 	\i :MODULE_HOME/BuildScripts/createCronSetup.sql;
 
 	\q
 	
-EOF5
+EOF4
 
 PGPASSWORD=$MODULEOWNERPASS
 
 echo "INFO: Run $MODULEOWNER schema UPDATE patch scripts" >> $LOG_FILE
 echo "INFO: Connect to postgres database $DBNAME via PSQL session" >> $LOG_FILE
 
-psql --host=$HOSTNAME --port=$PORT --username=$MODULEOWNER --dbname=$DBNAME -v MODULE_HOME=$MODULE_HOME -v MODULEOWNERPASS=$MODULEOWNERPASS -v MODULEOWNER=$MODULEOWNER -v HOSTNAME=$HOSTNAME -v PORT=$PORT  << EOF6 >> $LOG_FILE 2>&1
+psql --host=$HOSTNAME --port=$PORT --username=$MODULEOWNER --dbname=$DBNAME -v MODULE_HOME=$MODULE_HOME -v MODULEOWNERPASS=$MODULEOWNERPASS -v MODULEOWNER=$MODULEOWNER -v HOSTNAME=$HOSTNAME -v PORT=$PORT  << EOF5 >> $LOG_FILE 2>&1
  
 	SET search_path = :MODULEOWNER,catalog,public;
  
    \i :MODULE_HOME/fast_refresh_module_update_patch_objects.sql;
 
-EOF6
+EOF5
 
 fi
 

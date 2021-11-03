@@ -268,9 +268,18 @@ CREATE TABLE IF NOT EXISTS :MODULEOWNER.pg$mviews_oj_details
 
 );
 
+CREATE TABLE IF NOT EXISTS :MODULEOWNER.pg$mviews_version_control
+(
+		version_control_id 			SERIAL NOT NULL PRIMARY KEY,
+		version 					CHARACTER VARYING(150) NOT NULL UNIQUE,
+		live_version_flag 			CHARACTER VARYING(3),
+		created 					TIMESTAMP(0) WITHOUT TIME ZONE
+);
+
 ALTER TABLE :MODULEOWNER.pg$mviews       	   OWNER TO :MODULEOWNER;
 ALTER TABLE :MODULEOWNER.pg$mview_logs   	   OWNER TO :MODULEOWNER;
 ALTER TABLE :MODULEOWNER.pg$mviews_oj_details  OWNER TO :MODULEOWNER;
+ALTER TABLE :MODULEOWNER.pg$mviews_version_control  OWNER TO :MODULEOWNER;
 
 GRANT   USAGE   ON                      SCHEMA  :MODULEOWNER    TO  pgmv$_role;
 GRANT   USAGE   ON                      SCHEMA  :MODULEOWNER    TO  pgmv$_usage;
