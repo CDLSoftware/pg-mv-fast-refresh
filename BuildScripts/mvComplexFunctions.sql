@@ -1024,6 +1024,9 @@ Revision History    Push Down List
 ------------------------------------------------------------------------------------------------------------------------------------
 Date        | Name          | Description
 ------------+---------------+-------------------------------------------------------------------------------------------------------
+09/12/2021	| D Day			| Ignore DML changes to prtyinst and personxx on MV_LOADINGS_DISCOUNTS as they're causing large
+			|				| delete and insert when the forename and lastname has not changed. The main joining table with reflect
+			|				| any key changes linked to these join conditions.
 09/09/2021  | D Day			| Added additional materialized views to ignore duplicates.
 20/05/2020  | D Day			| Bug fix - to ignore DML changes to prtyinst, currprty, personxx for materialized views that only
 			|				| use these table joins to get forename and surname. If the main joining table changes for the linking id
@@ -1155,21 +1158,25 @@ BEGIN
 				END IF;
 								
 			ELSE
+			
+				IF pViewName != 'mv_loadings_discounts' OR pTableName NOT IN ('prtyinst','personxx') THEN
 					
-				CALL mv$executeMVFastRefresh
-							(
-								pConst,
-								tLastType,
-								pOwner,
-								pViewName,
-								pRowidColumn,
-								pTableAlias,
-								pOuterTable,
-								pInnerAlias,
-								pInnerRowid,
-								uRowIDArray,
-								iTabPkExist
-							);
+					CALL mv$executeMVFastRefresh
+								(
+									pConst,
+									tLastType,
+									pOwner,
+									pViewName,
+									pRowidColumn,
+									pTableAlias,
+									pOuterTable,
+									pInnerAlias,
+									pInnerRowid,
+									uRowIDArray,
+									iTabPkExist
+								);
+								
+				END IF;
 							
 			END IF;
 
@@ -1221,21 +1228,25 @@ BEGIN
 			END IF;
 			
 		ELSE
-	
-			CALL mv$executeMVFastRefresh
-						(
-							pConst,
-							tLastType,
-							pOwner,
-							pViewName,
-							pRowidColumn,
-							pTableAlias,
-							pOuterTable,
-							pInnerAlias,
-							pInnerRowid,
-							uRowIDArray,
-							iTabPkExist
-						);
+		
+			IF pViewName != 'mv_loadings_discounts' OR pTableName NOT IN ('prtyinst','personxx') THEN
+		
+				CALL mv$executeMVFastRefresh
+							(
+								pConst,
+								tLastType,
+								pOwner,
+								pViewName,
+								pRowidColumn,
+								pTableAlias,
+								pOuterTable,
+								pInnerAlias,
+								pInnerRowid,
+								uRowIDArray,
+								iTabPkExist
+							);
+							
+			END IF;
 						
 		END IF;
 
