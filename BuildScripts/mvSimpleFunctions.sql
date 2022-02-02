@@ -2965,6 +2965,7 @@ Revision History    Push Down List
 ------------------------------------------------------------------------------------------------------------------------------------
 Date        | Name          | Description
 ------------+---------------+-------------------------------------------------------------------------------------------------------
+28/01/2022	|D Day 			| Defect fix to allow null values to be dynamically updated.
 17/08/2021  |D Day      	| Initial version
 ------------+---------------+-------------------------------------------------------------------------------------------------------
 Description:    This procedure updates parallel values held in pg$mviews to support full refresh
@@ -2987,14 +2988,29 @@ DECLARE
     tSqlStatement TEXT;
 BEGIN
 
-	tSqlStatement := 'UPDATE pg$mviews SET
-		parallel 		= '''||pParallel||''',
-		parallel_jobs   = '''||pParallelJobs||''',
-		parallel_column = '''||pParallelColumn||''',
-		parallel_alias  = '''||pParallelAlias||''',
-		parallel_user   = '''||pParallelUser||''',
-		parallel_dbname = '''||pParallelDbname||'''
-	WHERE view_name = '''||pViewName||'''';
+	IF (pParallelColumn IS NULL OR pParallelAlias IS NULL OR pParallelUser IS NULL OR pParallelDbname IS NULL) THEN
+
+		tSqlStatement := 'UPDATE pg$mviews SET
+			parallel 		= '''||pParallel||''',
+			parallel_jobs   = '''||pParallelJobs||''',
+			parallel_column = null,
+			parallel_alias  = null,
+			parallel_user   = null,
+			parallel_dbname = null
+		WHERE view_name = '''||pViewName||'''';
+		
+	ELSE
+
+		tSqlStatement := 'UPDATE pg$mviews SET
+			parallel 		= '''||pParallel||''',
+			parallel_jobs   = '''||pParallelJobs||''',
+			parallel_column = '''||pParallelColumn||''',
+			parallel_alias  = '''||pParallelAlias||''',
+			parallel_user   = '''||pParallelUser||''',
+			parallel_dbname = '''||pParallelDbname||'''
+		WHERE view_name = '''||pViewName||'''';
+		
+	END IF;
 	
 	EXECUTE tSqlStatement;
 
