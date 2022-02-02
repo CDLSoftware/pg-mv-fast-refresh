@@ -666,7 +666,8 @@ PROCEDURE    mv$insertParallelMaterializedViewRows
             (
                 pConst          IN      mv$allConstants,
                 pOwner          IN      TEXT,
-                pViewName       IN      TEXT
+                pViewName       IN      TEXT,
+				pRefreshType text DEFAULT 'F'
             )
 AS
 $BODY$
@@ -679,6 +680,11 @@ Revision History    Push Down List
 ------------------------------------------------------------------------------------------------------------------------------------
 Date        | Name          | Description
 ------------+---------------+-------------------------------------------------------------------------------------------------------
+01/02/2022	| D Day 		| Defect fix - added logic to not drop table when an error occurs if the refresh type is complete.
+31/01/2022	| D Day 		| Defect fix - if one of the cron job(s) fails then terminate the rest of the jobs
+			|				| to stop any delay.
+28/01/2022	| D Day 		| Defect fix - added rety process incase parallel cron job(s) misses it's scheduled time due to 
+			|				| dblink delay.
 13/07/2021  | D Day     	| Initial version
 ------------+---------------+-------------------------------------------------------------------------------------------------------
 Description:    Gets called to insert a new row into the Materialized View when an insert is detected
@@ -730,7 +736,23 @@ DECLARE
 	tDeleteSql				TEXT;
 	
 	iDaysSplit				INTEGER;
-
+	
+	iRetryLimit				INTEGER := 2;
+	iRetryCnt				INTEGER := 0;
+	iRetryLoopCounter		INTEGER := 0;
+	tUpdateCronJobSchedule	TEXT;
+	tUpdateCronSqlStatement TEXT;
+	tsJobStartUpdate 		TIMESTAMP;
+	tsJobEndUpdate 			TIMESTAMP;
+	
+	rPids					RECORD;
+	
+	tSelectPidsSql			TEXT;
+	iDbLinkPid				INTEGER;
+	iTerminatePidId			TEXT;
+	
+	tRunningPidCheckSql		TEXT;
+	iRunningPidCheckCnt		INTEGER	:= 0;
 BEGIN
 
     aPgMview := mv$getPgMviewTableData( pConst, pOwner, pViewName );
@@ -751,16 +773,20 @@ BEGIN
 	SELECT (tsMaxTimestamp::DATE-tsMinTimestamp::DATE)/aPgMview.parallel_jobs AS days_diff INTO iDaysSplit;
 	
 	IF iDaysSplit = 0 THEN
-	
-		IF EXISTS (
-			SELECT
-			FROM   pg_tables
-			WHERE  tablename = pViewName) THEN
-		
-			tDeleteSql := 'DROP TABLE '||pViewName;
-							   
-			PERFORM * FROM dblink('pgmv$_instance',tDeleteSql) AS p (ret TEXT);
-				
+
+		IF pRefreshType = 'F' THEN
+
+			IF EXISTS (
+				SELECT
+				FROM   pg_tables
+				WHERE  tablename = pViewName) THEN
+
+				tDeleteSql := 'DROP TABLE '||pViewName;
+
+				PERFORM * FROM dblink('pgmv$_instance',tDeleteSql) AS p (ret TEXT);
+
+			END IF;
+			
 		END IF;
 	
 		RAISE INFO      'Exception in procedure mv$insertParallelMaterializedViewRows';
@@ -795,7 +821,8 @@ BEGIN
 		tSqlStatement := REPLACE(tSqlStatement,'''','''''');
 		
 		tCronSqlStatement := 'INSERT INTO cron.job(schedule, command, database, username, jobname)
-						  VALUES ('''||tCronJobSchedule||''','''||tSqlStatement||''','''||aPgMview.parallel_dbname||''','''||aPgMview.parallel_user||''','''||tJobName||''')';
+						  VALUES ('''||tCronJobSchedule||''','''||tSqlStatement||''','''||aPgMview.parallel_dbname||''','''||aPgMview.parallel_user||''','''||tJobName||''');
+						     COMMIT;';
 						  
 		--RAISE INFO '%', tCronSqlStatement;
 		
@@ -805,6 +832,8 @@ BEGIN
 	
 	-- Checks to confirm jobs have been created and successfully ran
 	WHILE iJobCount < aPgMview.parallel_jobs LOOP
+	
+	iRetryLoopCounter := iRetryLoopCounter +1;
 
 		tStatusCheckSql := 'SELECT count(1) FROM cron.job_run_details jrd
 							JOIN cron.job j ON j.jobid = jrd.jobid
@@ -824,8 +853,39 @@ BEGIN
 		NULL;		
 		END;
 		
-		IF iJobCount < aPgMview.parallel_jobs THEN		
-			SELECT pg_sleep(60) INTO tResult;			
+		IF iJobCount < aPgMview.parallel_jobs THEN
+			IF iRetryLoopCounter = 3 THEN
+			
+				iRetryLoopCounter := 0;
+				
+				iRetryCnt := iRetryCnt +1;
+				
+				IF iRetryCnt > iRetryLimit THEN
+				
+					RAISE INFO      'Exception in procedure mv$insertParallelMaterializedViewRows';
+					RAISE EXCEPTION 'Error: Cron job(s) for % retry limit of % attempts has been reached - please check cron.jobs. Job update started at % and completed at % with schedule time of %.', pViewName, iRetryLimit,  tsJobStartUpdate, tsJobEndUpdate, tUpdateCronJobSchedule;
+			
+				END IF;
+				
+				-- set update cron time
+				tUpdateCronJobSchedule := mv$setCronSchedule();
+				
+				tsJobStartUpdate := clock_timestamp();
+			
+				tUpdateCronSqlStatement := 'UPDATE cron.job
+									  SET schedule = '''||tUpdateCronJobSchedule||'''
+									  WHERE jobname LIKE '''||pViewName||'_job_%'';
+									  COMMIT;';
+								  
+				--RAISE INFO '%', tUpdateCronSqlStatement;
+				
+				PERFORM * FROM dblink('pgmv$cron_instance',tUpdateCronSqlStatement) AS p (ret TEXT);
+				
+				tsJobEndUpdate := clock_timestamp();
+				
+			END IF;
+			
+			SELECT pg_sleep(60) INTO tResult;
 		END IF;
 		
 	END LOOP;
@@ -850,6 +910,14 @@ BEGIN
 		NULL;		
 		END;
 		
+		tRunningPidCheckSql := 'SELECT count(1) FROM cron.job_run_details jrd
+				JOIN cron.job j ON j.jobid = jrd.jobid
+				WHERE j.jobname LIKE '''||pViewName||'_job_%''
+				AND jrd.status = ''running''
+				AND jrd.job_pid NOT IN (SELECT a.pid FROM pg_stat_activity a
+				WHERE a.state = ''active''
+				AND a.backend_type = ''pg_cron'')';
+		
 		tErrorCheckSql := 'SELECT count(1) FROM cron.job_run_details jrd
 							JOIN cron.job j ON j.jobid = jrd.jobid
 							WHERE j.jobname LIKE '''||pViewName||'_job_%''
@@ -861,6 +929,9 @@ BEGIN
 			SELECT * FROM
 			dblink('pgmv$cron_instance', tErrorCheckSql) AS p (iDblinkCount INT) INTO iJobErrorCount;
 			
+			SELECT * FROM
+			dblink('pgmv$cron_instance', tRunningPidCheckSql) AS p (iDblinkCount INT) INTO iRunningPidCheckCnt;
+			
 		EXCEPTION
 		WHEN OTHERS
 		THEN
@@ -869,18 +940,43 @@ BEGIN
 		NULL;		
 		END;		
 		
-		IF iJobErrorCount > 0 THEN
+		IF (iJobErrorCount > 0 OR iRunningPidCheckCnt > 0) THEN
 		
-			IF EXISTS (
-			  SELECT
-			  FROM   pg_tables
-			  WHERE  tablename = pViewName) THEN
-		
-				tDeleteSql := 'DROP TABLE '||pViewName;
-							   
-				PERFORM * FROM dblink('pgmv$_instance',tDeleteSql) AS p (ret TEXT);
-				
+			IF pRefreshType = 'F' THEN
+				IF EXISTS (
+				  SELECT
+				  FROM   pg_tables
+				  WHERE  tablename = pViewName) THEN
+
+					tDeleteSql := 'DROP TABLE '||pViewName;
+
+					PERFORM * FROM dblink('pgmv$_instance',tDeleteSql) AS p (ret TEXT);
+
+				END IF;
 			END IF;
+			
+			tSelectPidsSql := 'SELECT a.pid FROM pg_stat_activity a
+				JOIN cron.job_run_details jrd ON a.pid = jrd.job_pid
+				JOIN cron.job j ON j.jobid = jrd.jobid
+				WHERE a.backend_type = ''pg_cron''
+				AND j.jobname LIKE '''||pViewName||'_job_%''
+				AND a.state = ''active''
+				AND jrd.status = ''running''';
+			
+			FOR rPids IN SELECT * FROM
+			dblink('pgmv$cron_instance',tSelectPidsSql) AS p (iDbLinkPid INT) LOOP
+			
+				iTerminatePidId := rPids;
+				iTerminatePidId := REPLACE(iTerminatePidId,'(','');
+				iTerminatePidId := REPLACE(iTerminatePidId,')','');
+			
+				RAISE INFO 'There has been a cron job that has failed for the parallel INSERT process for materialized view % - cleanup triggered to terminate all remaining pids still in running state. Pid % terminated', pViewName, iTerminatePidId;
+				
+				EXECUTE 'select pg_terminate_backend(pid)  
+				from pg_stat_activity  
+				where pid = '''||iTerminatePidId||'''';
+				
+			END LOOP;
 			
 			RAISE INFO      'Exception in procedure mv$insertParallelMaterializedViewRows';
 			RAISE EXCEPTION 'Error: Cron job(s) for % found in status of failed - please check table cron.job_run_details for full details', pViewName;
@@ -1586,6 +1682,7 @@ Revision History    Push Down List
 ------------------------------------------------------------------------------------------------------------------------------------
 Date        | Name          | Description
 ------------+---------------+-------------------------------------------------------------------------------------------------------
+01/02/2022	| D Day			| Added new input value in procedure call mv$insertParallelMaterializedViewRows to label refresh type.
 15/07/2021	| D Day			| Added function mv$insertParallelMaterializedViewRows and parameter pParallel to allow complete
 			|				| refresh of materialized view table in Parallel.
 04/05/2021  | D Day			| Replaced function mv$clearAllPgMvLogTableBits with mv$clearAllPgMvLogTableBitsCompleteRefresh to handle
@@ -1635,7 +1732,7 @@ BEGIN
 	CALL mv$truncateMaterializedView(   pConst, pOwner, aPgMview.view_name, pParallel );
 	CALL mv$clearAllPgMvLogTableBitsCompleteRefresh(   pConst, pOwner, pViewName );
 	IF pParallel = 'Y' THEN
-		CALL mv$insertParallelMaterializedViewRows( pConst, pOwner, pViewName );
+		CALL mv$insertParallelMaterializedViewRows( pConst, pOwner, pViewName, 'C' );
 	ELSE
 		CALL mv$insertMaterializedViewRows( pConst, pOwner, pViewName );
 	END IF; 
