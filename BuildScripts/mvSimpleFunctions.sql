@@ -2914,7 +2914,7 @@ BEGIN
 	
 	iDaysSplit := iDaysSplit||' day';
 	
-	lSql := 'SELECT CAST(min(inline.dates)::date||'' 00:00:00'' AS TIMESTAMP) AS from_date, CAST(max(inline.dates)::date||'' 23:59:59.9999999999'' AS TIMESTAMP) AS to_date
+	lSql := 'SELECT CAST(min(inline.dates)::date||'' 00:00:00'' AS TIMESTAMP) AS from_date, CAST(max(inline.dates)::date||'' 23:59:59'' AS TIMESTAMP) AS to_date
 	FROM (SELECT dates, ROW_NUMBER() OVER(ORDER BY dates ASC) AS id
 	FROM generate_series
 			( '''||pMinDate||'''::timestamp 
@@ -2928,6 +2928,11 @@ BEGIN
 	
 		tTo_Date := pMaxDate||' 23:59:59.9999999999';
 		
+
+	ELSE
+
+	    tTo_Date := tTo_Date||'.9999999999';
+
 	END IF;
 	
 	IF pSequence > 1 THEN
