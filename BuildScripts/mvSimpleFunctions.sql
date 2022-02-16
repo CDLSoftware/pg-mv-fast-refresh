@@ -2877,6 +2877,7 @@ Revision History    Push Down List
 ------------------------------------------------------------------------------------------------------------------------------------
 Date        | Name          | Description
 ------------+---------------+-------------------------------------------------------------------------------------------------------
+16/02/2022  | D Day         | Defect fix to handle milliseconds for date ranges split
 13/07/2021  | D Day      	| Initial version
 ------------+---------------+-------------------------------------------------------------------------------------------------------
 Description: 	Function to set timestamp date range for cron insert statements
@@ -2913,7 +2914,7 @@ BEGIN
 	
 	iDaysSplit := iDaysSplit||' day';
 	
-	lSql := 'SELECT CAST(min(inline.dates)::date||'' 00:00:00'' AS TIMESTAMP) AS from_date, CAST(max(inline.dates)::date||'' 23:59:59'' AS TIMESTAMP) AS to_date 
+	lSql := 'SELECT CAST(min(inline.dates)::date||'' 00:00:00'' AS TIMESTAMP) AS from_date, CAST(max(inline.dates)::date||'' 23:59:59.9999999999'' AS TIMESTAMP) AS to_date
 	FROM (SELECT dates, ROW_NUMBER() OVER(ORDER BY dates ASC) AS id
 	FROM generate_series
 			( '''||pMinDate||'''::timestamp 
@@ -2925,7 +2926,7 @@ BEGIN
 	
 	IF pParallelJobs = pSequence THEN
 	
-		tTo_Date := pMaxDate||' 23:59:59';
+		tTo_Date := pMaxDate||' 23:59:59.9999999999';
 		
 	END IF;
 	
