@@ -757,6 +757,12 @@ BEGIN
 
     aPgMview := mv$getPgMviewTableData( pConst, pOwner, pViewName );
 	
+	-- Remove any old jobs
+	tDeleteSql := 'DELETE FROM cron.job j 
+				   WHERE j.jobname LIKE '''||pViewName||'_job_%''';
+							   
+	PERFORM * FROM dblink('pgmv$cron_instance',tDeleteSql) AS p (ret TEXT);
+	
 	-- set cron time
 	tCronJobSchedule := mv$setCronSchedule();
 	
