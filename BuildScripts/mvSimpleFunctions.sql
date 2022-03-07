@@ -2926,12 +2926,12 @@ BEGIN
 	
 	IF pParallelJobs = pSequence THEN
 	
-		tTo_Date := pMaxDate||' 23:59:59.9999999999';
+		tTo_Date := pMaxDate||' 23:59:59.999999';
 		
 
 	ELSE
 
-	    tTo_Date := tTo_Date||'.9999999999';
+	    tTo_Date := tTo_Date||'.999999';
 
 	END IF;
 	
