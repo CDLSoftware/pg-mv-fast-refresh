@@ -1,49 +1,71 @@
-image: postgres:11.5
+image: cdlawsnexus.prod.cdlcloud.co.uk:5000/postgres:12.5
+
+variables:
+  POSTGRES_HOST_AUTH_METHOD: trust
+  POSTGRESQL_SHARED_PRELOAD_LIBRARIES: "pg_cron"
+  PROJECT_HOME: /builds/cheshire-datasystems/dba-team/pg-mv-fast-refresh-githubrunner
 
 Build:
      stage: build
      tags:
        - dev
      script:
+       - apt-get -q update && apt-get -y -q install git python3 python3-dev python3-pip python-pip default-jre default-jdk openjdk-11-jre openjdk-11-jdk sudo
        - echo Starting postgres
        - /usr/local/bin/docker-entrypoint.sh postgres &
+       - apt-get -y install postgresql-12-cron
        - sleep 10
        - echo Starting pipeline build
-       - cd /builds/cheshire-datasystems/dba-team/pg-mv-fast-refresh-githubrunner
-       - cp .pipeline_module_set_variables.sh module_set_variables.sh 
-       - /builds/cheshire-datasystems/dba-team/pg-mv-fast-refresh-githubrunner/run_pipeline_checks.sh build
+       - chown -R postgres:postgres /builds/cheshire-datasystems/dba-team/*
+       - chmod 777 -R /builds/cheshire-datasystems/dba-team/*
+       - cd $PROJECT_HOME
+       - sudo -i -u postgres $PROJECT_HOME/setup_cron.sh
+       - cp $PROJECT_HOME/.pipeline_module_set_variables.sh $PROJECT_HOME/module_set_variables.sh
+       - chown -R postgres:postgres /builds/cheshire-datasystems/dba-team/*
+       - chmod 777 -R /builds/cheshire-datasystems/dba-team/*
+       - sudo -i -u postgres $PROJECT_HOME/run_pipeline_checks.sh build
        
 MV-Refresh:
      stage: test
      tags:
        - dev
      script:
+       - apt-get -q update && apt-get -y -q install git python3 python3-dev python3-pip python-pip default-jre default-jdk openjdk-11-jre openjdk-11-jdk sudo
        - echo Starting postgres
        - /usr/local/bin/docker-entrypoint.sh postgres &
+       - apt-get -y install postgresql-12-cron
        - sleep 10
        - echo Starting pipeline build
-       - cd /builds/cheshire-datasystems/dba-team/pg-mv-fast-refresh-githubrunner
-       - cp .pipeline_module_set_variables.sh module_set_variables.sh 
-       - /builds/cheshire-datasystems/dba-team/pg-mv-fast-refresh-githubrunner/run_pipeline_checks.sh build
+       - chown -R postgres:postgres /builds/cheshire-datasystems/dba-team/*
+       - chmod 777 -R /builds/cheshire-datasystems/dba-team/*
+       - cd $PROJECT_HOME
+       - sudo -i -u postgres $PROJECT_HOME/setup_cron.sh
+       - cp .pipeline_module_set_variables.sh module_set_variables.sh
+       - chown -R postgres:postgres /builds/cheshire-datasystems/dba-team/*
+       - chmod 777 -R /builds/cheshire-datasystems/dba-team/*       
+       - sudo -i -u postgres $PROJECT_HOME/run_pipeline_checks.sh build
        - echo Starting pipeline MV refresh
-       - cd /builds/cheshire-datasystems/dba-team/pg-mv-fast-refresh-githubrunner
-       - /builds/cheshire-datasystems/dba-team/pg-mv-fast-refresh-githubrunner/run_pipeline_checks.sh test
+       - sudo -i -u postgres $PROJECT_HOME/run_pipeline_checks.sh test
 
 Module-Destroy:
      stage: test
      tags:
        - dev
      script:
+       - apt-get -q update && apt-get -y -q install git python3 python3-dev python3-pip python-pip default-jre default-jdk openjdk-11-jre openjdk-11-jdk sudo
        - echo Starting postgres
        - /usr/local/bin/docker-entrypoint.sh postgres &
+       - apt-get -y install postgresql-12-cron
        - sleep 10
        - echo Starting pipeline build
-       - cd /builds/cheshire-datasystems/dba-team/pg-mv-fast-refresh-githubrunner
-       - cp .pipeline_module_set_variables.sh module_set_variables.sh 
-       - /builds/cheshire-datasystems/dba-team/pg-mv-fast-refresh-githubrunner/run_pipeline_checks.sh build
+       - chown -R postgres:postgres /builds/cheshire-datasystems/dba-team/*
+       - chmod 777 -R /builds/cheshire-datasystems/dba-team/*
+       - cd $PROJECT_HOME
+       - sudo -i -u postgres $PROJECT_HOME/setup_cron.sh
+       - cp .pipeline_module_set_variables.sh module_set_variables.sh
+       - chown -R postgres:postgres /builds/cheshire-datasystems/dba-team/*
+       - chmod 777 -R /builds/cheshire-datasystems/dba-team/*
+       - sudo -i -u postgres $PROJECT_HOME/run_pipeline_checks.sh build
        - echo Starting destroy of module
-       - cd /builds/cheshire-datasystems/dba-team/pg-mv-fast-refresh-githubrunner
-       - /builds/cheshire-datasystems/dba-team/pg-mv-fast-refresh-githubrunner/run_pipeline_checks.sh destroy     
-
-
-
+       - cd $PROJECT_HOME
+       - sudo -i -u postgres $PROJECT_HOME/run_pipeline_checks.sh destroy

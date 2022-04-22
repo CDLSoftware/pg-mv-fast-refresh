@@ -10,7 +10,7 @@
 # 13/03/20   T.Mullen   updating the permissions for module home;
 #
 
-. ./module_set_variables.sh
+source /builds/cheshire-datasystems/dba-team/pg-mv-fast-refresh-githubrunner/module_set_variables.sh
 
 export INSTALLTYPE=$1
 
@@ -33,6 +33,11 @@ echo "Starting pipeline script with option $INSTALLTYPE" | tee -a $LOG_FILE
 echo "Starting time - $(date)" | tee -a $LOG_FILE 
 chmod 771 $MODULE_HOME/*.sh
 
+export PATCHVERSION="$(cat $MODULE_HOME/read_my_version.txt)"
+export PATCHVERSION=$(echo $PATCHVERSION | tr -d ' ')
+
+echo "Patch version: $PATCHVERSION" >> $LOG_FILE
+
 function buildmodule
 {
 
@@ -46,11 +51,41 @@ echo "INFO: Connect to postgres database $DBNAME via PSQL session" >> $LOG_FILE
 
 EOF1
 
+echo "INFO: Run Cron setup script" >> $LOG_FILE
+echo "INFO: Connect to postgres database via PSQL session" >> $LOG_FILE
+  psql --host=$HOSTNAME --port=$PORT --username=$PGUSERNAME --dbname=postgres -v MODULE_HOME=$MODULE_HOME -v MODULEOWNERPASS=$MODULEOWNERPASS -v MODULEOWNER=$MODULEOWNER << EOFC >> $LOG_FILE 2>&1
+	
+	\i :MODULE_HOME/BuildScripts/createCronSetup.sql;
+
+	\q
+	
+EOFC
+
 PGPASSWORD=$MODULEOWNERPASS
+
+echo "INFO: Run $MODULEOWNER version control script" >> $LOG_FILE
+echo "INFO: Connect to postgres database $DBNAME via PSQL session" >> $LOG_FILE
+  psql --host=$HOSTNAME --port=$PORT --username=$MODULEOWNER --dbname=$DBNAME -v MODULE_HOME=$MODULE_HOME -v MODULEOWNER=$MODULEOWNER -v PATCHVERSION=$PATCHVERSION  << EOFV >> $LOG_FILE 2>&1
+
+    \i :MODULE_HOME/BuildScripts/versionCompatibility.sql;
+
+	\q
+	
+EOFV
+
+exitcode=$?
+if [ $exitcode != 0 ]; then
+	exit 1
+fi
 
 echo "INFO: Run $MODULEOWNER schema object build scripts" >> $LOG_FILE
 echo "INFO: Connect to postgres database $DBNAME via PSQL session" >> $LOG_FILE
-  psql --host=$HOSTNAME --port=$PORT --username=$MODULEOWNER --dbname=$DBNAME -v MODULE_HOME=$MODULE_HOME -v MODULEOWNER=$MODULEOWNER << EOF2 >> $LOG_FILE 2>&1
+  psql --host=$HOSTNAME --port=$PORT --username=$MODULEOWNER --dbname=$DBNAME -v MODULE_HOME=$MODULE_HOME -v MODULEOWNER=$MODULEOWNER -v MODULEOWNERPASS=$MODULEOWNERPASS -v HOSTNAME=$HOSTNAME -v PORT=$PORT  << EOF2 >> $LOG_FILE 2>&1
+
+	-- Used to run materialized view build insert in parallel sessions
+	CREATE SERVER IF NOT EXISTS pgmv\$cron_instance FOREIGN DATA WRAPPER postgres_fdw options ( dbname 'postgres', port :'PORT', host :'HOSTNAME', connect_timeout '2', keepalives_count '5' );
+	CREATE USER MAPPING IF NOT EXISTS for :MODULEOWNER SERVER pgmv\$cron_instance OPTIONS (user :'MODULEOWNER', password :'MODULEOWNERPASS');
+	GRANT USAGE ON FOREIGN SERVER pgmv\$cron_instance TO :MODULEOWNER;
 
 	SET search_path = :MODULEOWNER,catalog,public;
 
@@ -78,10 +113,12 @@ echo "Starting building schemas " >> $LOG_FILE
 
 echo "INFO: Creating Source Schema $SOURCEUSERNAME " >> $LOG_FILE
 
-psql --host=$HOSTNAME --port=$PORT --username=$PGUSERNAME --dbname=$DBNAME << EOF1 >> $LOG_FILE 2>&1
+psql --host=$HOSTNAME --port=$PORT --username=$PGUSERNAME --dbname=$DBNAME -v SOURCEPASSWORD=$SOURCEPASSWORD -v SOURCEUSERNAME=$SOURCEUSERNAME << EOF1 >> $LOG_FILE 2>&1
 
 DO
 \$do\$
+DECLARE
+ls_sql TEXT;
 BEGIN
    IF NOT EXISTS (
       SELECT                       -- SELECT list can stay empty for this
@@ -99,8 +136,27 @@ BEGIN
  	PASSWORD '$SOURCEPASSWORD';
 
     END IF;
+	
+	IF NOT EXISTS (
+	  SELECT
+	  FROM   pg_roles
+	  WHERE  rolname = 'rds_superuser') THEN
+	  
+	  ls_sql := 'ALTER USER $SOURCEUSERNAME with superuser;';
+				
+	  EXECUTE ls_sql;
+	  
+	ELSE
+
+	  ls_sql := 'GRANT rds_superuser TO $SOURCEUSERNAME;';
+	  
+	  EXECUTE ls_sql;
+	  
+	END IF;
 END
 \$do\$;
+
+
 
 
  GRANT ALL PRIVILEGES ON DATABASE "$DBNAME" to $SOURCEUSERNAME;
@@ -111,8 +167,26 @@ END
  GRANT USAGE ON SCHEMA $SOURCEUSERNAME TO $MODULEOWNER;
  GRANT ALL ON SCHEMA $MODULEOWNER TO $SOURCEUSERNAME;
  GRANT USAGE ON FOREIGN SERVER pgmv\$_instance TO $SOURCEUSERNAME;
+ GRANT USAGE ON FOREIGN SERVER pgmv\$cron_instance TO $SOURCEUSERNAME;
+ 
+ CREATE USER MAPPING IF NOT EXISTS for :SOURCEUSERNAME SERVER pgmv\$cron_instance OPTIONS (user :'SOURCEUSERNAME', password :'SOURCEPASSWORD');
+ CREATE USER MAPPING IF NOT EXISTS for :SOURCEUSERNAME SERVER pgmv\$_instance OPTIONS (user :'SOURCEUSERNAME', password :'SOURCEPASSWORD');
 
 EOF1
+
+echo "INFO: Run Cron permissions to $SOURCEUSERNAME user" >> $LOG_FILE
+echo "INFO: Connect to postgres database via PSQL session" >> $LOG_FILE
+  psql --host=$HOSTNAME --port=$PORT --username=$PGUSERNAME --dbname=postgres -v MODULE_HOME=$MODULE_HOME -v SOURCEUSERNAME=$SOURCEUSERNAME << EOFC >> $LOG_FILE 2>&1
+
+	GRANT USAGE ON SCHEMA cron TO :SOURCEUSERNAME;
+	GRANT ALL ON SCHEMA cron TO :SOURCEUSERNAME;
+	GRANT ALL PRIVILEGES ON SCHEMA cron to :SOURCEUSERNAME;
+	GRANT ALL ON ALL TABLES in schema cron to :SOURCEUSERNAME;
+	GRANT ALL ON ALL sequences in schema cron to :SOURCEUSERNAME;
+	
+	\q
+	
+EOFC
 
 }
 
@@ -124,10 +198,12 @@ echo "INFO: Creating MV Schema $MVUSERNAME " >> $LOG_FILE
 PGPASSWORD=$PGPASSWORD
 
 
-psql --host=$HOSTNAME --port=$PORT --username=$PGUSERNAME --dbname=$DBNAME << EOF2 >> $LOG_FILE 2>&1
+psql --host=$HOSTNAME --port=$PORT --username=$PGUSERNAME --dbname=$DBNAME -v MVPASSWORD=$MVPASSWORD -v MVUSERNAME=$MVUSERNAME  << EOF2 >> $LOG_FILE 2>&1
 
 DO
 \$do\$
+DECLARE
+ls_sql TEXT;
 BEGIN
    IF NOT EXISTS (
       SELECT                       -- SELECT list can stay empty for this
@@ -145,6 +221,24 @@ BEGIN
  	PASSWORD '$MVPASSWORD';
 
     END IF;
+	
+	IF NOT EXISTS (
+	  SELECT
+	  FROM   pg_roles
+	  WHERE  rolname = 'rds_superuser') THEN
+	  
+	  ls_sql := 'ALTER USER $MVUSERNAME with superuser;';
+				
+	  EXECUTE ls_sql;
+	  
+	ELSE
+
+	  ls_sql := 'GRANT rds_superuser TO $MVUSERNAME;';
+	  
+	  EXECUTE ls_sql;
+	  
+	END IF;
+	
 END
 \$do\$;
 
@@ -168,11 +262,30 @@ GRANT USAGE ON SCHEMA $MODULEOWNER TO $MVUSERNAME;
 GRANT ALL ON SCHEMA $SOURCEUSERNAME TO $MODULEOWNER;
 GRANT   $SOURCEUSERNAME,$MVUSERNAME     TO $PGUSERNAME;
 GRANT   $SOURCEUSERNAME TO   $MODULEOWNER;
-GRANT   pgmv\$_view, pgmv\$_usage                     TO      $MVUSERNAME;
-GRANT   pgmv\$_view, pgmv\$_usage,    pgmv\$_execute   TO      $SOURCEUSERNAME;
+GRANT   pgmv\$_view, pgmv\$_usage TO $MVUSERNAME;
+GRANT   pgmv\$_view, pgmv\$_usage, pgmv\$_execute, pgmv\$_role TO $SOURCEUSERNAME;
 GRANT USAGE ON FOREIGN SERVER pgmv\$_instance TO $MVUSERNAME;
+GRANT USAGE ON FOREIGN SERVER pgmv\$cron_instance TO $MVUSERNAME;
+
+CREATE USER MAPPING IF NOT EXISTS for :MVUSERNAME SERVER pgmv\$cron_instance OPTIONS (user :'MVUSERNAME', password :'MVPASSWORD');
+CREATE USER MAPPING IF NOT EXISTS for :MVUSERNAME SERVER pgmv\$_instance OPTIONS (user :'MVUSERNAME', password :'MVPASSWORD');
 
 EOF2
+
+echo "INFO: Run Cron permissions to $SOURCEUSERNAME user" >> $LOG_FILE
+echo "INFO: Connect to postgres database via PSQL session" >> $LOG_FILE
+  psql --host=$HOSTNAME --port=$PORT --username=$PGUSERNAME --dbname=postgres -v MODULE_HOME=$MODULE_HOME -v MVUSERNAME=$MVUSERNAME << EOFC >> $LOG_FILE 2>&1
+	
+	GRANT USAGE ON SCHEMA cron TO :MVUSERNAME;
+	GRANT ALL ON SCHEMA cron TO :MVUSERNAME;
+	GRANT ALL PRIVILEGES ON SCHEMA cron to :MVUSERNAME;
+	GRANT ALL ON ALL TABLES in schema cron to :MVUSERNAME;
+	GRANT ALL ON ALL sequences in schema cron to :MVUSERNAME;
+
+	\q
+	
+EOFC
+
 }
 
 function createtestdata
@@ -194,6 +307,7 @@ CREATE TABLE $SOURCEUSERNAME.test1
     id numeric NOT NULL,
     lookup_id numeric,
     code character varying(10) COLLATE pg_catalog."default",
+	created	timestamp without time zone,
     CONSTRAINT test1_pkey PRIMARY KEY (id)
 );
 
@@ -250,28 +364,28 @@ CREATE TABLE $SOURCEUSERNAME.test6
 -- insert records into test1 table
 
 INSERT INTO $SOURCEUSERNAME.test1(
-	id, lookup_id, code)
-	VALUES (1, 10, 'hello');
+	id, lookup_id, code, created)
+	VALUES (1, 10, 'hello','2015-04-21 09:40:27.364');
 
 INSERT INTO $SOURCEUSERNAME.test1(
-	id, lookup_id, code)
-	VALUES (2, 20, 'bye');
+	id, lookup_id, code, created)
+	VALUES (2, 20, 'bye','2016-04-21 21:40:20.364');
 
 INSERT INTO $SOURCEUSERNAME.test1(
-	id, lookup_id, code)
-	VALUES (3, 30, 'cya');
+	id, lookup_id, code, created)
+	VALUES (3, 30, 'cya','2016-07-01 17:00:20.364');
 
 INSERT INTO $SOURCEUSERNAME.test1(
-	id, lookup_id, code)
-	VALUES (4, 50, 'goodbye');
+	id, lookup_id, code, created)
+	VALUES (4, 50, 'goodbye','2017-02-12 19:01:20.364');
 
 INSERT INTO $SOURCEUSERNAME.test1(
-	id, lookup_id, code)
-	VALUES (5, 50, 'hi');
+	id, lookup_id, code, created)
+	VALUES (5, 50, 'hi','2018-03-27 01:01:20.364');
 
 INSERT INTO $SOURCEUSERNAME.test1(
-	id, lookup_id, code)
-	VALUES (6, 20, 'bye');
+	id, lookup_id, code, created)
+	VALUES (6, 20, 'bye','2020-06-25 23:59:20.364');
 
 -- insert records into test2 table
 
@@ -401,12 +515,12 @@ DO
 DECLARE
     cResult CHAR(1) := NULL;
 BEGIN
-    cResult := $MODULEOWNER.mv\$createMaterializedViewlog( 'test1','$SOURCEUSERNAME');
-    cResult := $MODULEOWNER.mv\$createMaterializedViewlog( 'test2','$SOURCEUSERNAME');
-    cResult := $MODULEOWNER.mv\$createMaterializedViewlog( 'test3','$SOURCEUSERNAME');
-    cResult := $MODULEOWNER.mv\$createMaterializedViewlog( 'test4','$SOURCEUSERNAME');
-    cResult := $MODULEOWNER.mv\$createMaterializedViewlog( 'test5','$SOURCEUSERNAME');
-    cResult := $MODULEOWNER.mv\$createMaterializedViewlog( 'test6','$SOURCEUSERNAME');
+    CALL $MODULEOWNER.mv\$createMaterializedViewlog( 'test1','$SOURCEUSERNAME');
+    CALL $MODULEOWNER.mv\$createMaterializedViewlog( 'test2','$SOURCEUSERNAME');
+    CALL $MODULEOWNER.mv\$createMaterializedViewlog( 'test3','$SOURCEUSERNAME');
+    CALL $MODULEOWNER.mv\$createMaterializedViewlog( 'test4','$SOURCEUSERNAME');
+    CALL $MODULEOWNER.mv\$createMaterializedViewlog( 'test5','$SOURCEUSERNAME');
+    CALL $MODULEOWNER.mv\$createMaterializedViewlog( 'test6','$SOURCEUSERNAME');
 
 END
 \$do\$;
@@ -422,7 +536,6 @@ echo "INFO: Creating MV in $MVUSERNAME " >> $LOG_FILE
 
 PGPASSWORD=$MVPASSWORD
 
-
 psql --host=$HOSTNAME --port=$PORT --username=$MVUSERNAME --dbname=$DBNAME << EOF5 >> $LOG_FILE 2>&1
 
 DO
@@ -433,35 +546,35 @@ DECLARE
     iTableCounter   SMALLINT    := 10;
     pSqlStatement   TEXT;
 BEGIN
-    pSqlStatement := 'SELECT test1.id test1_id,
-test1.lookup_id test1_lookup_id,
-test1.code test1_code,
-test2.id test2_id,
-test2.description test2_desc,
-test2.metavals_id test2_metavals_id,
-test2.age test2_age,
-test3.lookup_id test3_lookup_id,
-test3.lookup_code test3_lookup_code,
-test3.lookup_description test3_lookup_desc,
-test4.metavals_id test4_metavals_id,
-test4.code test4_code,
-test4.description test4_desc,
-test5.id test5_id,
-test5.rep_ind test5_rep_ind,
-test5.trans_id test5_trans_id,
-test6.trans_id test6_trans_id,
-test6.payment_reference test6_payment_ref
-FROM
-test1
-INNER JOIN test2 ON test1.id = test2.id
-LEFT JOIN test3 ON test1.lookup_id = test3.lookup_id
-LEFT JOIN test4 ON test2.metavals_id = test4.metavals_id
-INNER JOIN test5 ON test1.id = test5.id
-LEFT JOIN test6 ON test5.trans_id = test6.trans_id';
+    pSqlStatement := 'SELECT t1.id test1_id,
+t1.lookup_id test1_lookup_id,
+t1.code test1_code,
+t1.created test1_created,
+t2.id test2_id,
+t2.description test2_desc,
+t2.metavals_id test2_metavals_id,
+t2.age test2_age,
+t3.lookup_id test3_lookup_id,
+t3.lookup_code test3_lookup_code,
+t3.lookup_description test3_lookup_desc,
+t4.metavals_id test4_metavals_id,
+t4.code test4_code,
+t4.description test4_desc,
+t5.id test5_id,
+t5.rep_ind test5_rep_ind,
+t5.trans_id test5_trans_id,
+t6.trans_id test6_trans_id,
+t6.payment_reference test6_payment_ref
+FROM test1 t1
+INNER JOIN test2 t2 ON t1.id = t2.id
+LEFT JOIN test3 t3 ON t1.lookup_id = t3.lookup_id
+LEFT JOIN test4 t4 ON t2.metavals_id = t4.metavals_id
+INNER JOIN test5 t5 ON t1.id = t5.id
+LEFT JOIN test6 t6 ON t5.trans_id = t6.trans_id';
 
     FOR iTableCounter IN 10 .. 100
     LOOP
-        cResult := mv\$createMaterializedView
+        CALL mv\$createMaterializedView
         (
             pViewName           => 'mvtesting' || iTableCounter,
             pSelectStatement    =>  pSqlStatement,
@@ -469,6 +582,20 @@ LEFT JOIN test6 ON test5.trans_id = test6.trans_id';
             pFastRefresh        =>  TRUE
         );
     END LOOP;
+	
+	CALL mv\$createMaterializedView
+        (
+            pViewName           => 'mvtesting101',
+            pSelectStatement    =>  pSqlStatement,
+            pOwner              =>  '$MVUSERNAME',
+            pFastRefresh        =>  TRUE,
+			pParallel			=> 'Y',
+			pParallelJobs		=> 4,
+			pParallelColumn		=> 'created',
+			pParallelAlias		=> 't1',
+			pParallelUser		=> '$MVUSERNAME',
+			pParallelDbname		=> 'postgres'
+        );
 
     RAISE NOTICE 'Simple Snapshot Creation took %', clock_timestamp() - tStartTime;
 END
@@ -492,9 +619,9 @@ DECLARE
 	cResult         CHAR(1)     := NULL;
 	iTableCounter   SMALLINT    := 10;
 BEGIN
-	FOR iTableCounter IN 10 .. 100 
+	FOR iTableCounter IN 10 .. 101 
     	LOOP
-    	cResult := mv\$removeMaterializedView( 'mvtesting' || iTableCounter, '$MVUSERNAME' );
+    	CALL mv\$removeMaterializedView( 'mvtesting' || iTableCounter, '$MVUSERNAME' );
     	END LOOP;
 END
 \$do\$;
@@ -511,12 +638,12 @@ DO
 DECLARE
     cResult         CHAR(1)     := NULL;
 BEGIN
-    cResult := mv\$removeMaterializedViewLog( 'test1', '$SOURCEUSERNAME' );
-    cResult := mv\$removeMaterializedViewLog( 'test2', '$SOURCEUSERNAME' );
-    cResult := mv\$removeMaterializedViewLog( 'test3', '$SOURCEUSERNAME' );
-    cResult := mv\$removeMaterializedViewLog( 'test4', '$SOURCEUSERNAME' );
-    cResult := mv\$removeMaterializedViewLog( 'test5', '$SOURCEUSERNAME' );
-    cResult := mv\$removeMaterializedViewLog( 'test6', '$SOURCEUSERNAME' );
+    CALL mv\$removeMaterializedViewLog( 'test1', '$SOURCEUSERNAME' );
+    CALL mv\$removeMaterializedViewLog( 'test2', '$SOURCEUSERNAME' );
+    CALL mv\$removeMaterializedViewLog( 'test3', '$SOURCEUSERNAME' );
+    CALL mv\$removeMaterializedViewLog( 'test4', '$SOURCEUSERNAME' );
+    CALL mv\$removeMaterializedViewLog( 'test5', '$SOURCEUSERNAME' );
+    CALL mv\$removeMaterializedViewLog( 'test6', '$SOURCEUSERNAME' );
 END
 \$do\$;
 
@@ -527,35 +654,65 @@ echo "INFO: Dropping MV user $MVUSERNAME " >> $LOG_FILE
 
 PGPASSWORD=$PGPASS
 
+echo "INFO: Run Cron revoke permissions from $MVUSERNAME user" >> $LOG_FILE
+echo "INFO: Connect to postgres database via PSQL session" >> $LOG_FILE
+  psql --host=$HOSTNAME --port=$PORT --username=$PGUSERNAME --dbname=postgres -v MODULE_HOME=$MODULE_HOME -v MODULEOWNERPASS=$MODULEOWNERPASS -v MODULEOWNER=$MODULEOWNER << EOFC >> $LOG_FILE 2>&1
+	
+	REVOKE USAGE ON SCHEMA cron FROM $MVUSERNAME;
+	REVOKE ALL ON SCHEMA cron FROM $MVUSERNAME;
+	REVOKE ALL PRIVILEGES ON SCHEMA cron FROM $MVUSERNAME;
+	REVOKE ALL ON ALL TABLES in schema cron FROM $MVUSERNAME;
+	REVOKE ALL ON ALL sequences in schema cron FROM $MVUSERNAME;
+
+	\q
+	
+EOFC
 
 psql --host=$HOSTNAME --port=$PORT --username=$PGUSERNAME --dbname=$DBNAME << EOF3 >> $LOG_FILE 2>&1
  
- REVOKE ALL PRIVILEGES ON DATABASE "$DBNAME" from $MVUSERNAME;
+ REVOKE USAGE ON FOREIGN SERVER pgmv\$cron_instance FROM $MVUSERNAME;
+ REVOKE ALL PRIVILEGES ON DATABASE "$DBNAME" FROM $MVUSERNAME;
  GRANT ALL PRIVILEGES ON SCHEMA $MVUSERNAME to $PGUSERNAME;
  REVOKE USAGE ON FOREIGN SERVER pgmv\$_instance FROM $MVUSERNAME;
  ALTER SCHEMA $MVUSERNAME OWNER TO $PGUSERNAME;
  DROP SCHEMA $MVUSERNAME CASCADE;
- REVOKE $SOURCEUSERNAME from $MVUSERNAME;
- revoke $SOURCEUSERNAME from $MODULEOWNER;
- revoke $MVUSERNAME  from $MODULEOWNER;
- revoke $MODULEOWNER from $MVUSERNAME ;
- revoke $MVUSERNAME from $PGUSERNAME;
- revoke USAGE ON SCHEMA $MODULEOWNER from $MVUSERNAME ;
+ REVOKE $SOURCEUSERNAME FROM $MVUSERNAME;
+ revoke $SOURCEUSERNAME FROM $MODULEOWNER;
+ revoke $MVUSERNAME  FROM $MODULEOWNER;
+ revoke $MODULEOWNER FROM $MVUSERNAME ;
+ revoke $MVUSERNAME FROM $PGUSERNAME;
+ revoke USAGE ON SCHEMA $MODULEOWNER FROM $MVUSERNAME ;
+ DROP USER MAPPING IF EXISTS FOR $MVUSERNAME SERVER pgmv\$cron_instance;
+ DROP USER MAPPING IF EXISTS FOR $MVUSERNAME SERVER pgmv\$_instance;
  DROP USER $MVUSERNAME;
-
+ 
 EOF3
 }
 
 function dropsourceschema
 {
-echo "INFO: Dropping Schema user $SCHEMAUSERNAME " >> $LOG_FILE
+echo "INFO: Dropping Schema user $SOURCEUSERNAME " >> $LOG_FILE
 
 PGPASSWORD=$PGPASS
 
+echo "INFO: Run Cron revoke permissions from $SOURCEUSERNAME user" >> $LOG_FILE
+echo "INFO: Connect to postgres database via PSQL session" >> $LOG_FILE
+  psql --host=$HOSTNAME --port=$PORT --username=$PGUSERNAME --dbname=postgres -v MODULE_HOME=$MODULE_HOME << EOFC >> $LOG_FILE 2>&1
+	
+	REVOKE USAGE ON SCHEMA cron FROM $SOURCEUSERNAME;
+	REVOKE ALL ON SCHEMA cron FROM $SOURCEUSERNAME;
+	REVOKE ALL PRIVILEGES ON SCHEMA cron FROM $SOURCEUSERNAME;
+	REVOKE ALL ON ALL TABLES in schema cron FROM $SOURCEUSERNAME;
+	REVOKE ALL ON ALL sequences in schema cron FROM $SOURCEUSERNAME;
+
+	\q
+	
+EOFC
 
 psql --host=$HOSTNAME --port=$PORT --username=$PGUSERNAME --dbname=$DBNAME << EOF4 >> $LOG_FILE 2>&1
  
-  REVOKE ALL PRIVILEGES ON DATABASE "$DBNAME" from $SOURCEUSERNAME;
+ REVOKE USAGE ON FOREIGN SERVER pgmv\$cron_instance FROM $SOURCEUSERNAME;
+ REVOKE ALL PRIVILEGES ON DATABASE "$DBNAME" FROM $SOURCEUSERNAME;
  GRANT ALL PRIVILEGES ON SCHEMA $SOURCEUSERNAME to $PGUSERNAME;
  REVOKE USAGE ON FOREIGN SERVER pgmv\$_instance FROM $SOURCEUSERNAME;
  ALTER SCHEMA $SOURCEUSERNAME OWNER TO $PGUSERNAME;
@@ -563,6 +720,8 @@ psql --host=$HOSTNAME --port=$PORT --username=$PGUSERNAME --dbname=$DBNAME << EO
  REVOKE $SOURCEUSERNAME from $PGUSERNAME;
  REVOKE $SOURCEUSERNAME FROM $MODULEOWNER;
  REVOKE ALL ON SCHEMA $MODULEOWNER FROM $SOURCEUSERNAME;
+ DROP USER MAPPING IF EXISTS FOR $SOURCEUSERNAME SERVER pgmv\$cron_instance;
+ DROP USER MAPPING IF EXISTS FOR $SOURCEUSERNAME SERVER pgmv\$_instance;
  DROP USER $SOURCEUSERNAME;
 
 
@@ -576,11 +735,26 @@ echo "INFO: Dropping modules objects" >> $LOG_FILE
 
 PGPASSWORD=$PGPASS
 
+echo "INFO: Run Cron revoke permissions from $MODULEOWNER user" >> $LOG_FILE
+echo "INFO: Connect to postgres database via PSQL session" >> $LOG_FILE
+  psql --host=$HOSTNAME --port=$PORT --username=$PGUSERNAME --dbname=postgres -v MODULE_HOME=$MODULE_HOME << EOFC >> $LOG_FILE 2>&1
+	
+	REVOKE USAGE ON SCHEMA cron FROM $MODULEOWNER;
+	REVOKE ALL ON SCHEMA cron FROM $MODULEOWNER;
+	REVOKE ALL PRIVILEGES ON SCHEMA cron FROM $MODULEOWNER;
+	REVOKE ALL ON ALL TABLES in schema cron FROM $MODULEOWNER;
+	REVOKE ALL ON ALL sequences in schema cron FROM $MODULEOWNER;
+
+	\q
+	
+EOFC
 
 psql --host=$HOSTNAME --port=$PORT --username=$PGUSERNAME --dbname=$DBNAME << EOF1 >> $LOG_FILE 2>&1
- 
- REVOKE ALL PRIVILEGES ON DATABASE "$DBNAME" from $MODULEOWNER;
+
+ REVOKE USAGE ON FOREIGN SERVER pgmv\$cron_instance FROM $MODULEOWNER;
+ REVOKE ALL PRIVILEGES ON DATABASE "$DBNAME" FROM $MODULEOWNER;
  REVOKE USAGE ON FOREIGN SERVER pgmv\$_instance FROM $MODULEOWNER;
+ DROP SERVER IF EXISTS pgmv\$cron_instance CASCADE;
  DROP SERVER IF EXISTS pgmv\$_instance CASCADE;
  DROP EXTENSION IF EXISTS postgres_fdw;
  DROP EXTENSION IF EXISTS dblink;
@@ -623,7 +797,7 @@ DECLARE
 BEGIN
     FOR iTableCounter IN 10 .. 20
     LOOP
-    cResult := mv\$refreshMaterializedView
+    CALL mv\$refreshMaterializedView
     (
         pViewName       => 'mvtesting' || iTableCounter,
         pOwner          => '$MVUSERNAME',
@@ -641,9 +815,9 @@ DECLARE
     cResult     CHAR(1)     := NULL;
     iTableCounter   SMALLINT    := 10;
 BEGIN
-    FOR iTableCounter IN 70 .. 100
+    FOR iTableCounter IN 70 .. 101
     LOOP
-    cResult := mv\$refreshMaterializedView
+    CALL mv\$refreshMaterializedView
     (
         pViewName       => 'mvtesting' || iTableCounter,
         pOwner          => '$MVUSERNAME',
@@ -664,7 +838,7 @@ DECLARE
 BEGIN
     FOR iTableCounter IN 21 .. 69
     LOOP
-    cResult := mv\$refreshMaterializedView
+    CALL mv\$refreshMaterializedView
     (
         pViewName       => 'mvtesting' || iTableCounter,
         pOwner          => '$MVUSERNAME',

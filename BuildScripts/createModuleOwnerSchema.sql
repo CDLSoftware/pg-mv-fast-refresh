@@ -10,6 +10,8 @@ Date        | Name          | Description
             |               |
 12/11/2018  | M Revitt      | Initial version
 05/11/2019  | T Mullen      | Reflecting the changes of table names
+23/10/2020	| D Day			| Added new columns to pg$mviews table query_joins_multi_table_cnt_array and query_joins_multi_table_pos_array
+26/02/2020	| D Day			| Added new column to pg$mviews_oj_details table delete_sql
 ------------+---------------+-------------------------------------------------------------------------------------------------------
 Background:     PostGre does not support Materialized View Fast Refreshes, this suite of scripts is a PL/SQL coded mechanism to
                 provide that functionality, the next phase of this projecdt is to fold these changes into the PostGre kernel.
@@ -53,10 +55,6 @@ CREATE EXTENSION 	IF NOT EXISTS "postgres_fdw";
 
 SET CLIENT_MIN_MESSAGES = NOTICE;
 
-CREATE  ROLE    pgmv$_execute;
-CREATE  ROLE    pgmv$_usage;
-CREATE  ROLE    pgmv$_view;
-
 CREATE OR REPLACE FUNCTION create_user_and_role(IN pis_password TEXT, IN pis_moduleowner TEXT)
 RETURNS void
 AS
@@ -70,10 +68,62 @@ ls_moduleowner TEXT := pis_moduleowner;
 ls_sql TEXT;
 
 BEGIN
- IF NOT EXISTS (
-      SELECT
-      FROM   pg_user
-      WHERE  usename = pis_moduleowner) THEN
+
+	IF NOT EXISTS (
+	  SELECT
+	  FROM   pg_roles
+	  WHERE  rolname = 'pgmv$_execute') THEN
+	  
+	  ls_sql := 'CREATE ROLE pgmv$_execute WITH
+				  NOLOGIN
+				  NOSUPERUSER
+				  INHERIT
+				  NOCREATEDB
+				  NOCREATEROLE
+				  NOREPLICATION;';
+				
+	  EXECUTE ls_sql;
+	  
+	END IF;
+	   
+	IF NOT EXISTS (
+	  SELECT
+	  FROM   pg_roles
+	  WHERE  rolname = 'pgmv$_usage') THEN
+	  
+	  ls_sql := 'CREATE ROLE pgmv$_usage WITH
+				  NOLOGIN
+				  NOSUPERUSER
+				  INHERIT
+				  NOCREATEDB
+				  NOCREATEROLE
+				  NOREPLICATION;';
+				
+	  EXECUTE ls_sql;
+	  
+	END IF;
+	   
+	IF NOT EXISTS (
+	  SELECT
+	  FROM   pg_roles
+	  WHERE  rolname = 'pgmv$_view') THEN
+	  
+	  ls_sql := 'CREATE ROLE pgmv$_view WITH
+				  NOLOGIN
+				  NOSUPERUSER
+				  INHERIT
+				  NOCREATEDB
+				  NOCREATEROLE
+				  NOREPLICATION;';
+				
+	  EXECUTE ls_sql;
+	  
+	END IF;
+
+	IF NOT EXISTS (
+	  SELECT
+	  FROM   pg_user
+	  WHERE  usename = pis_moduleowner) THEN
 	  
 	  ls_sql := 'CREATE USER '||ls_moduleowner||' WITH
 					LOGIN
@@ -87,12 +137,12 @@ BEGIN
 				
 	  EXECUTE ls_sql;
 	  
-   END IF;
-   
-   IF NOT EXISTS (
-      SELECT
-      FROM   pg_roles
-      WHERE  rolname = 'pgmv$_role') THEN
+	END IF;
+
+	IF NOT EXISTS (
+	  SELECT
+	  FROM   pg_roles
+	  WHERE  rolname = 'pgmv$_role') THEN
 	  
 	  ls_sql := 'CREATE ROLE pgmv$_role WITH
 				  NOLOGIN
@@ -104,24 +154,24 @@ BEGIN
 				
 	  EXECUTE ls_sql;
 	  
-   END IF;
-   
-   IF NOT EXISTS (
-      SELECT
-      FROM   pg_roles
-      WHERE  rolname = 'rds_superuser') THEN
+	END IF;
+
+	IF NOT EXISTS (
+	  SELECT
+	  FROM   pg_roles
+	  WHERE  rolname = 'rds_superuser') THEN
 	  
 	  ls_sql := 'ALTER USER '||pis_moduleowner||' with superuser;';
 				
 	  EXECUTE ls_sql;
 	  
-   ELSE
-	
+	ELSE
+
 	  ls_sql := 'GRANT rds_superuser TO '||pis_moduleowner||';';
 	  
 	  EXECUTE ls_sql;
 	  
-   END IF;
+	END IF;
 
 END;
 $BODY$
@@ -172,8 +222,22 @@ CREATE TABLE IF NOT EXISTS :MODULEOWNER.pg$mviews
     bit_array           SMALLINT[],
     outer_table_array   TEXT[],
     inner_alias_array   TEXT[],
-    inner_rowid_array   TEXT[],
-        CONSTRAINT
+    inner_rowid_array   TEXT[],	
+	inner_join_table_array	TEXT[],
+	inner_join_alias_array	TEXT[],
+	inner_join_rowid_array	TEXT[],
+	inner_join_other_table_array	TEXT[],
+	inner_join_other_alias_array	TEXT[],
+	inner_join_other_rowid_array	TEXT[],
+	query_joins_multi_table_cnt_array	SMALLINT[],
+	query_joins_multi_table_pos_array	SMALLINT[],
+	parallel			TEXT,
+	parallel_jobs		INTEGER,
+	parallel_column		TEXT,
+	parallel_alias		TEXT,
+	parallel_user		TEXT,
+	parallel_dbname		TEXT,
+    CONSTRAINT
             pk_pg$mviews
             PRIMARY KEY
             (
@@ -184,7 +248,7 @@ CREATE TABLE IF NOT EXISTS :MODULEOWNER.pg$mviews
 
 CREATE TABLE IF NOT EXISTS :MODULEOWNER.pg$mviews_oj_details
 (
-        owner               	TEXT        NOT NULL,
+        owner               		TEXT        NOT NULL,
         view_name           		TEXT        NOT NULL,
         table_alias         		TEXT        NOT NULL,
         rowid_column_name   		TEXT        NOT NULL,
@@ -192,6 +256,7 @@ CREATE TABLE IF NOT EXISTS :MODULEOWNER.pg$mviews_oj_details
         column_name_array   		TEXT[],
         update_sql          		TEXT,
 		join_replacement_from_sql	TEXT,
+		delete_sql 					TEXT,
         CONSTRAINT
             pk_pg$mviews_oj_details
             PRIMARY KEY
@@ -203,14 +268,26 @@ CREATE TABLE IF NOT EXISTS :MODULEOWNER.pg$mviews_oj_details
 
 );
 
+CREATE TABLE IF NOT EXISTS :MODULEOWNER.pg$mviews_version_control
+(
+		version_control_id 			SERIAL NOT NULL PRIMARY KEY,
+		version 					CHARACTER VARYING(150) NOT NULL UNIQUE,
+		live_version_flag 			CHARACTER VARYING(3),
+		created 					TIMESTAMP(0) WITHOUT TIME ZONE
+);
+
+ALTER TABLE :MODULEOWNER.pg$mviews       	   OWNER TO :MODULEOWNER;
+ALTER TABLE :MODULEOWNER.pg$mview_logs   	   OWNER TO :MODULEOWNER;
+ALTER TABLE :MODULEOWNER.pg$mviews_oj_details  OWNER TO :MODULEOWNER;
+ALTER TABLE :MODULEOWNER.pg$mviews_version_control  OWNER TO :MODULEOWNER;
+
 GRANT   USAGE   ON                      SCHEMA  :MODULEOWNER    TO  pgmv$_role;
 GRANT   USAGE   ON                      SCHEMA  :MODULEOWNER    TO  pgmv$_usage;
 GRANT   SELECT  ON  ALL TABLES      IN  SCHEMA  :MODULEOWNER    TO  pgmv$_role;
 GRANT   SELECT  ON  ALL TABLES      IN  SCHEMA  :MODULEOWNER    TO  pgmv$_view;
 
-ALTER TABLE :MODULEOWNER.pg$mviews       	   OWNER TO :MODULEOWNER;
-ALTER TABLE :MODULEOWNER.pg$mview_logs   	   OWNER TO :MODULEOWNER;
-ALTER TABLE :MODULEOWNER.pg$mviews_oj_details  OWNER TO :MODULEOWNER;
+GRANT ALL ON ALL TABLES in schema :MODULEOWNER to pgmv$_role ;
+GRANT ALL ON ALL sequences in schema :MODULEOWNER to pgmv$_role;
 
 ALTER EXTENSION "uuid-ossp" SET SCHEMA public;
 ALTER EXTENSION "dblink" SET SCHEMA public;
@@ -221,7 +298,6 @@ CREATE SERVER IF NOT EXISTS pgmv$_instance FOREIGN DATA WRAPPER postgres_fdw opt
 CREATE USER MAPPING IF NOT EXISTS for :MODULEOWNER SERVER pgmv$_instance OPTIONS (user :'MODULEOWNER', password :'MODULEOWNERPASS');
 
 GRANT USAGE ON FOREIGN SERVER pgmv$_instance TO :MODULEOWNER;
-
 
 
 

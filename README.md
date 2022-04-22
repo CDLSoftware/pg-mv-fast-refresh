@@ -26,6 +26,7 @@ vi module_set_variables.sh
 MODULEOWNER=<MODULEOWNER> - The module owner username
 MODULE_HOME=<MODULE_HOME> - The Module home path 
 MODULEOWNERPASS=<MODULEOWNERPASS> - Password for module owner PGRS_MVIEW
+INSTALL_TYPE=<INSTALL_TYPE>	- The install type for example FULL (New install) - UPDATE (Update existing install). Default value set to FULL
 HOSTNAME=<HOSTNAME> - Hostname for database
 PORT=<PORT>	 - port for database
 DBNAME=<DBNAME>	 - Database Name
@@ -50,6 +51,7 @@ We then have a source schema testpocsource. This is where the source data tables
 export MODULEOWNER=testpoc
 export MODULE_HOME=/var/lib/pgsql/pg-mv-fast-refresh
 export MODULEOWNERPASS=xxxxxxx
+export INSTALL_TYPE=FULL
 export HOSTNAME=pg-tonytest.test.com
 export PORT=5432
 export DBNAME=postgres
@@ -85,6 +87,7 @@ INFO: HOSTNAME parameter set to pg-tonytest.test.com
 INFO: PORT parameter set to 5432
 INFO: DBNAME parameter set to postgres
 INFO: MODULE_HOME parameter set to /var/lib/pgsql/pg-mv-fast-refresh
+INFO: INSTALL_TYPE parameter set to FULL
 INFO: Run testpoc schema build script
 INFO: Connect to postgres database postgres via PSQL session
 …….. cut lines………..
@@ -138,7 +141,7 @@ INFO: Drop Complete check logfile for status - /tmp/test_harness_drop_20191119-1
 
 ## Pipeline Checks
 
-There is a pipeline checks scripts that will install the module, create some test data and build 90 materialized view's then drop all the objects, schemas and users.   This is mandatory to run if you want to contribute to the code it confirms that the modules will deploy ok and the MV's create with no errors.
+There is a pipeline checks scripts that will install the module, create some test data and build 91 materialized view's then drop all the objects, schemas and users.   This is mandatory to run if you want to contribute to the code it confirms that the modules will deploy ok and the MV's create with no errors.
 
 ``` bash
 $ ./run_pipeline_checks.sh all
@@ -150,7 +153,7 @@ Stage 3: Creating the test objects and data in schema testpocdata
 Stage 4: Creating the MV logs in testpocdata
 Stage 5: Creating 90 test MV's in schema testpocview
 Stage 6: Test phase
-Stage 6.1: Update 1 row and refresh all MV's
+Stage 6.1: Update 1 row and refresh all MV's including running 1 materialized view in parallel 4
 Stage 7: Dropping the test harness objects
 Stage 8: Check for problems
 Pipeline run type all ran with no issues

@@ -23,6 +23,20 @@ echo "INFO: MODULE_HOME parameter set to $MODULE_HOME" >> $LOG_FILE
 
 PGPASS=$PGPASSWORD
 
+function removecronperms
+{
+echo "INFO: Remove cron permissions" >> $LOG_FILE
+
+PGPASSWORD=$PGPASS
+
+  psql --host=$HOSTNAME --port=$PORT --username=$PGUSERNAME --dbname=postgres -v MODULE_HOME=$MODULE_HOME -v MODULEOWNER=$MODULEOWNER << EOF1 >> $LOG_FILE 2>&1
+	
+	\i :MODULE_HOME/BuildScripts/revokeCronPrivs.sql;
+
+	\q
+	
+EOF1
+}
 
 function dropmodule
 {
@@ -30,12 +44,13 @@ echo "INFO: Truncating modules tables" >> $LOG_FILE
 
 PGPASSWORD=$PGPASS
 
-
-psql --host=$HOSTNAME --port=$PORT --username=$PGUSERNAME --dbname=$DBNAME << EOF1 >> $LOG_FILE 2>&1
+psql --host=$HOSTNAME --port=$PORT --username=$PGUSERNAME --dbname=$DBNAME << EOF2 >> $LOG_FILE 2>&1
 
  REVOKE ALL PRIVILEGES ON DATABASE "$DBNAME" from $MODULEOWNER;
  DROP USER MAPPING IF EXISTS FOR $MODULEOWNER SERVER pgmv\$_instance;
+ DROP USER MAPPING IF EXISTS FOR $MODULEOWNER SERVER pgmv\$cron_instance;
  DROP SERVER IF EXISTS pgmv\$_instance CASCADE;
+ DROP SERVER IF EXISTS pgmv\$cron_instance CASCADE;
  DROP EXTENSION IF EXISTS postgres_fdw;
  DROP EXTENSION IF EXISTS dblink;
  DROP SCHEMA $MODULEOWNER CASCADE;
@@ -47,14 +62,15 @@ psql --host=$HOSTNAME --port=$PORT --username=$PGUSERNAME --dbname=$DBNAME << EO
  DROP ROLE pgmv\$_view;
  DROP ROLE pgmv\$_usage;
 
-EOF1
+EOF2
 }
 
 
 read -p "Are you sure you want to remove the module schema - $MODULEOWNER (y/n)?" choice
 case "$choice" in
   y|Y ) echo "yes selected the schemas - $MODULEOWNER will be dropped"
-        dropmodule;;
+        removecronperms
+		dropmodule;;
   n|N ) echo "no selected so exiting";;
   * ) echo "invalid choice exiting";;
 esac
