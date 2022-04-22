@@ -794,9 +794,9 @@ Revision History    Push Down List
 Date        | Name          | Description
 ------------+---------------+-------------------------------------------------------------------------------------------------------
 24/09/2020  | D Day			| Removed previous change done on the 10/09/2020 as still getting this error.
-10/09/2020  | D Day         | Removed Parent to Child delete relationship for inner joins to support CDL specific materialized view
+10/09/2020  | D Day         | CDL specific - Removed Parent to Child delete relationship for inner joins to support materialized view
             |               | primary key violation error(s).
-12/08/2020	| D Day			| Workaround fix to support CDL materialized views with more than one column primary keys
+12/08/2020	| D Day			| CDL specific - Workaround fix to support materialized views with more than one column primary keys.
 29/06/2020	| D Day			| Added new DELETE statement to handle DML Type INSERT when row already exists.
 05/06/2020  | D Day         | Change functions with RETURNS VOID to procedures allowing support/control of COMMITS during refresh process.
 07/05/2019  | M Revitt      | Convert to array processing

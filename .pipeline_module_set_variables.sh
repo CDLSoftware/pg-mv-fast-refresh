@@ -14,6 +14,7 @@
 # MODULE_HOME=<MODULE_HOME>								The Module home path
 #	                             						for example /u01/app/bi-feeds
 # MODULEOWNERPASS=<MODULEOWNERPASS>						Password for module owner PGRS_MVIEW
+# INSTALL_TYPE=<INSTALL_TYPE>							The install type for example FULL (New install) - UPDATE (Update existing install). Default value set to FULL
 # HOSTNAME=<HOSTNAME>									Hostname for database
 # PORT=<PORT>											Port for database
 # DBNAME=<DBNAME>										Database Name
@@ -31,6 +32,7 @@
 export MODULEOWNER=testpoc
 export MODULE_HOME=/builds/cheshire-datasystems/dba-team/pg-mv-fast-refresh-githubrunner
 export MODULEOWNERPASS=password1234
+export INSTALL_TYPE=FULL
 export HOSTNAME=localhost
 export PORT=5432
 export DBNAME=postgres

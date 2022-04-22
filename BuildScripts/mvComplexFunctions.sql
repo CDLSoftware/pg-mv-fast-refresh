@@ -563,8 +563,9 @@ Revision History    Push Down List
 ------------------------------------------------------------------------------------------------------------------------------------
 Date        | Name          | Description
 ------------+---------------+-------------------------------------------------------------------------------------------------------
-09/09/2021  | D Day			| Added additional materialized views to ignore duplicates.
-25/03/2021	| D Day			| Added workaround to fix primary key issue against mv_policy materialized view to ignore duplicates.
+09/09/2021  | D Day			| CDL specific - bug fix added additional materialized views to ignore duplicates.
+25/03/2021	| D Day			| CDL specific - bug fix added workaround to fix primary key issue against mv_policy materialized view to 
+			|				| ignore duplicates.
 04/06/2020  | D Day         | Change functions with RETURNS VOID to procedures allowing support/control of COMMITS during refresh process.
 11/03/2018  | M Revitt      | Initial version
 ------------+---------------+-------------------------------------------------------------------------------------------------------
@@ -1271,10 +1272,10 @@ Revision History    Push Down List
 ------------------------------------------------------------------------------------------------------------------------------------
 Date        | Name          | Description
 ------------+---------------+-------------------------------------------------------------------------------------------------------
-30/03/2021  | D Day			| Added new parameter variables for insert process to handle primary key duplicates on mv_policy when
-			|				| calling procedures mv$updateMaterializedViewRows and mv$insertMaterializedViewRows.
-20/08/2021  | R Achouri     | Added procedure mv$deleteOuterJoinRowsComboPK to handle deletes on outer joining tables with fields that
-			|               | are used as a part of a composite primary key.
+30/03/2021  | D Day			| CDL specific - added new parameter variables for insert process to handle primary key duplicates on
+			|				| mv_policy when calling procedures mv$updateMaterializedViewRows and mv$insertMaterializedViewRows.
+20/08/2021  | R Achouri     | CDL specific - Added procedure mv$deleteOuterJoinRowsComboPK to handle deletes on outer joining tables
+			|               | with fields that are used as a part of a composite primary key.
 04/06/2020  | D Day         | Change functions with RETURNS VOID to procedures allowing support/control of COMMITS during refresh process.
 01/07/2019	| David Day		| Added function mv$updateOuterJoinColumnsNull to handle outer join deletes.            |               |
 11/03/2018  | M Revitt      | Initial version
@@ -1412,14 +1413,14 @@ Revision History    Push Down List
 ------------------------------------------------------------------------------------------------------------------------------------
 Date        | Name          | Description
 ------------+---------------+-------------------------------------------------------------------------------------------------------
-09/09/2021  | D Day			| Added additional materialized views to ignore duplicates.
-03/09/2021	| D Day			| Ignore DML changes to prtyinst and personxx on MV_LOADINGS_DISCOUNTS as they're causing large
-			|				| delete and insert when the forename and lastname has not changed. The main joining table with reflect
+09/09/2021  | D Day			| CDL specific - added additional materialized views to ignore duplicates.
+03/09/2021	| D Day			| CDL specific - ignore DML changes to prtyinst and personxx on MV_LOADINGS_DISCOUNTS as they're causing large
+			|				| delete and insert when the forename and lastname has not changed. The main joining table will reflect
 			|				| any key changes linked to these join conditions.
-20/05/2020  | D Day			| Bug fix - to ignore DML changes to prtyinst, currprty, personxx for materialized views that only
+20/05/2020  | D Day			| CDL specific - bug fix to ignore DML changes to prtyinst, currprty, personxx for materialized views that only
 			|				| use these table joins to get forename and surname. If the main joining table changes for the linking id
 			|				| this will update the row i.e. createdby or updatedby columns for the forename and surname.
-19/11/2020	| D Day			| CDL specific change - temp workaround performance improvement to ignore DML changes to prtyinst, currprty, personxx
+19/11/2020	| D Day			| CDL specific - temp workaround performance improvement to ignore DML changes to prtyinst, currprty, personxx
 			|				| on MV_DIARY and MV_APPLICATION_EVENTS. The way new client party instances get created even though the forename and surname
 			|				| for Strata users never or rarely changes it still causes the source table row to change and this causes the mview log table
 			|				| to record a DML change. This can happen often and cause large scale DELETE and INSERT combinations to apply to them
@@ -1866,8 +1867,8 @@ Revision History    Push Down List
 ------------------------------------------------------------------------------------------------------------------------------------
 Date        | Name          | Description
 ------------+---------------+-------------------------------------------------------------------------------------------------------
-09/09/2021  | D Day			| Added additional materialized views to ignore duplicates.
-25/03/2021	| D Day			| Added workaround to fix primary key issue against mv_policy materialized view to ignore
+09/09/2021  | D Day			| CDL specific - Added additional materialized views to ignore duplicates.
+25/03/2021	| D Day			| CDL specific - Added workaround to fix primary key issue against mv_policy materialized view to ignore
 10/03/2021	| D Day         | Added new delete and insert statements for outer join alias performance improvements
 18/08/2020	| D Day			| Removed outer to inner join logic as this is under further review.
 04/06/2020  | D Day         | Change functions with RETURNS VOID to procedures allowing support/control of COMMITS during refresh process.
@@ -2822,8 +2823,8 @@ Revision History    Push Down List
 ------------------------------------------------------------------------------------------------------------------------------------
 Date        | Name          | Description
 ------------+---------------+-------------------------------------------------------------------------------------------------------
-09/09/2021  | D Day			| Added additional materialized views to ignore duplicates.
-30/03/2021	| D Day			| Added workaround to fix primary key issue against mv_policy materialized view to ignore duplicates.
+09/09/2021  | D Day			| CDL specific - Added additional materialized views to ignore duplicates.
+30/03/2021	| D Day			| CDL specific - Added workaround to fix primary key issue against mv_policy materialized view to ignore duplicates.
 04/06/2020  | D Day         | Change functions with RETURNS VOID to procedures allowing support/control of COMMITS during refresh process.
 11/03/2018  | M Revitt      | Initial version
 ------------+---------------+-------------------------------------------------------------------------------------------------------
