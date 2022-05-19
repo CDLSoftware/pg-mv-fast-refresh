@@ -939,6 +939,15 @@ BEGIN
 			SELECT * FROM
 			dblink('pgmv$cron_instance', tRunningPidCheckSql) AS p (iDblinkCount INT) INTO iRunningPidCheckCnt;
 			
+			IF iRunningPidCheckCnt > 0 THEN
+			
+				SELECT pg_sleep(60) INTO tResult;
+				
+				SELECT * FROM
+				dblink('pgmv$cron_instance', tRunningPidCheckSql) AS p (iDblinkCount INT) INTO iRunningPidCheckCnt;
+				
+			END IF;
+			
 		EXCEPTION
 		WHEN OTHERS
 		THEN
