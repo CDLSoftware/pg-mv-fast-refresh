@@ -23,6 +23,14 @@ ln_version_count	INTEGER := 0;
 
 ln_separator_count  INTEGER := 0;
 
+ls_existing_version_first INTEGER;
+
+ls_existing_version_last INTEGER;
+
+ls_version_first INTEGER;
+
+ls_version_last INTEGER;
+
 BEGIN
 
     SELECT
@@ -30,7 +38,7 @@ BEGIN
         INTO STRICT lt_start_time;
 	
 	
-   	SELECT COUNT(*) FROM regexp_matches(ls_version::TEXT, '\.', 'g') INTO ln_separator_count;
+   	SELECT COUNT(*) FROM regexp_matches(ls_version, '\.', 'g') INTO ln_separator_count;
 	
 	IF ln_separator_count != 1 THEN
 		
@@ -56,37 +64,40 @@ BEGIN
 
 	ELSE
 
-
 		EXECUTE 'SELECT version
 		FROM '||pis_module_owner||'.pg$mviews_version_control
 		WHERE live_version_flag = ''Y'''
 		INTO ls_existing_version;
 
-		SELECT REPLACE(ls_version,'.','')::INTEGER INTO ln_new_version;
-		SELECT REPLACE(ls_existing_version,'.','')::INTEGER INTO ln_existing_version;
+        SELECT split_part(ls_version, '.', '1')::INTEGER INTO ls_version_first;
+        SELECT split_part(ls_version, '.', '2')::INTEGER INTO ls_version_last;
 
-		RAISE INFO '%',ln_new_version;
-		RAISE INFO '%',ln_existing_version;
+        SELECT split_part(ls_existing_version, '.', '1')::INTEGER INTO ls_existing_version_first;
+        SELECT split_part(ls_existing_version, '.', '2')::INTEGER INTO ls_existing_version_last;
 
-		IF LENGTH(ln_new_version::TEXT) > 3 THEN
+        IF ls_version_first > ls_existing_version_first THEN
 
-				RAISE EXCEPTION 'Got exception:
-				ERROR 2: Patch compatibility requirements not met - patch number % is not compatible - exiting...', ls_version;
+            EXECUTE ls_sql;	
 
-		ELSE
+        ELSEIF ls_version_first = ls_existing_version_first THEN
 
-			IF ln_new_version >= ln_existing_version THEN
+            IF ls_version_last >= ls_existing_version_last THEN
 
-				EXECUTE ls_sql;	
+                EXECUTE ls_sql;
 
-			ELSE 
+            ELSE
 
-				RAISE EXCEPTION 'Got exception:
-				ERROR 3: Patch compatibility requirements not met - this has already been applied. The pg$mviews_version_control table latest build version is % whilst the patch version is % - exiting...', ls_existing_version, ls_version;
+                RAISE EXCEPTION 'Got exception:
+                ERROR 2: Patch compatibility requirements not met - this has already been applied. The pg$mviews_version_control table latest build version is % whilst the patch version is % - exiting...', ls_existing_version, ls_version;
 
-			END IF;
+            END IF;
 
-		END IF;
+        ELSE
+
+            RAISE EXCEPTION 'Got exception:
+            ERROR 3: Patch compatibility requirements not met - this has already been applied. The pg$mviews_version_control table latest build version is % whilst the patch version is % - exiting...', ls_existing_version, ls_version;
+
+        END IF;
 
 		EXECUTE 'UPDATE '||pis_module_owner||'.pg$mviews_version_control SET live_version_flag = ''N'' WHERE version <> '''||ls_version||'''';
 
