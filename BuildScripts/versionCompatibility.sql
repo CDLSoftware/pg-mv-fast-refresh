@@ -103,8 +103,6 @@ BEGIN
 
 	END IF;
 
-	RAISE INFO 'Apply version control in table PG$MVIEW_VERSION_CONTROL start time: %', lt_start_time;
-
 		SELECT
 			clock_timestamp()
 			INTO STRICT lt_end_time;
