@@ -681,6 +681,7 @@ Revision History    Push Down List
 ------------------------------------------------------------------------------------------------------------------------------------
 Date        | Name          | Description
 ------------+---------------+-------------------------------------------------------------------------------------------------------
+19/05/2022	| R Achouri		| Defect fix - added re-check with a delay to prevent false positives with active cron sessions
 01/02/2022	| D Day 		| Defect fix - added logic to not drop table when an error occurs if the refresh type is complete.
 31/01/2022	| D Day 		| Defect fix - if one of the cron job(s) fails then terminate the rest of the jobs
 			|				| to stop any delay.
@@ -938,6 +939,15 @@ BEGIN
 			
 			SELECT * FROM
 			dblink('pgmv$cron_instance', tRunningPidCheckSql) AS p (iDblinkCount INT) INTO iRunningPidCheckCnt;
+			
+			IF iRunningPidCheckCnt > 0 THEN
+			
+				SELECT pg_sleep(60) INTO tResult;
+				
+				SELECT * FROM
+				dblink('pgmv$cron_instance', tRunningPidCheckSql) AS p (iDblinkCount INT) INTO iRunningPidCheckCnt;
+				
+			END IF;
 			
 		EXCEPTION
 		WHEN OTHERS
