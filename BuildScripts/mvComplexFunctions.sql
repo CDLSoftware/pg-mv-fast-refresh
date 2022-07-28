@@ -681,6 +681,8 @@ Revision History    Push Down List
 ------------------------------------------------------------------------------------------------------------------------------------
 Date        | Name          | Description
 ------------+---------------+-------------------------------------------------------------------------------------------------------
+28/07/2022	| D Day 		| Defect fix - add retry loop of x3 to re-check whether pid has been removed before cron job status 
+			|				| updated.
 19/05/2022	| R Achouri		| Defect fix - added re-check with a delay to prevent false positives with active cron sessions
 01/02/2022	| D Day 		| Defect fix - added logic to not drop table when an error occurs if the refresh type is complete.
 31/01/2022	| D Day 		| Defect fix - if one of the cron job(s) fails then terminate the rest of the jobs
@@ -942,10 +944,16 @@ BEGIN
 			
 			IF iRunningPidCheckCnt > 0 THEN
 			
-				SELECT pg_sleep(60) INTO tResult;
+				FOR rPids IN 1..3 LOOP
+			
+					SELECT pg_sleep(60) INTO tResult;
+
+					SELECT * FROM
+					dblink('pgmv$cron_instance', tRunningPidCheckSql) AS p (iDblinkCount INT) INTO iRunningPidCheckCnt;
+
+					EXIT WHEN iRunningPidCheckCnt = 0;
 				
-				SELECT * FROM
-				dblink('pgmv$cron_instance', tRunningPidCheckSql) AS p (iDblinkCount INT) INTO iRunningPidCheckCnt;
+				END LOOP;
 				
 			END IF;
 			
@@ -953,6 +961,7 @@ BEGIN
 		WHEN OTHERS
 		THEN
 		iJobErrorCount := 0;
+		iRunningPidCheckCnt := 0;
 		RAISE INFO 'Dblink error - ignore and set iJobErrorCount variable to 1 until next loop.';
 		NULL;		
 		END;		
