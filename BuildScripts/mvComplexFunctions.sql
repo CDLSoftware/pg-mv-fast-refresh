@@ -681,6 +681,9 @@ Revision History    Push Down List
 ------------------------------------------------------------------------------------------------------------------------------------
 Date        | Name          | Description
 ------------+---------------+-------------------------------------------------------------------------------------------------------
+23/08/2022	| D Day 		| Defect fix - removed check for running cron jobs with no pids as this was causing issues due
+			|				| to job statuses not updating to succeeded when corresponding pid doesn't exist. The wait of 3 minutes
+			|				| still wasn't enough so this has been commented out.
 28/07/2022	| D Day 		| Defect fix - add retry loop of x3 to re-check whether pid has been removed before cron job status 
 			|				| updated.
 19/05/2022	| R Achouri		| Defect fix - added re-check with a delay to prevent false positives with active cron sessions
@@ -920,13 +923,13 @@ BEGIN
 		NULL;		
 		END;
 		
-		tRunningPidCheckSql := 'SELECT count(1) FROM cron.job_run_details jrd
-				JOIN cron.job j ON j.jobid = jrd.jobid
-				WHERE j.jobname LIKE '''||pViewName||'_job_%''
-				AND jrd.status = ''running''
-				AND jrd.job_pid NOT IN (SELECT a.pid FROM pg_stat_activity a
-				WHERE a.state = ''active''
-				AND a.backend_type = ''pg_cron'')';
+		--tRunningPidCheckSql := 'SELECT count(1) FROM cron.job_run_details jrd
+		--		JOIN cron.job j ON j.jobid = jrd.jobid
+		--		WHERE j.jobname LIKE '''||pViewName||'_job_%''
+		--		AND jrd.status = ''running''
+		--		AND jrd.job_pid NOT IN (SELECT a.pid FROM pg_stat_activity a
+		--		WHERE a.state = ''active''
+		--		AND a.backend_type = ''pg_cron'')';
 		
 		tErrorCheckSql := 'SELECT count(1) FROM cron.job_run_details jrd
 							JOIN cron.job j ON j.jobid = jrd.jobid
@@ -939,34 +942,35 @@ BEGIN
 			SELECT * FROM
 			dblink('pgmv$cron_instance', tErrorCheckSql) AS p (iDblinkCount INT) INTO iJobErrorCount;
 			
-			SELECT * FROM
-			dblink('pgmv$cron_instance', tRunningPidCheckSql) AS p (iDblinkCount INT) INTO iRunningPidCheckCnt;
+			--SELECT * FROM
+			--dblink('pgmv$cron_instance', tRunningPidCheckSql) AS p (iDblinkCount INT) INTO iRunningPidCheckCnt;
 			
-			IF iRunningPidCheckCnt > 0 THEN
+			--IF iRunningPidCheckCnt > 0 THEN
 			
-				FOR rPids IN 1..3 LOOP
+				--FOR rPids IN 1..3 LOOP
 			
-					SELECT pg_sleep(60) INTO tResult;
+					--SELECT pg_sleep(60) INTO tResult;
 
-					SELECT * FROM
-					dblink('pgmv$cron_instance', tRunningPidCheckSql) AS p (iDblinkCount INT) INTO iRunningPidCheckCnt;
+					--SELECT * FROM
+					--dblink('pgmv$cron_instance', tRunningPidCheckSql) AS p (iDblinkCount INT) INTO iRunningPidCheckCnt;
 
-					EXIT WHEN iRunningPidCheckCnt = 0;
+					--EXIT WHEN iRunningPidCheckCnt = 0;
 				
-				END LOOP;
+				--END LOOP;
 				
-			END IF;
+			--END IF;
 			
 		EXCEPTION
 		WHEN OTHERS
 		THEN
 		iJobErrorCount := 0;
-		iRunningPidCheckCnt := 0;
+		--iRunningPidCheckCnt := 0;
 		RAISE INFO 'Dblink error - ignore and set iJobErrorCount variable to 1 until next loop.';
 		NULL;		
 		END;		
 		
-		IF (iJobErrorCount > 0 OR iRunningPidCheckCnt > 0) THEN
+		--IF (iJobErrorCount > 0 OR iRunningPidCheckCnt > 0) THEN
+		IF (iJobErrorCount > 0) THEN
 		
 			IF pRefreshType = 'F' THEN
 				IF EXISTS (
