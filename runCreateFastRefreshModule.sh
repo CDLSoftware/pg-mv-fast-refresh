@@ -29,6 +29,25 @@ export PATCHVERSION=$(echo $PATCHVERSION | tr -d ' ')
 
 echo "Patch version: $PATCHVERSION" >> $LOG_FILE
 
+function fullbuildcompatibility
+{
+
+echo "INFO: Run $MODULEOWNER full build compatibility script" >> $LOG_FILE
+echo "INFO: Connect to postgres database $DBNAME via PSQL session" >> $LOG_FILE
+  psql --host=$HOSTNAME --port=$PORT --username=$MODULEOWNER --dbname=$DBNAME -v ON_ERROR_STOP=1 -v MODULE_HOME=$MODULE_HOME -v MODULEOWNER=$MODULEOWNER << EOFB >> $LOG_FILE 2>&1
+
+    \i :MODULE_HOME/BuildScripts/fullBuildCompatibility.sql;
+
+	\q
+	
+EOFB
+
+exitcode=$?
+if [ $exitcode != 0 ]; then
+	exit 1
+fi
+
+}
 
 function versioncontrol
 {
@@ -74,6 +93,8 @@ echo "INFO: Connect to postgres database via PSQL session" >> $LOG_FILE
 EOF2
 
 PGPASSWORD=$MODULEOWNERPASS
+
+fullbuildcompatibility
 
 versioncontrol
 

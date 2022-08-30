@@ -681,6 +681,8 @@ Revision History    Push Down List
 ------------------------------------------------------------------------------------------------------------------------------------
 Date        | Name          | Description
 ------------+---------------+-------------------------------------------------------------------------------------------------------
+26/08/2022  | D Day         | Defect fix - added logic if parallel_jobs is greater than cron.max_running_jobs minus active running
+			|				| cron jobs. Then use the max value available. 
 23/08/2022	| D Day 		| Defect fix - removed check for running cron jobs with no pids as this was causing issues due
 			|				| to job statuses not updating to succeeded when corresponding pid doesn't exist. The wait of 3 minutes
 			|				| still wasn't enough so this has been commented out.
@@ -760,6 +762,9 @@ DECLARE
 	
 	tRunningPidCheckSql		TEXT;
 	iRunningPidCheckCnt		INTEGER	:= 0;
+	
+	iMaxParallelJobs		INTEGER	:= 0;
+	iParallelJobs			INTEGER := 0;
 BEGIN
 
     aPgMview := mv$getPgMviewTableData( pConst, pOwner, pViewName );
@@ -778,12 +783,30 @@ BEGIN
 	 ,	    UNNEST(aPgMview.alias_array) AS table_alias ) inline INTO tTableName
 	WHERE aPgMview.parallel_alias = REPLACE(inline.table_alias,'.','');
 	
+	SELECT inline.setting::integer-inline.cron_cnt::integer AS max_parallel_jobs INTO iMaxParallelJobs
+	FROM (SELECT setting, (SELECT count(1) FROM pg_stat_activity 
+						   WHERE  state = 'active'
+						   AND    backend_type = 'pg_cron') cron_cnt 
+		  FROM pg_settings
+		  WHERE name = 'cron.max_running_jobs') inline;
+				
+	IF iMaxParallelJobs <= aPgMview.parallel_jobs THEN
+		iParallelJobs := aPgMview.parallel_jobs;		
+	ELSE	
+		iParallelJobs := iMaxParallelJobs;
+		UPDATE pg$mviews
+		SET parallel_jobs := iParallelJobs
+		WHERE view_name = 'mv_account';
+		RAISE INFO      'WARNING in procedure mv$insertParallelMaterializedViewRows. The parallel_jobs value of % cannot be used as it 
+										is greater than the cron.max_running_jobs minus cron jobs already running. The value used for parallel is %', aPgMview.parallel_jobs, iParallelJobs;
+	END IF;
+	
 	tMinMaxTimestampSql := 'SELECT MIN('||aPgMview.parallel_column||'), MAX('||aPgMview.parallel_column||') FROM '||tTableName;
 	
 	-- set Min and Max Date with Timestamp
 	EXECUTE tMinMaxTimestampSql INTO tsMinTimestamp, tsMaxTimestamp;
 	
-	SELECT (tsMaxTimestamp::DATE-tsMinTimestamp::DATE)/aPgMview.parallel_jobs AS days_diff INTO iDaysSplit;
+	SELECT (tsMaxTimestamp::DATE-tsMinTimestamp::DATE)/iParallelJobs AS days_diff INTO iDaysSplit;
 	
 	IF iDaysSplit = 0 THEN
 
@@ -803,20 +826,20 @@ BEGIN
 		END IF;
 	
 		RAISE INFO      'Exception in procedure mv$insertParallelMaterializedViewRows';
-		RAISE EXCEPTION 'Error: The max timestamp % and min timestamp % difference divided by the parallel jobs configuration setting of % is not greater than 0 which is a prerequisite to support running in parallel', tsMaxTimestamp, tsMinTimestamp, aPgMview.parallel_jobs;
+		RAISE EXCEPTION 'Error: The max timestamp % and min timestamp % difference divided by the parallel jobs configuration setting of % is not greater than 0 which is a prerequisite to support running in parallel', tsMaxTimestamp, tsMinTimestamp, iParallelJobs;
 		
 	END IF;
 	
 	tsJobCreation := clock_timestamp();
 	
-	FOR insert_rec IN 1..aPgMview.parallel_jobs LOOP
+	FOR insert_rec IN 1..iParallelJobs LOOP
 		
 		iCounter := iCounter+1;
 	
 		tJobName := pViewName||'_job_'||iCounter;
 		
 		-- set date range sql for insert where clause based on max and min date split as per parallel jobs calculation
-		tTimestampRangeSql := mv$setFromAndToTimestampRange(tsMinTimestamp::DATE,tsMaxTimestamp::DATE,aPgMview.parallel_jobs, iCounter, aPgMview.parallel_column, aPgMview.parallel_alias );	
+		tTimestampRangeSql := mv$setFromAndToTimestampRange(tsMinTimestamp::DATE,tsMaxTimestamp::DATE,iParallelJobs, iCounter, aPgMview.parallel_column, aPgMview.parallel_alias );	
 		
 		tSqlSelectColumns := pConst.SELECT_COMMAND || aPgMview.select_columns;
 
@@ -844,7 +867,7 @@ BEGIN
 	END LOOP;
 	
 	-- Checks to confirm jobs have been created and successfully ran
-	WHILE iJobCount < aPgMview.parallel_jobs LOOP
+	WHILE iJobCount < iParallelJobs LOOP
 	
 	iRetryLoopCounter := iRetryLoopCounter +1;
 
@@ -866,7 +889,7 @@ BEGIN
 		NULL;		
 		END;
 		
-		IF iJobCount < aPgMview.parallel_jobs THEN
+		IF iJobCount < iParallelJobs THEN
 			IF iRetryLoopCounter = 3 THEN
 			
 				iRetryLoopCounter := 0;
@@ -1713,6 +1736,7 @@ Revision History    Push Down List
 ------------------------------------------------------------------------------------------------------------------------------------
 Date        | Name          | Description
 ------------+---------------+-------------------------------------------------------------------------------------------------------
+30/08/2022  | D Day			| Added mv log and trigger check
 01/02/2022	| D Day			| Added new input value in procedure call mv$insertParallelMaterializedViewRows to label refresh type.
 15/07/2021	| D Day			| Added function mv$insertParallelMaterializedViewRows and parameter pParallel to allow complete
 			|				| refresh of materialized view table in Parallel.
@@ -1757,6 +1781,8 @@ BEGIN
 	CALL mv$updatePgMviewTableParallelData(pViewName,pParallel,pParallelJobs,pParallelColumn,pParallelAlias,pParallelUser,pParallelDbname);
 
     aPgMview    := mv$getPgMviewTableData(        pConst, pOwner, pViewName );
+	
+	CALL mv$CheckMvLogExists( pConst, pViewName, aPgMview.table_array );
 	
 	CALL mv$createindexestemptable(pOwner, pViewName ,pParallel);
 	CALL mv$dropmvindexes(pOwner, pViewName, pParallel);

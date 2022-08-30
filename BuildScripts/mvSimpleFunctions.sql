@@ -91,6 +91,8 @@ DROP PROCEDURE IF EXISTS mv$setQueryJoinsMultiTablePosition;
 DROP FUNCTION IF EXISTS mv$setCronSchedule;
 DROP FUNCTION IF EXISTS mv$setFromAndToTimestampRange;
 DROP PROCEDURE IF EXISTS mv$updatePgMviewTableParallelData;
+DROP FUNCTION IF EXISTS mv$CheckTriggerExists;
+DROP FUNCTION IF EXISTS mv$CheckMvLogExists;
 
 ----------------------- Write CREATE-FUNCTION-stage scripts --------------------
 SET CLIENT_MIN_MESSAGES = NOTICE;
@@ -3027,6 +3029,167 @@ BEGIN
         RAISE INFO      'Error %:- %:',     SQLSTATE, SQLERRM;
         RAISE INFO      'Error Context:% %',CHR(10),  tSqlStatement;
         RAISE EXCEPTION '%',                SQLSTATE;
+END;
+$BODY$
+LANGUAGE    plpgsql;
+------------------------------------------------------------------------------------------------------------------------------------
+CREATE OR REPLACE
+FUNCTION    mv$CheckTriggerExists
+            (
+                pConst          IN      mv$allConstants,
+                pTableName      IN      TEXT
+            )
+RETURNS boolean
+AS
+$BODY$
+/* ---------------------------------------------------------------------------------------------------------------------------------
+Routine Name: mv$CheckTriggerExists
+Author:       David Day
+Date:         26/08/2022
+------------------------------------------------------------------------------------------------------------------------------------
+Revision History    Push Down List
+------------------------------------------------------------------------------------------------------------------------------------
+Date        | Name          | Description
+------------+---------------+-------------------------------------------------------------------------------------------------------
+26/08/2022  | D Day			| Initial version
+------------+---------------+-------------------------------------------------------------------------------------------------------
+Description:    Generic function to check triggers in a Postgres database, used in this context to check the trigger exists
+                from the Materialized View Log tables when building Materialized View.
+
+Arguments:      IN      pConst              The memory structure containing all constants
+                IN      pOwner              The owner of the object
+                IN      pTableName          The name of the materialized view source table
+				
+************************************************************************************************************************************
+Copyright 2019 Amazon.com, Inc. or its affiliates. All Rights Reserved. SPDX-License-Identifier: MIT-0
+***********************************************************************************************************************************/
+DECLARE
+
+    tSqlStatement	TEXT;
+	
+	iTriggerExists	INTEGER := 0;
+	
+	bResult			BOOLEAN := FALSE;
+
+BEGIN
+
+	tSqlStatement := pConst.SELECT_COMMAND || 'COUNT(1) ' || pConst.FROM_PG$MVIEW_LOGS ||' l '|| pConst.JOIN_DML_TYPE || pConst.OPEN_BRACKET 
+	|| pConst.SELECT_COMMAND || 'table_name, table_schema'||pConst.FROM_COMMAND||'information_schema.tables'|| pConst.CLOSE_BRACKET 
+	|| ' t' || pConst.ON_COMMAND || 't.table_name = l.pglog$_name' || pConst.AND_COMMAND || 't.table_schema = l.owner' || pConst.AND_COMMAND
+	|| 'l.table_name = '||pTableName
+	|| pConst.WHERE_COMMAND || 'l.trigger_name'|| pConst.IN_SELECT_COMMAND || pConst.DISTINCT_CLAUSE || 'trigger_name' || pConst.FROM_COMMAND
+	|| 'information_schema.triggers' || pConst.WHERE_COMMAND || 'event_object_table' || pConst.EQUALS_COMMAND || '''' || pTableName || '''' 
+	|| pConst.CLOSE_BRACKET;
+	
+    EXECUTE tSqlStatement INTO iTriggerExists;
+	
+	IF iTriggerExists = 0 THEN
+		bResult := FALSE;
+	ELSE	
+		bResult := TRUE;
+	END IF;
+
+    RETURN( bResult );	
+
+    EXCEPTION
+    WHEN OTHERS
+    THEN
+        RAISE INFO      'Exception in function mv$CheckTriggerExists';
+        RAISE INFO      'Error %:- %:',     SQLSTATE, SQLERRM;
+        RAISE INFO      'Error Context:% %',CHR(10),  tSqlStatement;
+        RAISE EXCEPTION '%',                SQLSTATE;
+END;
+$BODY$
+LANGUAGE    plpgsql;
+------------------------------------------------------------------------------------------------------------------------------------
+CREATE OR REPLACE
+PROCEDURE    mv$CheckMvLogExists
+            (
+                pConst          IN      mv$allConstants,
+				pViewName		IN 		TEXT,
+                pTableNames     IN      TEXT[]
+            )
+AS
+$BODY$
+/* ---------------------------------------------------------------------------------------------------------------------------------
+Routine Name: mv$CheckMvLogExists
+Author:       David Day
+Date:         26/08/2022
+------------------------------------------------------------------------------------------------------------------------------------
+Revision History    Push Down List
+------------------------------------------------------------------------------------------------------------------------------------
+Date        | Name          | Description
+------------+---------------+-------------------------------------------------------------------------------------------------------
+26/08/2022  | D Day			| Initial version
+------------+---------------+-------------------------------------------------------------------------------------------------------
+Description:    Generic procedure to check mv logs in a Postgres database, used in this context to check the Materialized View Log 
+				tables exists when building Materialized View.
+
+Arguments:      IN      pConst              The memory structure containing all constants
+				IN 		pViewName			The view name
+                IN      pTableNames         List of materialized view source tables
+				
+************************************************************************************************************************************
+Copyright 2019 Amazon.com, Inc. or its affiliates. All Rights Reserved. SPDX-License-Identifier: MIT-0
+***********************************************************************************************************************************/
+DECLARE
+
+    tSqlStatement 	TEXT;
+	
+	rLogNames 	  	RECORD;
+	
+	iLogTableExists INTEGER := 0;
+	
+	bResult     	BOOLEAN := FALSE;
+	
+	bResultTriggerExists  BOOLEAN := FALSE;
+	
+	tMvLogName		TEXT;
+
+BEGIN
+
+	FOR rLogNames IN SELECT UNNEST( pTableNames ) AS table_name LOOP
+	
+		tSqlStatement := pConst.SELECT_COMMAND || 'COUNT(1) ' || pConst.FROM_PG$MVIEW_LOGS ||' l '|| pConst.JOIN_DML_TYPE || pConst.OPEN_BRACKET 
+		|| pConst.SELECT_COMMAND || 'table_name, table_schema'||pConst.FROM_COMMAND||'information_schema.tables'|| pConst.CLOSE_BRACKET 
+		|| ' t' || pConst.ON_COMMAND || 't.table_name = l.pglog$_name' || pConst.AND_COMMAND || 't.table_schema = l.owner' || pConst.AND_COMMAND
+		|| 'l.table_name'||pConst.EQUALS_COMMAND|| '''' ||rLogNames.table_name|| '''';
+		
+		EXECUTE tSqlStatement INTO iLogTableExists;
+		
+		IF iLogTableExists = 0 THEN
+			tSqlStatement := pConst.SELECT_COMMAND || 'pglog$_name' || pConst.FROM_COMMAND || 'pg$mview_logs' || pConst.WHERE_COMMAND 
+			|| 'table_name' || pConst.EQUALS_COMMAND || '''' || rLogNames.table_name || '''';
+			
+			EXECUTE tSqlStatement INTO tMvLogName;	 
+			bResult := FALSE;
+			EXIT WHEN iLogTableExists = 0;
+			
+		ELSE
+			SELECT mv$CheckTriggerExists(pConst, table_name ) INTO bResultTriggerExists;
+			IF bResultTriggerExists = FALSE THEN			
+				RAISE INFO      'Exception in function mv$CheckTriggerExists';
+				RAISE EXCEPTION 'Error: Trigger does not exist for table %. Unable to build materialized view %', rLogNames.table_name, pViewName; 			
+			END IF;
+			
+			bResult := TRUE;
+			
+		END IF;
+	
+	END LOOP;
+	
+	IF bResult = FALSE THEN	
+		RAISE INFO      'Exception in function mv$CheckMvLogExists';
+		RAISE EXCEPTION 'Error: Mv Log % does not exist for table %. Unable to build materialized view %', tMvLogName, rLogNames.table_name, pViewName; 			
+	END IF;
+
+EXCEPTION
+WHEN OTHERS
+THEN
+	RAISE INFO      'Exception in function mv$CheckMvLogExists';
+	RAISE INFO      'Error %:- %:',     SQLSTATE, SQLERRM;
+	RAISE INFO      'Error Context:% %',CHR(10),  tSqlStatement;
+	RAISE EXCEPTION '%',                SQLSTATE;
 END;
 $BODY$
 LANGUAGE    plpgsql;
