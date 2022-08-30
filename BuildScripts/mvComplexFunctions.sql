@@ -794,9 +794,11 @@ BEGIN
 		iParallelJobs := aPgMview.parallel_jobs;		
 	ELSE	
 		iParallelJobs := iMaxParallelJobs;
+		
 		UPDATE pg$mviews
-		SET parallel_jobs := iParallelJobs
-		WHERE view_name = 'mv_account';
+		SET parallel_jobs = iParallelJobs
+		WHERE view_name = pViewName;
+		
 		RAISE INFO      'WARNING in procedure mv$insertParallelMaterializedViewRows. The parallel_jobs value of % cannot be used as it 
 										is greater than the cron.max_running_jobs minus cron jobs already running. The value used for parallel is %', aPgMview.parallel_jobs, iParallelJobs;
 	END IF;
