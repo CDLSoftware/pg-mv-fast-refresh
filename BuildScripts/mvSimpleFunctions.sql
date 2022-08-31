@@ -3076,7 +3076,7 @@ BEGIN
 	tSqlStatement := pConst.SELECT_COMMAND || 'COUNT(1) ' || pConst.FROM_PG$MVIEW_LOGS ||' l '|| pConst.JOIN_DML_TYPE || pConst.OPEN_BRACKET 
 	|| pConst.SELECT_COMMAND || 'table_name, table_schema'||pConst.FROM_COMMAND||'information_schema.tables'|| pConst.CLOSE_BRACKET 
 	|| ' t' || pConst.ON_COMMAND || 't.table_name = l.pglog$_name' || pConst.AND_COMMAND || 't.table_schema = l.owner' || pConst.AND_COMMAND
-	|| 'l.table_name = '||pTableName
+	|| 'l.table_name = '''|| pTableName || ''''
 	|| pConst.WHERE_COMMAND || 'l.trigger_name'|| pConst.IN_SELECT_COMMAND || pConst.DISTINCT_CLAUSE || 'trigger_name' || pConst.FROM_COMMAND
 	|| 'information_schema.triggers' || pConst.WHERE_COMMAND || 'event_object_table' || pConst.EQUALS_COMMAND || '''' || pTableName || '''' 
 	|| pConst.CLOSE_BRACKET;
@@ -3166,7 +3166,7 @@ BEGIN
 			EXIT WHEN iLogTableExists = 0;
 			
 		ELSE
-			SELECT mv$CheckTriggerExists(pConst, table_name ) INTO bResultTriggerExists;
+			SELECT mv$CheckTriggerExists(pConst, rLogNames.table_name ) INTO bResultTriggerExists;
 			IF bResultTriggerExists = FALSE THEN			
 				RAISE INFO      'Exception in function mv$CheckTriggerExists';
 				RAISE EXCEPTION 'Error: Trigger does not exist for table %. Unable to build materialized view %', rLogNames.table_name, pViewName; 			

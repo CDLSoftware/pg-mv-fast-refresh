@@ -790,7 +790,7 @@ BEGIN
 		  FROM pg_settings
 		  WHERE name = 'cron.max_running_jobs') inline;
 				
-	IF iMaxParallelJobs <= aPgMview.parallel_jobs THEN
+	IF iMaxParallelJobs >= aPgMview.parallel_jobs THEN
 		iParallelJobs := aPgMview.parallel_jobs;		
 	ELSE	
 		iParallelJobs := iMaxParallelJobs;
