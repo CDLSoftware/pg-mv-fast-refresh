@@ -681,6 +681,8 @@ Revision History    Push Down List
 ------------------------------------------------------------------------------------------------------------------------------------
 Date        | Name          | Description
 ------------+---------------+-------------------------------------------------------------------------------------------------------
+31/08/2022	| D Day 		| Enhancement to handle min and max date being null and days split not greater than 0. This will not kick
+			|				| insert statement not in parallel if these conditions are not met instead of triggering an exception error.
 26/08/2022  | D Day         | Defect fix - added logic if parallel_jobs is greater than cron.max_running_jobs minus active running
 			|				| cron jobs. Then use the max value available. 
 23/08/2022	| D Day 		| Defect fix - removed check for running cron jobs with no pids as this was causing issues due
@@ -803,256 +805,266 @@ BEGIN
 										is greater than the cron.max_running_jobs minus cron jobs already running. The value used for parallel is %', aPgMview.parallel_jobs, iParallelJobs;
 	END IF;
 	
-	tMinMaxTimestampSql := 'SELECT MIN('||aPgMview.parallel_column||'), MAX('||aPgMview.parallel_column||') FROM '||tTableName;
+	tMinMaxTimestampSql := 'SELECT COALESCE(MIN('||aPgMview.parallel_column||'),''1900-01-01 00:00:00''::timestamp), COALESCE(MAX('||aPgMview.parallel_column||'),''1900-01-01 00:00:00''::timestamp) FROM '||tTableName;
 	
 	-- set Min and Max Date with Timestamp
 	EXECUTE tMinMaxTimestampSql INTO tsMinTimestamp, tsMaxTimestamp;
 	
-	SELECT (tsMaxTimestamp::DATE-tsMinTimestamp::DATE)/iParallelJobs AS days_diff INTO iDaysSplit;
+	IF tsMinTimestamp <> '1900-01-01 00:00:00' THEN
 	
-	IF iDaysSplit = 0 THEN
-
-		IF pRefreshType = 'F' THEN
-
-			IF EXISTS (
-				SELECT
-				FROM   pg_tables
-				WHERE  tablename = pViewName) THEN
-
-				tDeleteSql := 'DROP TABLE '||pViewName;
-
-				PERFORM * FROM dblink('pgmv$_instance',tDeleteSql) AS p (ret TEXT);
-
-			END IF;
-			
-		END IF;
+		SELECT (tsMaxTimestamp::DATE-tsMinTimestamp::DATE)/iParallelJobs AS days_diff INTO iDaysSplit;
 	
-		RAISE INFO      'Exception in procedure mv$insertParallelMaterializedViewRows';
-		RAISE EXCEPTION 'Error: The max timestamp % and min timestamp % difference divided by the parallel jobs configuration setting of % is not greater than 0 which is a prerequisite to support running in parallel', tsMaxTimestamp, tsMinTimestamp, iParallelJobs;
-		
 	END IF;
 	
-	tsJobCreation := clock_timestamp();
+	--IF iDaysSplit = 0 THEN
+		--IF pRefreshType = 'F' THEN
+			--IF EXISTS (
+			--	SELECT
+			--	FROM   pg_tables
+			--	WHERE  tablename = pViewName) THEN
+			--	tDeleteSql := 'DROP TABLE '||pViewName;
+			--	PERFORM * FROM dblink('pgmv$_instance',tDeleteSql) AS p (ret TEXT);
+			--END IF;			
+		--END IF;	
+		--RAISE INFO      'Exception in procedure mv$insertParallelMaterializedViewRows';
+		--RAISE EXCEPTION 'Error: The max timestamp % and min timestamp % difference divided by the parallel jobs configuration setting of % is not greater than 0 which is a prerequisite to support running in parallel', tsMaxTimestamp, tsMinTimestamp, iParallelJobs;		
+	--END IF;
 	
-	FOR insert_rec IN 1..iParallelJobs LOOP
-		
-		iCounter := iCounter+1;
+	IF tsMinTimestamp = '1900-01-01 00:00:00' OR iDaysSplit = 0 THEN
 	
-		tJobName := pViewName||'_job_'||iCounter;
-		
-		-- set date range sql for insert where clause based on max and min date split as per parallel jobs calculation
-		tTimestampRangeSql := mv$setFromAndToTimestampRange(tsMinTimestamp::DATE,tsMaxTimestamp::DATE,iParallelJobs, iCounter, aPgMview.parallel_column, aPgMview.parallel_alias );	
-		
-		tSqlSelectColumns := pConst.SELECT_COMMAND || aPgMview.select_columns;
-
-		tSqlStatement := pConst.INSERT_INTO    || pOwner || pConst.DOT_CHARACTER    || aPgMview.view_name   ||
-						 pConst.OPEN_BRACKET   || aPgMview.pgmv_columns             || pConst.CLOSE_BRACKET ||
-						 tSqlSelectColumns || pConst.FROM_COMMAND   || aPgMview.table_names;
-
-		IF aPgMview.where_clause != pConst.EMPTY_STRING
-		THEN
-			tSqlStatement := tSqlStatement || pConst.WHERE_COMMAND || aPgMview.where_clause || pConst.AND_COMMAND || tTimestampRangeSql;
+		IF tsMinTimestamp = '1900-01-01 00:00:00' THEN
+			RAISE INFO 'WARNING: Parallel option has not been used due to table % being empty which is used to get the % date min and max values.', tTableName, aPgMview.parallel_column;	
 		ELSE
-			tSqlStatement := tSqlStatement || pConst.WHERE_COMMAND || aPgMview.where_clause || pConst.SPACE_CHARACTER || tTimestampRangeSql;
-		END IF;
-		
-		tSqlStatement := REPLACE(tSqlStatement,'''','''''');
-		
-		tCronSqlStatement := 'INSERT INTO cron.job(schedule, command, database, username, jobname)
-						  VALUES ('''||tCronJobSchedule||''','''||tSqlStatement||''','''||aPgMview.parallel_dbname||''','''||aPgMview.parallel_user||''','''||tJobName||''');
-						     COMMIT;';
-						  
-		--RAISE INFO '%', tCronSqlStatement;
-		
-		PERFORM * FROM dblink('pgmv$cron_instance',tCronSqlStatement) AS p (ret TEXT);
-		
-	END LOOP;
+			RAISE INFO 'WARNING: Parallel option has not been used due to table % column % min % and max % parallel jobs % days split difference not being greater than 0.', tTableName, aPgMview.parallel_column, tsMinTimestamp, tsMaxTimestamp, iParallelJobs;	
+		END IF;			
 	
-	-- Checks to confirm jobs have been created and successfully ran
-	WHILE iJobCount < iParallelJobs LOOP
+		CALL mv$insertMaterializedViewRows( pConst, pOwner, pViewName );
 	
-	iRetryLoopCounter := iRetryLoopCounter +1;
+	ELSE
+		
+		tsJobCreation := clock_timestamp();
+		
+		FOR insert_rec IN 1..iParallelJobs LOOP
+			
+			iCounter := iCounter+1;
+		
+			tJobName := pViewName||'_job_'||iCounter;
+			
+			-- set date range sql for insert where clause based on max and min date split as per parallel jobs calculation
+			tTimestampRangeSql := mv$setFromAndToTimestampRange(tsMinTimestamp::DATE,tsMaxTimestamp::DATE,iParallelJobs, iCounter, aPgMview.parallel_column, aPgMview.parallel_alias );	
+			
+			tSqlSelectColumns := pConst.SELECT_COMMAND || aPgMview.select_columns;
 
-		tStatusCheckSql := 'SELECT count(1) FROM cron.job_run_details jrd
-							JOIN cron.job j ON j.jobid = jrd.jobid
-							WHERE j.jobname LIKE '''||pViewName||'_job_%''
-							AND jrd.start_time >= '''||tsJobCreation||'''';
-							
-		BEGIN
-										
-			SELECT * FROM
-			dblink('pgmv$cron_instance', tStatusCheckSql) AS p (iDblinkCount INT) INTO iJobCount;
+			tSqlStatement := pConst.INSERT_INTO    || pOwner || pConst.DOT_CHARACTER    || aPgMview.view_name   ||
+							 pConst.OPEN_BRACKET   || aPgMview.pgmv_columns             || pConst.CLOSE_BRACKET ||
+							 tSqlSelectColumns || pConst.FROM_COMMAND   || aPgMview.table_names;
+
+			IF aPgMview.where_clause != pConst.EMPTY_STRING
+			THEN
+				tSqlStatement := tSqlStatement || pConst.WHERE_COMMAND || aPgMview.where_clause || pConst.AND_COMMAND || tTimestampRangeSql;
+			ELSE
+				tSqlStatement := tSqlStatement || pConst.WHERE_COMMAND || aPgMview.where_clause || pConst.SPACE_CHARACTER || tTimestampRangeSql;
+			END IF;
 			
-		EXCEPTION	
-		WHEN OTHERS
-		THEN
-		iJobCount := 0;
-		RAISE INFO 'Dblink error - ignore and set iJobCount variable to 0 until next loop.';
-		NULL;		
-		END;
+			tSqlStatement := REPLACE(tSqlStatement,'''','''''');
+			
+			tCronSqlStatement := 'INSERT INTO cron.job(schedule, command, database, username, jobname)
+							  VALUES ('''||tCronJobSchedule||''','''||tSqlStatement||''','''||aPgMview.parallel_dbname||''','''||aPgMview.parallel_user||''','''||tJobName||''');
+								 COMMIT;';
+							  
+			--RAISE INFO '%', tCronSqlStatement;
+			
+			PERFORM * FROM dblink('pgmv$cron_instance',tCronSqlStatement) AS p (ret TEXT);
+			
+		END LOOP;
 		
-		IF iJobCount < iParallelJobs THEN
-			IF iRetryLoopCounter = 3 THEN
+		-- Checks to confirm jobs have been created and successfully ran
+		WHILE iJobCount < iParallelJobs LOOP
+		
+		iRetryLoopCounter := iRetryLoopCounter +1;
+
+			tStatusCheckSql := 'SELECT count(1) FROM cron.job_run_details jrd
+								JOIN cron.job j ON j.jobid = jrd.jobid
+								WHERE j.jobname LIKE '''||pViewName||'_job_%''
+								AND jrd.start_time >= '''||tsJobCreation||'''';
+								
+			BEGIN
+											
+				SELECT * FROM
+				dblink('pgmv$cron_instance', tStatusCheckSql) AS p (iDblinkCount INT) INTO iJobCount;
+				
+			EXCEPTION	
+			WHEN OTHERS
+			THEN
+			iJobCount := 0;
+			RAISE INFO 'Dblink error - ignore and set iJobCount variable to 0 until next loop.';
+			NULL;		
+			END;
 			
-				iRetryLoopCounter := 0;
+			IF iJobCount < iParallelJobs THEN
+				IF iRetryLoopCounter = 3 THEN
 				
-				iRetryCnt := iRetryCnt +1;
+					iRetryLoopCounter := 0;
+					
+					iRetryCnt := iRetryCnt +1;
+					
+					IF iRetryCnt > iRetryLimit THEN
+					
+						RAISE INFO      'Exception in procedure mv$insertParallelMaterializedViewRows';
+						RAISE EXCEPTION 'Error: Cron job(s) for % retry limit of % attempts has been reached - please check cron.jobs. Job update started at % and completed at % with schedule time of %.', pViewName, iRetryLimit,  tsJobStartUpdate, tsJobEndUpdate, tUpdateCronJobSchedule;
 				
-				IF iRetryCnt > iRetryLimit THEN
+					END IF;
+					
+					-- set update cron time
+					tUpdateCronJobSchedule := mv$setCronSchedule();
+					
+					tsJobStartUpdate := clock_timestamp();
 				
-					RAISE INFO      'Exception in procedure mv$insertParallelMaterializedViewRows';
-					RAISE EXCEPTION 'Error: Cron job(s) for % retry limit of % attempts has been reached - please check cron.jobs. Job update started at % and completed at % with schedule time of %.', pViewName, iRetryLimit,  tsJobStartUpdate, tsJobEndUpdate, tUpdateCronJobSchedule;
-			
+					tUpdateCronSqlStatement := 'UPDATE cron.job
+										  SET schedule = '''||tUpdateCronJobSchedule||'''
+										  WHERE jobname LIKE '''||pViewName||'_job_%'';
+										  COMMIT;';
+									  
+					--RAISE INFO '%', tUpdateCronSqlStatement;
+					
+					PERFORM * FROM dblink('pgmv$cron_instance',tUpdateCronSqlStatement) AS p (ret TEXT);
+					
+					tsJobEndUpdate := clock_timestamp();
+					
 				END IF;
 				
-				-- set update cron time
-				tUpdateCronJobSchedule := mv$setCronSchedule();
-				
-				tsJobStartUpdate := clock_timestamp();
+				SELECT pg_sleep(60) INTO tResult;
+			END IF;
 			
-				tUpdateCronSqlStatement := 'UPDATE cron.job
-									  SET schedule = '''||tUpdateCronJobSchedule||'''
-									  WHERE jobname LIKE '''||pViewName||'_job_%'';
-									  COMMIT;';
-								  
-				--RAISE INFO '%', tUpdateCronSqlStatement;
+		END LOOP;
+
+		WHILE iStatusCount > 0 LOOP
+		 
+			tStatusCheckSql := 'SELECT count(1) FROM cron.job_run_details jrd
+								JOIN cron.job j ON j.jobid = jrd.jobid
+								WHERE j.jobname LIKE '''||pViewName||'_job_%''
+								AND jrd.status = ''running''';
+			
+			BEGIN
+			
+				SELECT * FROM
+				dblink('pgmv$cron_instance', tStatusCheckSql) AS p (iDblinkCount INT) INTO iStatusCount;
+			
+			EXCEPTION
+			WHEN OTHERS
+			THEN
+			iStatusCount := 1;
+			RAISE INFO 'Dblink error - ignore and set iStatusCount variable to 1 until next loop.';
+			NULL;		
+			END;
+			
+			--tRunningPidCheckSql := 'SELECT count(1) FROM cron.job_run_details jrd
+			--		JOIN cron.job j ON j.jobid = jrd.jobid
+			--		WHERE j.jobname LIKE '''||pViewName||'_job_%''
+			--		AND jrd.status = ''running''
+			--		AND jrd.job_pid NOT IN (SELECT a.pid FROM pg_stat_activity a
+			--		WHERE a.state = ''active''
+			--		AND a.backend_type = ''pg_cron'')';
+			
+			tErrorCheckSql := 'SELECT count(1) FROM cron.job_run_details jrd
+								JOIN cron.job j ON j.jobid = jrd.jobid
+								WHERE j.jobname LIKE '''||pViewName||'_job_%''
+								AND jrd.start_time >= '''||tsJobCreation||'''
+								AND jrd.status = ''failed''';
+								
+			BEGIN
+								
+				SELECT * FROM
+				dblink('pgmv$cron_instance', tErrorCheckSql) AS p (iDblinkCount INT) INTO iJobErrorCount;
 				
-				PERFORM * FROM dblink('pgmv$cron_instance',tUpdateCronSqlStatement) AS p (ret TEXT);
+				--SELECT * FROM
+				--dblink('pgmv$cron_instance', tRunningPidCheckSql) AS p (iDblinkCount INT) INTO iRunningPidCheckCnt;
 				
-				tsJobEndUpdate := clock_timestamp();
+				--IF iRunningPidCheckCnt > 0 THEN
+				
+					--FOR rPids IN 1..3 LOOP
+				
+						--SELECT pg_sleep(60) INTO tResult;
+
+						--SELECT * FROM
+						--dblink('pgmv$cron_instance', tRunningPidCheckSql) AS p (iDblinkCount INT) INTO iRunningPidCheckCnt;
+
+						--EXIT WHEN iRunningPidCheckCnt = 0;
+					
+					--END LOOP;
+					
+				--END IF;
+				
+			EXCEPTION
+			WHEN OTHERS
+			THEN
+			iJobErrorCount := 0;
+			--iRunningPidCheckCnt := 0;
+			RAISE INFO 'Dblink error - ignore and set iJobErrorCount variable to 1 until next loop.';
+			NULL;		
+			END;		
+			
+			--IF (iJobErrorCount > 0 OR iRunningPidCheckCnt > 0) THEN
+			IF (iJobErrorCount > 0) THEN
+			
+				IF pRefreshType = 'F' THEN
+					IF EXISTS (
+					  SELECT
+					  FROM   pg_tables
+					  WHERE  tablename = pViewName) THEN
+
+						tDeleteSql := 'DROP TABLE '||pViewName;
+
+						PERFORM * FROM dblink('pgmv$_instance',tDeleteSql) AS p (ret TEXT);
+
+					END IF;
+				END IF;
+				
+				tSelectPidsSql := 'SELECT a.pid FROM pg_stat_activity a
+					JOIN cron.job_run_details jrd ON a.pid = jrd.job_pid
+					JOIN cron.job j ON j.jobid = jrd.jobid
+					WHERE a.backend_type = ''pg_cron''
+					AND j.jobname LIKE '''||pViewName||'_job_%''
+					AND a.state = ''active''
+					AND jrd.status = ''running''';
+				
+				FOR rPids IN SELECT * FROM
+				dblink('pgmv$cron_instance',tSelectPidsSql) AS p (iDbLinkPid INT) LOOP
+				
+					iTerminatePidId := rPids;
+					iTerminatePidId := REPLACE(iTerminatePidId,'(','');
+					iTerminatePidId := REPLACE(iTerminatePidId,')','');
+				
+					RAISE INFO 'There has been a cron job that has failed for the parallel INSERT process for materialized view % - cleanup triggered to terminate all remaining pids still in running state. Pid % terminated', pViewName, iTerminatePidId;
+					
+					EXECUTE 'select pg_terminate_backend(pid)  
+					from pg_stat_activity  
+					where pid = '''||iTerminatePidId||'''';
+					
+				END LOOP;
+				
+				RAISE INFO      'Exception in procedure mv$insertParallelMaterializedViewRows';
+				RAISE EXCEPTION 'Error: Cron job(s) for % found in status of failed - please check table cron.job_run_details for full details', pViewName;
+			END IF;
+			
+			IF iStatusCount > 0 THEN
+			
+				SELECT pg_sleep(120) INTO tResult;
 				
 			END IF;
 			
-			SELECT pg_sleep(60) INTO tResult;
-		END IF;
-		
-	END LOOP;
-
-	WHILE iStatusCount > 0 LOOP
-	 
-		tStatusCheckSql := 'SELECT count(1) FROM cron.job_run_details jrd
-							JOIN cron.job j ON j.jobid = jrd.jobid
-							WHERE j.jobname LIKE '''||pViewName||'_job_%''
-							AND jrd.status = ''running''';
-		
-		BEGIN
-		
-			SELECT * FROM
-			dblink('pgmv$cron_instance', tStatusCheckSql) AS p (iDblinkCount INT) INTO iStatusCount;
-		
-		EXCEPTION
-		WHEN OTHERS
-		THEN
-		iStatusCount := 1;
-		RAISE INFO 'Dblink error - ignore and set iStatusCount variable to 1 until next loop.';
-		NULL;		
-		END;
-		
-		--tRunningPidCheckSql := 'SELECT count(1) FROM cron.job_run_details jrd
-		--		JOIN cron.job j ON j.jobid = jrd.jobid
-		--		WHERE j.jobname LIKE '''||pViewName||'_job_%''
-		--		AND jrd.status = ''running''
-		--		AND jrd.job_pid NOT IN (SELECT a.pid FROM pg_stat_activity a
-		--		WHERE a.state = ''active''
-		--		AND a.backend_type = ''pg_cron'')';
-		
-		tErrorCheckSql := 'SELECT count(1) FROM cron.job_run_details jrd
-							JOIN cron.job j ON j.jobid = jrd.jobid
-							WHERE j.jobname LIKE '''||pViewName||'_job_%''
-							AND jrd.start_time >= '''||tsJobCreation||'''
-							AND jrd.status = ''failed''';
-							
-		BEGIN
-							
-			SELECT * FROM
-			dblink('pgmv$cron_instance', tErrorCheckSql) AS p (iDblinkCount INT) INTO iJobErrorCount;
+			IF iStatusCount = 0 THEN
 			
-			--SELECT * FROM
-			--dblink('pgmv$cron_instance', tRunningPidCheckSql) AS p (iDblinkCount INT) INTO iRunningPidCheckCnt;
-			
-			--IF iRunningPidCheckCnt > 0 THEN
-			
-				--FOR rPids IN 1..3 LOOP
-			
-					--SELECT pg_sleep(60) INTO tResult;
-
-					--SELECT * FROM
-					--dblink('pgmv$cron_instance', tRunningPidCheckSql) AS p (iDblinkCount INT) INTO iRunningPidCheckCnt;
-
-					--EXIT WHEN iRunningPidCheckCnt = 0;
-				
-				--END LOOP;
-				
-			--END IF;
-			
-		EXCEPTION
-		WHEN OTHERS
-		THEN
-		iJobErrorCount := 0;
-		--iRunningPidCheckCnt := 0;
-		RAISE INFO 'Dblink error - ignore and set iJobErrorCount variable to 1 until next loop.';
-		NULL;		
-		END;		
-		
-		--IF (iJobErrorCount > 0 OR iRunningPidCheckCnt > 0) THEN
-		IF (iJobErrorCount > 0) THEN
-		
-			IF pRefreshType = 'F' THEN
-				IF EXISTS (
-				  SELECT
-				  FROM   pg_tables
-				  WHERE  tablename = pViewName) THEN
-
-					tDeleteSql := 'DROP TABLE '||pViewName;
-
-					PERFORM * FROM dblink('pgmv$_instance',tDeleteSql) AS p (ret TEXT);
-
-				END IF;
+				tDeleteSql := 'DELETE FROM cron.job j 
+							   WHERE j.jobname LIKE '''||pViewName||'_job_%''';
+								   
+				PERFORM * FROM dblink('pgmv$cron_instance',tDeleteSql) AS p (ret TEXT);
+								   
 			END IF;
 			
-			tSelectPidsSql := 'SELECT a.pid FROM pg_stat_activity a
-				JOIN cron.job_run_details jrd ON a.pid = jrd.job_pid
-				JOIN cron.job j ON j.jobid = jrd.jobid
-				WHERE a.backend_type = ''pg_cron''
-				AND j.jobname LIKE '''||pViewName||'_job_%''
-				AND a.state = ''active''
-				AND jrd.status = ''running''';
-			
-			FOR rPids IN SELECT * FROM
-			dblink('pgmv$cron_instance',tSelectPidsSql) AS p (iDbLinkPid INT) LOOP
-			
-				iTerminatePidId := rPids;
-				iTerminatePidId := REPLACE(iTerminatePidId,'(','');
-				iTerminatePidId := REPLACE(iTerminatePidId,')','');
-			
-				RAISE INFO 'There has been a cron job that has failed for the parallel INSERT process for materialized view % - cleanup triggered to terminate all remaining pids still in running state. Pid % terminated', pViewName, iTerminatePidId;
-				
-				EXECUTE 'select pg_terminate_backend(pid)  
-				from pg_stat_activity  
-				where pid = '''||iTerminatePidId||'''';
-				
-			END LOOP;
-			
-			RAISE INFO      'Exception in procedure mv$insertParallelMaterializedViewRows';
-			RAISE EXCEPTION 'Error: Cron job(s) for % found in status of failed - please check table cron.job_run_details for full details', pViewName;
-		END IF;
-		
-		IF iStatusCount > 0 THEN
-		
-			SELECT pg_sleep(120) INTO tResult;
-			
-		END IF;
-		
-		IF iStatusCount = 0 THEN
-		
-			tDeleteSql := 'DELETE FROM cron.job j 
-						   WHERE j.jobname LIKE '''||pViewName||'_job_%''';
-							   
-			PERFORM * FROM dblink('pgmv$cron_instance',tDeleteSql) AS p (ret TEXT);
-							   
-		END IF;
-		
-	END LOOP;	
+		END LOOP;
+
+	END IF;
 
     EXCEPTION
     WHEN OTHERS

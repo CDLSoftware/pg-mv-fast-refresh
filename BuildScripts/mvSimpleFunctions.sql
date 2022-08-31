@@ -3169,7 +3169,9 @@ BEGIN
 			SELECT mv$CheckTriggerExists(pConst, rLogNames.table_name ) INTO bResultTriggerExists;
 			IF bResultTriggerExists = FALSE THEN			
 				RAISE INFO      'Exception in function mv$CheckTriggerExists';
-				RAISE EXCEPTION 'Error: Trigger does not exist for table %. Unable to build materialized view %', rLogNames.table_name, pViewName; 			
+				RAISE EXCEPTION 'Error: Trigger does not exist for table %. Unable to build materialized view %. 
+This trigger used for logging into the mv log will need adding back onto this table. Full review of pg$mviews and pg$mview_logs will need to be done to identify any additional materialized views linked to this table. 
+These will need rebuilding afterwards due to potential missing data changes not being applied', rLogNames.table_name, pViewName; 			
 			END IF;
 			
 			bResult := TRUE;
@@ -3180,7 +3182,9 @@ BEGIN
 	
 	IF bResult = FALSE THEN	
 		RAISE INFO      'Exception in function mv$CheckMvLogExists';
-		RAISE EXCEPTION 'Error: Mv Log % does not exist for table %. Unable to build materialized view %', tMvLogName, rLogNames.table_name, pViewName; 			
+		RAISE EXCEPTION E'Error: Mv Log % does not exist for table %. Unable to build materialized view %. 
+Full review of pg$mviews and pg$mview_logs will need to be done to identify any additional materialized views linked to this mv log. 
+These will need rebuilding afterwards due to potential missing data changes not being applied', tMvLogName, rLogNames.table_name, pViewName; 			
 	END IF;
 
 EXCEPTION
