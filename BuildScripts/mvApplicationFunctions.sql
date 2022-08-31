@@ -307,7 +307,7 @@ BEGIN
 				tTableArray
 			 );
 			 
-	CALL mv$CheckMvLogExists( pConst, pViewName, tTableArray );
+	CALL mv$CheckMvLogExists( rConst, pViewName, tTableArray );
 
     CALL mv$refreshMaterializedViewInitial( rConst , pOwner, pViewName, pParallel );
 
