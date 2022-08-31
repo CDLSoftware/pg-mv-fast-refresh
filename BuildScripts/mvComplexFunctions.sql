@@ -833,9 +833,9 @@ BEGIN
 	IF tsMinTimestamp = '1900-01-01 00:00:00' OR iDaysSplit = 0 THEN
 	
 		IF tsMinTimestamp = '1900-01-01 00:00:00' THEN
-			RAISE INFO 'WARNING: Parallel option has not been used due to table % being empty which is used to get the % date min and max values.', tTableName, aPgMview.parallel_column;	
+			RAISE INFO 'WARNING in procedure mv$insertParallelMaterializedViewRows. Parallel option has not been used due to table % being empty which is used to get the % date min and max values.', tTableName, aPgMview.parallel_column;	
 		ELSE
-			RAISE INFO 'WARNING: Parallel option has not been used due to table % column % min % and max % parallel jobs % days split difference not being greater than 0.', tTableName, aPgMview.parallel_column, tsMinTimestamp, tsMaxTimestamp, iParallelJobs;	
+			RAISE INFO 'WARNING in procedure mv$insertParallelMaterializedViewRows. Parallel option has not been used due to table % column % min % and max % parallel jobs % days split difference not being greater than 0.', tTableName, aPgMview.parallel_column, tsMinTimestamp, tsMaxTimestamp, iParallelJobs;	
 		END IF;			
 	
 		CALL mv$insertMaterializedViewRows( pConst, pOwner, pViewName );
