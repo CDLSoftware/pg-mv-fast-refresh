@@ -3133,21 +3133,17 @@ Copyright 2019 Amazon.com, Inc. or its affiliates. All Rights Reserved. SPDX-Lic
 ***********************************************************************************************************************************/
 DECLARE
 
-    tSqlStatement 	TEXT;
+    tSqlStatement 			TEXT;
+	rLogNames 	  			RECORD;
+	iLogTableExists 		INTEGER := 0;
+	bResultTriggerExists  	BOOLEAN := FALSE;
+	tMvLogName				TEXT;
+	tTriggerNotExistsInd	TEXT := 'N';
+	tMvLogNotExistsInd		TEXT := 'N';
 	
-	rLogNames 	  	RECORD;
-	
-	iLogTableExists INTEGER := 0;
-	
-	bResult     	BOOLEAN := FALSE;
-	
-	bResultTriggerExists  BOOLEAN := FALSE;
-	
-	tMvLogName		TEXT;
-
 BEGIN
 
-	FOR rLogNames IN SELECT UNNEST( pTableNames ) AS table_name LOOP
+	FOR rLogNames IN SELECT DISTINCT UNNEST( pTableNames ) AS table_name LOOP
 	
 		tSqlStatement := pConst.SELECT_COMMAND || 'COUNT(1) ' || pConst.FROM_PG$MVIEW_LOGS ||' l '|| pConst.JOIN_DML_TYPE || pConst.OPEN_BRACKET 
 		|| pConst.SELECT_COMMAND || 'table_name, table_schema'||pConst.FROM_COMMAND||'information_schema.tables'|| pConst.CLOSE_BRACKET 
@@ -3160,36 +3156,48 @@ BEGIN
 			tSqlStatement := pConst.SELECT_COMMAND || 'pglog$_name' || pConst.FROM_COMMAND || 'pg$mview_logs' || pConst.WHERE_COMMAND 
 			|| 'table_name' || pConst.EQUALS_COMMAND || '''' || rLogNames.table_name || '''';
 			
-			EXECUTE tSqlStatement INTO tMvLogName;	 
-			bResult := FALSE;
-			EXIT WHEN iLogTableExists = 0;
+			EXECUTE tSqlStatement INTO tMvLogName;
+			tMvLogNotExistsInd := 'Y';		
+			RAISE INFO 'Error: Mv Log % does not exist for table %.', tMvLogName, rLogNames.table_name;
 			
 		ELSE
 			SELECT mv$CheckTriggerExists(pConst, rLogNames.table_name ) INTO bResultTriggerExists;
-			IF bResultTriggerExists = FALSE THEN			
-				RAISE INFO      'Exception in function mv$CheckTriggerExists';
-				RAISE EXCEPTION 'Error: Trigger does not exist for table %. Unable to build materialized view %. 
-This trigger used for logging into the mv log will need adding back onto this table. Full review of pg$mviews and pg$mview_logs will need to be done to identify any additional materialized views linked to this table. 
-These will need rebuilding afterwards due to potential missing data changes not being applied', rLogNames.table_name, pViewName; 			
+			IF bResultTriggerExists = FALSE THEN
+				tTriggerNotExistsInd := 'Y';
+				RAISE INFO 'Error: Trigger does not exist for table %.', rLogNames.table_name; 			
 			END IF;
-			
-			bResult := TRUE;
 			
 		END IF;
 	
 	END LOOP;
 	
-	IF bResult = FALSE THEN	
-		RAISE INFO      'Exception in function mv$CheckMvLogExists';
-		RAISE EXCEPTION E'Error: Mv Log % does not exist for table %. Unable to build materialized view %. 
-Full review of pg$mviews and pg$mview_logs will need to be done to identify any additional materialized views linked to this mv log. 
-These will need rebuilding afterwards due to potential missing data changes not being applied', tMvLogName, rLogNames.table_name, pViewName; 			
+	IF tTriggerNotExistsInd = 'Y' AND tMvLogNotExistsInd = 'Y' THEN
+	
+		RAISE INFO 'Exception in function mv$CheckTriggerExists';
+		RAISE EXCEPTION 'Error: Unable to build materialized view %. Missing mv log(s) and trigger(s) identifed.
+This trigger used for logging into the mv log will need adding back onto this table. Full review of pg$mviews and pg$mview_logs will need to be done to identify any additional materialized views linked to this table. 
+These will need rebuilding afterwards due to potential missing data changes not being applied', pViewName; 
+	
+	ELSIF tTriggerNotExistsInd = 'Y' AND tMvLogNotExistsInd = 'N' THEN
+	
+		RAISE INFO 'Exception in function mv$CheckTriggerExists';
+		RAISE EXCEPTION 'Error: Unable to build materialized view %. Missing trigger(s) identified.
+This trigger used for logging into the mv log will need adding back onto this table. Full review of pg$mviews and pg$mview_logs will need to be done to identify any additional materialized views linked to this table. 
+These will need rebuilding afterwards due to potential missing data changes not being applied', pViewName;
+
+	ELSIF tTriggerNotExistsInd = 'N' AND tMvLogNotExistsInd = 'Y' THEN
+
+		--RAISE INFO 'Exception in procedure mv$CheckMvLogExists';
+		RAISE EXCEPTION 'Error: Unable to build materialized view %. Missing mv log(s) identified.
+Full review of pg$mviews and pg$mview_logs will need to be done to identify any additional materialized views linked to this table. 
+These will need rebuilding afterwards due to potential missing data changes not being applied', pViewName;
+
 	END IF;
 
 EXCEPTION
 WHEN OTHERS
 THEN
-	RAISE INFO      'Exception in function mv$CheckMvLogExists';
+	RAISE INFO      'Exception in procedure mv$CheckMvLogExists';
 	RAISE INFO      'Error %:- %:',     SQLSTATE, SQLERRM;
 	RAISE INFO      'Error Context:% %',CHR(10),  tSqlStatement;
 	RAISE EXCEPTION '%',                SQLSTATE;
