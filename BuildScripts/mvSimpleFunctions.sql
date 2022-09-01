@@ -3057,7 +3057,6 @@ Description:    Generic function to check triggers in a Postgres database, used 
                 from the Materialized View Log tables when building Materialized View.
 
 Arguments:      IN      pConst              The memory structure containing all constants
-                IN      pOwner              The owner of the object
                 IN      pTableName          The name of the materialized view source table
 				
 ************************************************************************************************************************************
