@@ -3167,8 +3167,6 @@ BEGIN
 			tTriggerNotExistsInd := 'Y';
 			RAISE INFO 'Error: Trigger does not exist for table %.', rLogNames.table_name; 			
 		END IF;
-			
-		END IF;
 	
 	END LOOP;
 	
