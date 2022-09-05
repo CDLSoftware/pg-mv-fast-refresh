@@ -3160,12 +3160,13 @@ BEGIN
 			tMvLogNotExistsInd := 'Y';		
 			RAISE INFO 'Error: Mv Log % does not exist for table %.', tMvLogName, rLogNames.table_name;
 			
-		ELSE
-			SELECT mv$CheckTriggerExists(pConst, rLogNames.table_name ) INTO bResultTriggerExists;
-			IF bResultTriggerExists = FALSE THEN
-				tTriggerNotExistsInd := 'Y';
-				RAISE INFO 'Error: Trigger does not exist for table %.', rLogNames.table_name; 			
-			END IF;
+		END IF;
+		
+		SELECT mv$CheckTriggerExists(pConst, rLogNames.table_name ) INTO bResultTriggerExists;
+		IF bResultTriggerExists = FALSE THEN
+			tTriggerNotExistsInd := 'Y';
+			RAISE INFO 'Error: Trigger does not exist for table %.', rLogNames.table_name; 			
+		END IF;
 			
 		END IF;
 	
