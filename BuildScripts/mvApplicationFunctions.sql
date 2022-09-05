@@ -93,6 +93,7 @@ Revision History    Push Down List
 ------------------------------------------------------------------------------------------------------------------------------------
 Date        | Name          | Description
 ------------+---------------+-------------------------------------------------------------------------------------------------------
+30/08/2022  | D Day			| Added mv log and trigger check
 12/07/2021	| D Day			| Added new input parameters to support parallel inserts during build phase.
 10/03/2021  | D Day 		| Added additional input parameters to call mv$insertPgMviewOuterJoinDetails to support dynamical delete_sql
 			|				| statement for performance improvements to the outer join alias delete and re-insert routine for DML type INSERT.
@@ -162,7 +163,7 @@ DECLARE
 	tInnerJoinOtherTableAliasArray	TEXT[];
 	tInnerJoinOtherTableRowidArray	TEXT[];
 	tQueryJoinsMultiTabCntArray		SMALLINT[];
-	tQueryJoinsMultiTabPosArray     SMALLINT[];
+	tQueryJoinsMultiTabPosArray     SMALLINT[];	
 
 BEGIN
 
@@ -305,6 +306,8 @@ BEGIN
 				tWhereClause,
 				tTableArray
 			 );
+			 
+	CALL mv$CheckMvLogExists( rConst, pViewName, tTableArray );
 
     CALL mv$refreshMaterializedViewInitial( rConst , pOwner, pViewName, pParallel );
 
