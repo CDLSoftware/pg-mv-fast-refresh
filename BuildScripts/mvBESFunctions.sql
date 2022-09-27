@@ -177,7 +177,7 @@ Revision History    Push Down List
 ------------------------------------------------------------------------------------------------------------------------------------
 Date        | Name          | Description
 ------------+---------------+-------------------------------------------------------------------------------------------------------
-            |               |
+21/09/2022  | Rohan Port    | Fix to rename references in outerjoin details table as well 
 ------------+---------------+-------------------------------------------------------------------------------------------------------
 Description:    Renames a materialized view, edits the view_name in the pg$mviews table
 
@@ -197,9 +197,10 @@ DECLARE
     aPgMview    pg$mviews;
     rConst      mv$allConstants;
 
-    tUpdatePgMviewsSqlStatement   TEXT := '';
-    tRenameTableSqlStatement      TEXT := '';
-    tRenameIndexSqlStatement      TEXT := '';
+    tUpdatePgMviewsSqlStatement             TEXT := '';
+    tUpdatePgMviewOjDetailsSqlStatement     TEXT := '';
+    tRenameTableSqlStatement                TEXT := '';
+    tRenameIndexSqlStatement                TEXT := '';
    
     rIndex	         RECORD;
     tOldIndexName    TEXT;
@@ -211,10 +212,15 @@ begin
     tUpdatePgMviewsSqlStatement   :=  rConst.UPDATE_COMMAND || 'pg$mviews' || rConst.SET_COMMAND || 'view_name = ' 
                                            || rConst.SINGLE_QUOTE_CHARACTER || pNewViewName || rConst.SINGLE_QUOTE_CHARACTER 
                                            || rConst.WHERE_COMMAND || 'view_name = ' || rConst.SINGLE_QUOTE_CHARACTER || pOldViewName || rConst.SINGLE_QUOTE_CHARACTER;
+
+    tUpdatePgMviewOjDetailsSqlStatement   :=  rConst.UPDATE_COMMAND || 'pg$mviews_oj_details' || rConst.SET_COMMAND || 'view_name = ' 
+                                             || rConst.SINGLE_QUOTE_CHARACTER || pNewViewName || rConst.SINGLE_QUOTE_CHARACTER 
+                                             || rConst.WHERE_COMMAND || 'view_name = ' || rConst.SINGLE_QUOTE_CHARACTER || pOldViewName || rConst.SINGLE_QUOTE_CHARACTER;
     
     tRenameTableSqlStatement   :=  rConst.ALTER_TABLE || pOldViewName || rConst.RENAME_TO_COMMAND || pNewViewName;
 
     EXECUTE tUpdatePgMviewsSqlStatement;
+    EXECUTE tUpdatePgMviewOjDetailsSqlStatement;
     EXECUTE tRenameTableSqlStatement;
 
     FOR rIndex IN 
@@ -363,7 +369,7 @@ DECLARE
 
 BEGIN
 
-    RETURN '1_0_1';
+    RETURN '1_0_2';
 
     EXCEPTION
     WHEN OTHERS
