@@ -22,7 +22,7 @@ echo "INFO: Fast Refresh Module UPDATE patch started at `date`" >> $LOG_FILE
 
 fi
 
-chmod 771 -R $MODULE_HOME/
+chmod -R 771 $MODULE_HOME/
 
 if [ "$INSTALL_TYPE" == "FULL" ]; then
 
