@@ -276,10 +276,17 @@ CREATE TABLE IF NOT EXISTS :MODULEOWNER.pg$mviews_version_control
 		created 					TIMESTAMP(0) WITHOUT TIME ZONE
 );
 
+CREATE TABLE IF NOT EXISTS :MODULEOWNER.pg$mviews_settings
+(
+		name 						TEXT NOT NULL PRIMARY KEY,
+		setting 					TEXT
+);
+
 ALTER TABLE :MODULEOWNER.pg$mviews       	   OWNER TO :MODULEOWNER;
 ALTER TABLE :MODULEOWNER.pg$mview_logs   	   OWNER TO :MODULEOWNER;
 ALTER TABLE :MODULEOWNER.pg$mviews_oj_details  OWNER TO :MODULEOWNER;
 ALTER TABLE :MODULEOWNER.pg$mviews_version_control  OWNER TO :MODULEOWNER;
+ALTER TABLE :MODULEOWNER.pg$mviews_settings  OWNER TO :MODULEOWNER;
 
 GRANT   USAGE   ON                      SCHEMA  :MODULEOWNER    TO  pgmv$_role;
 GRANT   USAGE   ON                      SCHEMA  :MODULEOWNER    TO  pgmv$_usage;
@@ -299,6 +306,9 @@ CREATE USER MAPPING IF NOT EXISTS for :MODULEOWNER SERVER pgmv$_instance OPTIONS
 
 GRANT USAGE ON FOREIGN SERVER pgmv$_instance TO :MODULEOWNER;
 
-
+INSERT INTO :MODULEOWNER.pg$mviews_settings (name, setting)
+VALUES
+    ('work_mem',null),
+ON CONFLICT (name) DO NOTHING;
 
 
