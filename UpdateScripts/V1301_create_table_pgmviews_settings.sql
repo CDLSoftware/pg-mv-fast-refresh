@@ -60,7 +60,7 @@ IF iTableExists = 0 THEN
 
 	EXECUTE 'INSERT INTO '||pis_module_owner||'.pg$mviews_settings (name, setting)
 VALUES
-    (''work_mem'',null),
+    (''work_mem'',null)
 ON CONFLICT (name) DO NOTHING';
 
 END IF;
