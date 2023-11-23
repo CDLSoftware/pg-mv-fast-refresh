@@ -126,9 +126,7 @@ touch $MODULE_HOME/fast_refresh_module_update_patch_objects.sql
 chmod 771 $MODULE_HOME/fast_refresh_module_update_patch_objects.sql
 truncate -s 0 $MODULE_HOME/fast_refresh_module_update_patch_objects.sql
 
-for file in $MODULE_HOME/UpdateScripts/*.sql
-
-do
+ls $MODULE_HOME/UpdateScripts/*.sql | sort -V | while IFS= read -r file; do
 
 UPDATE_SCRIPTS_SQL=$(echo "\\i $file;")$'\n'
 
