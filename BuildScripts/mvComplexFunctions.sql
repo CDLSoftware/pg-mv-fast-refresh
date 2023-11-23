@@ -771,7 +771,7 @@ DECLARE
 	
 	tSetting				TEXT;
 	tName					TEXT;
-	tSetWorkMemSQL			TEXT
+	tSetWorkMemSQL			TEXT;
 BEGIN
 
     aPgMview := mv$getPgMviewTableData( pConst, pOwner, pViewName );
@@ -880,7 +880,7 @@ BEGIN
 									 COMMIT;';								 
 			ELSE
 
-				tSetWorkMem := 'SET work_mem='||tSetting||';';
+				tSetWorkMemSQL := 'SET work_mem='||tSetting||';';
 				tCronSqlStatement := 'INSERT INTO cron.job(schedule, command, database, username, jobname)
 								  VALUES ('''||tCronJobSchedule||''','''|| tSetWorkMemSQL || pConst.NEW_LINE || tSqlStatement ||''','''||aPgMview.parallel_dbname||''','''||aPgMview.parallel_user||''','''||tJobName||''');
 									 COMMIT;';							 

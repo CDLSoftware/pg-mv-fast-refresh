@@ -3238,7 +3238,7 @@ tSetting TEXT;
 BEGIN
 	
 	SELECT COALESCE(setting,'SKIP') AS setting INTO tSetting
-	FROM pg$mview_settings
+	FROM pg$mviews_settings
 	WHERE name = pName;
 
     RETURN( tSetting );	
