@@ -770,7 +770,7 @@ DECLARE
 	iParallelJobs			INTEGER := 0;
 	
 	tSetting				TEXT;
-	tName					TEXT;
+	tName					TEXT := 'work_mem';
 	tSetWorkMemSQL			TEXT;
 BEGIN
 
