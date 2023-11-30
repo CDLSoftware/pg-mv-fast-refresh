@@ -308,7 +308,7 @@ GRANT USAGE ON FOREIGN SERVER pgmv$_instance TO :MODULEOWNER;
 
 INSERT INTO :MODULEOWNER.pg$mviews_settings (name, setting)
 VALUES
-    ('work_mem',null),
+    ('work_mem',null)
 ON CONFLICT (name) DO NOTHING;
 
 
