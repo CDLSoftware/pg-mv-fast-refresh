@@ -681,7 +681,7 @@ Revision History    Push Down List
 ------------------------------------------------------------------------------------------------------------------------------------
 Date        | Name          | Description
 ------------+---------------+-------------------------------------------------------------------------------------------------------
-20/11/2023  | D Day			| Added mv$getPgMviewSettingsNameValue function to return work memory setting if poppulated.
+20/11/2023  | D Day			| Added mv$getPgMviewSettingsNameValue function to return work memory setting if populated.
 31/08/2022	| D Day 		| Enhancement to handle min and max date being null and days split not greater than 0. This will not kick
 			|				| insert statement not in parallel if these conditions are not met instead of triggering an exception error.
 26/08/2022  | D Day         | Defect fix - added logic if parallel_jobs is greater than cron.max_running_jobs minus active running
