@@ -279,7 +279,9 @@ CREATE TABLE IF NOT EXISTS :MODULEOWNER.pg$mviews_version_control
 CREATE TABLE IF NOT EXISTS :MODULEOWNER.pg$mviews_settings
 (
 		name 						TEXT NOT NULL PRIMARY KEY,
-		setting 					TEXT
+		setting 					TEXT,
+		unit						TEXT,
+		description					TEXT
 );
 
 ALTER TABLE :MODULEOWNER.pg$mviews       	   OWNER TO :MODULEOWNER;
@@ -306,9 +308,9 @@ CREATE USER MAPPING IF NOT EXISTS for :MODULEOWNER SERVER pgmv$_instance OPTIONS
 
 GRANT USAGE ON FOREIGN SERVER pgmv$_instance TO :MODULEOWNER;
 
-INSERT INTO :MODULEOWNER.pg$mviews_settings (name, setting)
+INSERT INTO :MODULEOWNER.pg$mviews_settings (name, setting, unit, description)
 VALUES
-    ('work_mem',null)
+    ('freeable_mem',null,'MB','Total freeable memory for calculating work memory, to be used when creating parallel inserts cron jobs. Recommended no more than 60 perecentage of the total freeable memory available on this database.')
 ON CONFLICT (name) DO NOTHING;
 
 

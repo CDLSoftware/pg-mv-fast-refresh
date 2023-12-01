@@ -55,12 +55,14 @@ IF iTableExists = 0 THEN
 	EXECUTE 'CREATE TABLE IF NOT EXISTS '||pis_module_owner||'.pg$mviews_settings
 (
 		name 						TEXT NOT NULL PRIMARY KEY,
-		setting 					TEXT
+		setting 					TEXT,
+		unit						TEXT,
+		description					TEXT
 )';
 
 	EXECUTE 'INSERT INTO '||pis_module_owner||'.pg$mviews_settings (name, setting)
 VALUES
-    (''work_mem'',null)
+    (''freeable_mem'',null,''MB'',''Total freeable memory for calculating work memory, to be used when creating parallel inserts cron jobs. Recommended no more than 60 perecentage of the total freeable memory available on this database.'')
 ON CONFLICT (name) DO NOTHING';
 
 END IF;

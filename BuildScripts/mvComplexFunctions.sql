@@ -770,8 +770,9 @@ DECLARE
 	iParallelJobs			INTEGER := 0;
 	
 	tSetting				TEXT;
-	tName					TEXT := 'work_mem';
+	tName					TEXT := 'freeable_mem';
 	tSetWorkMemSQL			TEXT;
+	iWorkMemPerParallelJob  INTEGER;
 BEGIN
 
     aPgMview := mv$getPgMviewTableData( pConst, pOwner, pViewName );
@@ -879,8 +880,10 @@ BEGIN
 								  VALUES ('''||tCronJobSchedule||''','''||tSqlStatement||''','''||aPgMview.parallel_dbname||''','''||aPgMview.parallel_user||''','''||tJobName||''');
 									 COMMIT;';								 
 			ELSE
+			
+				iWorkMemPerParallelJob:=tSetting::INT/iParallelJobs;
 
-				tSetWorkMemSQL := 'SET work_mem='||tSetting||';';
+				tSetWorkMemSQL := 'SET work_mem='''||iWorkMemPerParallelJob||'MB'';';
 				tCronSqlStatement := 'INSERT INTO cron.job(schedule, command, database, username, jobname)
 								  VALUES ('''||tCronJobSchedule||''','''|| tSetWorkMemSQL || pConst.NEW_LINE || tSqlStatement ||''','''||aPgMview.parallel_dbname||''','''||aPgMview.parallel_user||''','''||tJobName||''');
 									 COMMIT;';							 
