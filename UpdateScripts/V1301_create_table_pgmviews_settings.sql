@@ -60,7 +60,7 @@ IF iTableExists = 0 THEN
 		description					TEXT
 )';
 
-	EXECUTE 'INSERT INTO '||pis_module_owner||'.pg$mviews_settings (name, setting)
+	EXECUTE 'INSERT INTO '||pis_module_owner||'.pg$mviews_settings (name, setting, unit, description)
 VALUES
     (''freeable_mem'',null,''MB'',''Total freeable memory for calculating work memory, to be used when creating parallel inserts cron jobs. Recommended no more than 60 perecentage of the total freeable memory available on this database.'')
 ON CONFLICT (name) DO NOTHING';
