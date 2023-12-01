@@ -881,9 +881,9 @@ BEGIN
 									 COMMIT;';								 
 			ELSE
 			
-				iWorkMemPerParallelJob:=tSetting::INT/iParallelJobs;
-
-				tSetWorkMemSQL := 'SET work_mem='''||iWorkMemPerParallelJob||'MB'';';
+				tWorkMemPerParallelJob:=tSetting::INT/iParallelJobs;	
+				tWorkMemPerParallelJob:=tWorkMemPerParallelJob||'MB';
+				tSetWorkMemSQL := 'SET work_mem='''''||tWorkMemPerParallelJob||''''';';
 				tCronSqlStatement := 'INSERT INTO cron.job(schedule, command, database, username, jobname)
 								  VALUES ('''||tCronJobSchedule||''','''|| tSetWorkMemSQL || pConst.NEW_LINE || tSqlStatement ||''','''||aPgMview.parallel_dbname||''','''||aPgMview.parallel_user||''','''||tJobName||''');
 									 COMMIT;';							 
