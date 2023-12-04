@@ -3203,3 +3203,52 @@ THEN
 END;
 $BODY$
 LANGUAGE    plpgsql;
+------------------------------------------------------------------------------------------------------------------------------------
+CREATE OR REPLACE
+FUNCTION    mv$getPgMviewSettingsNameValue
+            (
+                pName		IN 		TEXT				
+            )
+    RETURNS TEXT
+AS
+$BODY$
+/* ---------------------------------------------------------------------------------------------------------------------------------
+Routine Name: mv$getPgMviewSettingsNameValue
+Author:       David Day
+Date:         20/11/2023
+------------------------------------------------------------------------------------------------------------------------------------
+Revision History    Push Down List
+------------------------------------------------------------------------------------------------------------------------------------
+Date        | Name          | Description
+------------+---------------+-------------------------------------------------------------------------------------------------------
+20/11/2023  | D Day      | Initial version
+------------+---------------+-------------------------------------------------------------------------------------------------------
+Description:    Returns name value from table pg$mview_settings.
+
+Arguments:     	IN      pName               The name linked to setting value
+Returns:                TEXT                The setting value returned from the matching input parameter pName
+
+************************************************************************************************************************************
+Copyright 2019 Amazon.com, Inc. or its affiliates. All Rights Reserved. SPDX-License-Identifier: MIT-0
+***********************************************************************************************************************************/
+DECLARE
+
+tSetting TEXT;
+
+BEGIN
+	
+	SELECT COALESCE(setting,'SKIP') AS setting INTO tSetting
+	FROM pg$mviews_settings
+	WHERE name = pName;
+
+    RETURN( tSetting );	
+
+    EXCEPTION
+    WHEN OTHERS
+    THEN
+        RAISE INFO      'Exception in function mv$getPgMviewSettingsNameValue';
+        RAISE INFO      'Error %:- %:',     SQLSTATE, SQLERRM;
+        RAISE EXCEPTION '%',                SQLSTATE;
+END;
+$BODY$
+LANGUAGE    plpgsql;
