@@ -772,7 +772,7 @@ DECLARE
 	tSetting				TEXT;
 	tName					TEXT := 'freeable_mem';
 	tSetWorkMemSQL			TEXT;
-	iWorkMemPerParallelJob  INTEGER;
+	tWorkMemPerParallelJob  TEXT;
 BEGIN
 
     aPgMview := mv$getPgMviewTableData( pConst, pOwner, pViewName );
