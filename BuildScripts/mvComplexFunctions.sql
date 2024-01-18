@@ -681,6 +681,7 @@ Revision History    Push Down List
 ------------------------------------------------------------------------------------------------------------------------------------
 Date        | Name          | Description
 ------------+---------------+-------------------------------------------------------------------------------------------------------
+18/01/2024	| D Day			| Defect fix - added parallel insert and work memory into anonymous block.
 20/11/2023  | D Day			| Added mv$getPgMviewSettingsNameValue function to return work memory setting if populated.
 31/08/2022	| D Day 		| Enhancement to handle min and max date being null and days split not greater than 0. This will not kick
 			|				| insert statement not in parallel if these conditions are not met instead of triggering an exception error.
@@ -879,14 +880,14 @@ BEGIN
 				tCronSqlStatement := 'INSERT INTO cron.job(schedule, command, database, username, jobname)
 								  VALUES ('''||tCronJobSchedule||''','''||tSqlStatement||''','''||aPgMview.parallel_dbname||''','''||aPgMview.parallel_user||''','''||tJobName||''');
 									 COMMIT;';								 
-			ELSE
-			
+			ELSE	
 				tWorkMemPerParallelJob:=tSetting::INT/iParallelJobs;	
 				tWorkMemPerParallelJob:=tWorkMemPerParallelJob||'MB';
-				tSetWorkMemSQL := 'SET work_mem='''''||tWorkMemPerParallelJob||''''';';
+				tSetWorkMemSQL := 'SET work_mem='''''||tWorkMemPerParallelJob||''''';';	
 				tCronSqlStatement := 'INSERT INTO cron.job(schedule, command, database, username, jobname)
-								  VALUES ('''||tCronJobSchedule||''','''|| tSetWorkMemSQL || pConst.NEW_LINE || tSqlStatement ||''','''||aPgMview.parallel_dbname||''','''||aPgMview.parallel_user||''','''||tJobName||''');
-									 COMMIT;';							 
+								  VALUES ('''||tCronJobSchedule||''',''DO $$ '|| pConst.NEW_LINE||'BEGIN'|| pConst.NEW_LINE || tSetWorkMemSQL || pConst.NEW_LINE || tSqlStatement || ';' || pConst.NEW_LINE 
+												||'END $$;'','''||aPgMview.parallel_dbname||''','''||aPgMview.parallel_user||''','''||tJobName||''');
+									 COMMIT;';					 
 			END IF;
 							  
 			--RAISE INFO '%', tCronSqlStatement;
