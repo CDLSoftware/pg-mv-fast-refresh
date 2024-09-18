@@ -1491,6 +1491,7 @@ Revision History    Push Down List
 ------------------------------------------------------------------------------------------------------------------------------------
 Date        | Name          | Description
 ------------+---------------+-------------------------------------------------------------------------------------------------------
+18/09/2024  | D Day         | Change to support limiting the size of the array collection.
 09/09/2021  | D Day			| CDL specific - added additional materialized views to ignore duplicates.
 03/09/2021	| D Day			| CDL specific - ignore DML changes to prtyinst and personxx on MV_LOADINGS_DISCOUNTS as they're causing large
 			|				| delete and insert when the forename and lastname has not changed. The main joining table will reflect
@@ -1550,6 +1551,10 @@ DECLARE
 	bOuterJoined			BOOLEAN;
 	
 	iTabPkExist				INTEGER := 0;
+	iCounter	            INTEGER := 0;
+	iArrayLimit	            INTEGER;
+
+	tNameLimit          TEXT := 'array_rowid_limit';
 
 BEGIN
 
@@ -1576,20 +1581,24 @@ BEGIN
                         pConst.MV_LOG$_SELECT_M_ROWS_ORDER_BY;
  
  -- SELECT m_row$,sequence$,dmltype$ FROM cdl_data.log$_t1 WHERE bitmap$ &  POWER( 2, $1)::BIGINT =  POWER( 2, $2)::BIGINT ORDER BY sequence$
- 
+
+    iArrayLimit := mv$getPgMviewSettingsNameValue( tNameLimit );
+
     FOR     uRowID, biSequence, tDmlType
     IN
     EXECUTE tSqlStatement
     LOOP
         biMaxSequence := biSequence;
 
-        IF tLastType =  tDmlType
-        OR tLastType IS NULL
+        IF ( tLastType =  tDmlType
+        OR tLastType IS NULL ) AND iCounter < iArrayLimit
         THEN
             tLastType               := tDmlType;
             iArraySeq               := iArraySeq + 1;
             uRowIDArray[iArraySeq]  := uRowID;
+            iCounter 				:= iCounter + 1;
         ELSE
+            iCounter := 0;
 		
 			IF pQueryJoinsMultiTabCnt > 1 THEN
 			
