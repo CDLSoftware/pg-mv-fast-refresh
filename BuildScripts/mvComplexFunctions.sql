@@ -681,6 +681,8 @@ Revision History    Push Down List
 ------------------------------------------------------------------------------------------------------------------------------------
 Date        | Name          | Description
 ------------+---------------+-------------------------------------------------------------------------------------------------------
+04/11/2024  | D Day         | Added system parameter enable_bitmapscan option to disable bitmap indexes from being used by the 
+			|				| parallel inserts.
 18/01/2024	| D Day			| Defect fix - added parallel insert and work memory into anonymous block.
 20/11/2023  | D Day			| Added mv$getPgMviewSettingsNameValue function to return work memory setting if populated.
 31/08/2022	| D Day 		| Enhancement to handle min and max date being null and days split not greater than 0. This will not kick
@@ -770,15 +772,19 @@ DECLARE
 	iMaxParallelJobs		INTEGER	:= 0;
 	iParallelJobs			INTEGER := 0;
 	
-	tSetting				TEXT;
-	tName					TEXT := 'freeable_mem';
+	tFreeableMemorySetting		TEXT;
+	tEnableBitmapScanSetting 	TEXT;
+	tFreeableMemoryName		TEXT := 'freeable_mem';
+	tEnableBitmapScanName	TEXT := 'enable_bitmapscan';
 	tSetWorkMemSQL			TEXT;
+	tSetEnableBitmapScanSQL	TEXT;
 	tWorkMemPerParallelJob  TEXT;
 BEGIN
 
     aPgMview := mv$getPgMviewTableData( pConst, pOwner, pViewName );
 	
-	tSetting := mv$getPgMviewSettingsNameValue( tName );
+	tFreeableMemorySetting := mv$getPgMviewSettingsNameValue( tFreeableMemoryName );
+	tEnableBitmapScanSetting := mv$getPgMviewSettingsNameValue( tEnableBitmapScanName );
 	
 	-- Remove any old jobs
 	tDeleteSql := 'DELETE FROM cron.job j 
@@ -876,12 +882,21 @@ BEGIN
 			
 			tSqlStatement := REPLACE(tSqlStatement,'''','''''');
 			
-			IF tSetting = 'SKIP' then		
-				tCronSqlStatement := 'INSERT INTO cron.job(schedule, command, database, username, jobname)
-								  VALUES ('''||tCronJobSchedule||''','''||tSqlStatement||''','''||aPgMview.parallel_dbname||''','''||aPgMview.parallel_user||''','''||tJobName||''');
-									 COMMIT;';								 
+			IF tFreeableMemorySetting = 'SKIP' then		
+				IF tEnableBitmapScanSetting = 'on' THEN
+					tSetEnableBitmapScanSQL := 'SET enable_bitmapscan='''''||tEnableBitmapScanSetting||''''';';	
+					tCronSqlStatement := 'INSERT INTO cron.job(schedule, command, database, username, jobname)
+									  VALUES ('''||tCronJobSchedule||''',''DO $$ '|| pConst.NEW_LINE||'BEGIN'|| pConst.NEW_LINE || tSetEnableBitmapScanSQL || pConst.NEW_LINE || tSqlStatement || ';' || pConst.NEW_LINE 
+													||'END $$;'','''||aPgMview.parallel_dbname||''','''||aPgMview.parallel_user||''','''||tJobName||''');
+										 COMMIT;';				
+				ELSE
+					tCronSqlStatement := 'INSERT INTO cron.job(schedule, command, database, username, jobname)
+									  VALUES ('''||tCronJobSchedule||''','''||tSqlStatement||''','''||aPgMview.parallel_dbname||''','''||aPgMview.parallel_user||''','''||tJobName||''');
+										 COMMIT;';	
+				END IF;
+				
 			ELSE	
-				tWorkMemPerParallelJob:=tSetting::INT/iParallelJobs;	
+				tWorkMemPerParallelJob:=tFreeableMemorySetting::INT/iParallelJobs;	
 				tWorkMemPerParallelJob:=tWorkMemPerParallelJob||'MB';
 				tSetWorkMemSQL := 'SET work_mem='''''||tWorkMemPerParallelJob||''''';';	
 				tCronSqlStatement := 'INSERT INTO cron.job(schedule, command, database, username, jobname)
