@@ -19,7 +19,7 @@ Background:     Postgres does not support Materialized View Fast Refreshes, this
                 provide that functionality, the next phase of this project is to fold these changes into the PostGre kernel.
 
 Description:    This is a patch script to insert new configuration row into the data dictionary pg$mviews_settings table to
-                support setting rowids array limit.
+                support setting rowids array limit and enable/disable bitmap scan indexing.
 
 Notes:          
 
@@ -56,6 +56,11 @@ IF iTableExists = 1 THEN
 	EXECUTE 'INSERT INTO '||pis_module_owner||'.pg$mviews_settings (name, setting, unit, description)
 VALUES
     (''array_rowid_limit'',''10000'',null,''Row ID Array Limit to restrict how many rowids get picked by the INSERT, UPDATE, DELETE SQL statements used by the fast refresh logic.'')
+ON CONFLICT (name) DO NOTHING';
+
+	EXECUTE 'INSERT INTO '||pis_module_owner||'.pg$mviews_settings (name, setting, unit, description)
+VALUES
+    (''enable_bitmapscan'',''on'',null,''Enable bitmap scan system parameter to be used for disabling bitmap indexes, set to off forces the materialized view build parallel inserts execution plan to use standard indexes instead of bitmap indexes to help improve performance for large data volumes.'')
 ON CONFLICT (name) DO NOTHING';
 
 END IF;
