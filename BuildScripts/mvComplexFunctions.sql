@@ -883,7 +883,7 @@ BEGIN
 			tSqlStatement := REPLACE(tSqlStatement,'''','''''');
 			
 			IF tFreeableMemorySetting = 'SKIP' then		
-				IF tEnableBitmapScanSetting = 'on' THEN
+				IF tEnableBitmapScanSetting = 'off' THEN
 					tSetEnableBitmapScanSQL := 'SET enable_bitmapscan='''''||tEnableBitmapScanSetting||''''';';	
 					tCronSqlStatement := 'INSERT INTO cron.job(schedule, command, database, username, jobname)
 									  VALUES ('''||tCronJobSchedule||''',''DO $$ '|| pConst.NEW_LINE||'BEGIN'|| pConst.NEW_LINE || tSetEnableBitmapScanSQL || pConst.NEW_LINE || tSqlStatement || ';' || pConst.NEW_LINE 
@@ -895,14 +895,25 @@ BEGIN
 										 COMMIT;';	
 				END IF;
 				
-			ELSE	
-				tWorkMemPerParallelJob:=tFreeableMemorySetting::INT/iParallelJobs;	
-				tWorkMemPerParallelJob:=tWorkMemPerParallelJob||'MB';
-				tSetWorkMemSQL := 'SET work_mem='''''||tWorkMemPerParallelJob||''''';';	
-				tCronSqlStatement := 'INSERT INTO cron.job(schedule, command, database, username, jobname)
-								  VALUES ('''||tCronJobSchedule||''',''DO $$ '|| pConst.NEW_LINE||'BEGIN'|| pConst.NEW_LINE || tSetWorkMemSQL || pConst.NEW_LINE || tSqlStatement || ';' || pConst.NEW_LINE 
-												||'END $$;'','''||aPgMview.parallel_dbname||''','''||aPgMview.parallel_user||''','''||tJobName||''');
-									 COMMIT;';					 
+			ELSE
+				IF tEnableBitmapScanSetting = 'off' THEN
+					tWorkMemPerParallelJob:=tFreeableMemorySetting::INT/iParallelJobs;	
+					tWorkMemPerParallelJob:=tWorkMemPerParallelJob||'MB';
+					tSetEnableBitmapScanSQL := 'SET enable_bitmapscan='''''||tEnableBitmapScanSetting||''''';';	
+					tSetWorkMemSQL := 'SET work_mem='''''||tWorkMemPerParallelJob||''''';';	
+					tCronSqlStatement := 'INSERT INTO cron.job(schedule, command, database, username, jobname)
+									  VALUES ('''||tCronJobSchedule||''',''DO $$ '|| pConst.NEW_LINE||'BEGIN'|| pConst.NEW_LINE || tSetWorkMemSQL || pConst.NEW_LINE || tSetEnableBitmapScanSQL || pConst.NEW_LINE || tSqlStatement || ';' || pConst.NEW_LINE 
+													||'END $$;'','''||aPgMview.parallel_dbname||''','''||aPgMview.parallel_user||''','''||tJobName||''');
+										 COMMIT;';
+				ELSE
+					tWorkMemPerParallelJob:=tFreeableMemorySetting::INT/iParallelJobs;	
+					tWorkMemPerParallelJob:=tWorkMemPerParallelJob||'MB';
+					tSetWorkMemSQL := 'SET work_mem='''''||tWorkMemPerParallelJob||''''';';	
+					tCronSqlStatement := 'INSERT INTO cron.job(schedule, command, database, username, jobname)
+									  VALUES ('''||tCronJobSchedule||''',''DO $$ '|| pConst.NEW_LINE||'BEGIN'|| pConst.NEW_LINE || tSetWorkMemSQL || pConst.NEW_LINE || tSqlStatement || ';' || pConst.NEW_LINE 
+													||'END $$;'','''||aPgMview.parallel_dbname||''','''||aPgMview.parallel_user||''','''||tJobName||''');
+										 COMMIT;';
+				END IF;
 			END IF;
 							  
 			--RAISE INFO '%', tCronSqlStatement;
