@@ -1517,6 +1517,8 @@ Revision History    Push Down List
 ------------------------------------------------------------------------------------------------------------------------------------
 Date        | Name          | Description
 ------------+---------------+-------------------------------------------------------------------------------------------------------
+15/12/2025  | D Day			| CDL specific - bug fix to prevent Array Limit from triggering in accounting tables to avoid missing
+			|               | inserts from credit/debit self-joins.
 18/09/2024  | D Day         | Change to support limiting the size of the array collection.
 09/09/2021  | D Day			| CDL specific - added additional materialized views to ignore duplicates.
 03/09/2021	| D Day			| CDL specific - ignore DML changes to prtyinst and personxx on MV_LOADINGS_DISCOUNTS as they're causing large
@@ -1580,7 +1582,10 @@ DECLARE
 	iCounter	            INTEGER := 0;
 	iArrayLimit	            INTEGER;
 
-	tNameLimit          TEXT := 'array_rowid_limit';
+	tNameLimit          	TEXT := 'array_rowid_limit';
+	
+	tForceDefaultArrayLimit INTEGER := 100000000;
+	
 
 BEGIN
 
@@ -1609,6 +1614,10 @@ BEGIN
  -- SELECT m_row$,sequence$,dmltype$ FROM cdl_data.log$_t1 WHERE bitmap$ &  POWER( 2, $1)::BIGINT =  POWER( 2, $2)::BIGINT ORDER BY sequence$
 
     iArrayLimit := mv$getPgMviewSettingsNameValue( tNameLimit );
+	
+	IF pViewName IN ('mv_subagent_account_entry','mv_account','mv_statement') THEN
+		iArrayLimit := tForceDefaultArrayLimit;
+	END IF;	
 
     FOR     uRowID, biSequence, tDmlType
     IN
@@ -1684,9 +1693,10 @@ BEGIN
 
             tLastType               := tDmlType;
             iArraySeq               := 1;
+			iCounter 				:= 1;
 
-			      uRowIDArray 			:= '{}';
-			      uRowIDArray[iArraySeq]  := uRowID;
+			uRowIDArray 			:= '{}';
+			uRowIDArray[iArraySeq]  := uRowID;
 
         END IF;
 		
