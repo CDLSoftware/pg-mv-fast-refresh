@@ -313,4 +313,12 @@ VALUES
     ('freeable_mem',null,'MB','Total freeable memory for calculating work memory, to be used when creating parallel inserts cron jobs. Recommended no more than 60 perecentage of the total freeable memory available on this database.')
 ON CONFLICT (name) DO NOTHING;
 
+INSERT INTO :MODULEOWNER.pg$mviews_settings (name, setting, unit, description)
+VALUES
+    ('array_rowid_limit','10000',null,'Row ID Array Limit to restrict how many rowids get picked by the INSERT, UPDATE, DELETE SQL statements used by the fast refresh logic.')
+ON CONFLICT (name) DO NOTHING;
 
+INSERT INTO :MODULEOWNER.pg$mviews_settings (name, setting, unit, description)
+VALUES
+    ('enable_bitmapscan','on',null,'Enable bitmap scan system parameter to be used for disabling bitmap indexes, set to off forces the materialized view build parallel inserts execution plan to use standard indexes instead of bitmap indexes to help improve performance for large data volumes.')
+ON CONFLICT (name) DO NOTHING;

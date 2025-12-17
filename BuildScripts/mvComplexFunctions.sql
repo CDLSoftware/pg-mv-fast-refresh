@@ -681,6 +681,8 @@ Revision History    Push Down List
 ------------------------------------------------------------------------------------------------------------------------------------
 Date        | Name          | Description
 ------------+---------------+-------------------------------------------------------------------------------------------------------
+04/11/2024  | D Day         | Added system parameter enable_bitmapscan option to disable bitmap indexes from being used by the 
+			|				| parallel inserts.
 18/01/2024	| D Day			| Defect fix - added parallel insert and work memory into anonymous block.
 20/11/2023  | D Day			| Added mv$getPgMviewSettingsNameValue function to return work memory setting if populated.
 31/08/2022	| D Day 		| Enhancement to handle min and max date being null and days split not greater than 0. This will not kick
@@ -770,15 +772,19 @@ DECLARE
 	iMaxParallelJobs		INTEGER	:= 0;
 	iParallelJobs			INTEGER := 0;
 	
-	tSetting				TEXT;
-	tName					TEXT := 'freeable_mem';
+	tFreeableMemorySetting		TEXT;
+	tEnableBitmapScanSetting 	TEXT;
+	tFreeableMemoryName		TEXT := 'freeable_mem';
+	tEnableBitmapScanName	TEXT := 'enable_bitmapscan';
 	tSetWorkMemSQL			TEXT;
+	tSetEnableBitmapScanSQL	TEXT;
 	tWorkMemPerParallelJob  TEXT;
 BEGIN
 
     aPgMview := mv$getPgMviewTableData( pConst, pOwner, pViewName );
 	
-	tSetting := mv$getPgMviewSettingsNameValue( tName );
+	tFreeableMemorySetting := mv$getPgMviewSettingsNameValue( tFreeableMemoryName );
+	tEnableBitmapScanSetting := mv$getPgMviewSettingsNameValue( tEnableBitmapScanName );
 	
 	-- Remove any old jobs
 	tDeleteSql := 'DELETE FROM cron.job j 
@@ -876,18 +882,38 @@ BEGIN
 			
 			tSqlStatement := REPLACE(tSqlStatement,'''','''''');
 			
-			IF tSetting = 'SKIP' then		
-				tCronSqlStatement := 'INSERT INTO cron.job(schedule, command, database, username, jobname)
-								  VALUES ('''||tCronJobSchedule||''','''||tSqlStatement||''','''||aPgMview.parallel_dbname||''','''||aPgMview.parallel_user||''','''||tJobName||''');
-									 COMMIT;';								 
-			ELSE	
-				tWorkMemPerParallelJob:=tSetting::INT/iParallelJobs;	
-				tWorkMemPerParallelJob:=tWorkMemPerParallelJob||'MB';
-				tSetWorkMemSQL := 'SET work_mem='''''||tWorkMemPerParallelJob||''''';';	
-				tCronSqlStatement := 'INSERT INTO cron.job(schedule, command, database, username, jobname)
-								  VALUES ('''||tCronJobSchedule||''',''DO $$ '|| pConst.NEW_LINE||'BEGIN'|| pConst.NEW_LINE || tSetWorkMemSQL || pConst.NEW_LINE || tSqlStatement || ';' || pConst.NEW_LINE 
-												||'END $$;'','''||aPgMview.parallel_dbname||''','''||aPgMview.parallel_user||''','''||tJobName||''');
-									 COMMIT;';					 
+			IF tFreeableMemorySetting = 'SKIP' then		
+				IF tEnableBitmapScanSetting = 'off' THEN
+					tSetEnableBitmapScanSQL := 'SET enable_bitmapscan='''''||tEnableBitmapScanSetting||''''';';	
+					tCronSqlStatement := 'INSERT INTO cron.job(schedule, command, database, username, jobname)
+									  VALUES ('''||tCronJobSchedule||''',''DO $$ '|| pConst.NEW_LINE||'BEGIN'|| pConst.NEW_LINE || tSetEnableBitmapScanSQL || pConst.NEW_LINE || tSqlStatement || ';' || pConst.NEW_LINE 
+													||'END $$;'','''||aPgMview.parallel_dbname||''','''||aPgMview.parallel_user||''','''||tJobName||''');
+										 COMMIT;';				
+				ELSE
+					tCronSqlStatement := 'INSERT INTO cron.job(schedule, command, database, username, jobname)
+									  VALUES ('''||tCronJobSchedule||''','''||tSqlStatement||''','''||aPgMview.parallel_dbname||''','''||aPgMview.parallel_user||''','''||tJobName||''');
+										 COMMIT;';	
+				END IF;
+				
+			ELSE
+				IF tEnableBitmapScanSetting = 'off' THEN
+					tWorkMemPerParallelJob:=tFreeableMemorySetting::INT/iParallelJobs;	
+					tWorkMemPerParallelJob:=tWorkMemPerParallelJob||'MB';
+					tSetEnableBitmapScanSQL := 'SET enable_bitmapscan='''''||tEnableBitmapScanSetting||''''';';	
+					tSetWorkMemSQL := 'SET work_mem='''''||tWorkMemPerParallelJob||''''';';	
+					tCronSqlStatement := 'INSERT INTO cron.job(schedule, command, database, username, jobname)
+									  VALUES ('''||tCronJobSchedule||''',''DO $$ '|| pConst.NEW_LINE||'BEGIN'|| pConst.NEW_LINE || tSetWorkMemSQL || pConst.NEW_LINE || tSetEnableBitmapScanSQL || pConst.NEW_LINE || tSqlStatement || ';' || pConst.NEW_LINE 
+													||'END $$;'','''||aPgMview.parallel_dbname||''','''||aPgMview.parallel_user||''','''||tJobName||''');
+										 COMMIT;';
+				ELSE
+					tWorkMemPerParallelJob:=tFreeableMemorySetting::INT/iParallelJobs;	
+					tWorkMemPerParallelJob:=tWorkMemPerParallelJob||'MB';
+					tSetWorkMemSQL := 'SET work_mem='''''||tWorkMemPerParallelJob||''''';';	
+					tCronSqlStatement := 'INSERT INTO cron.job(schedule, command, database, username, jobname)
+									  VALUES ('''||tCronJobSchedule||''',''DO $$ '|| pConst.NEW_LINE||'BEGIN'|| pConst.NEW_LINE || tSetWorkMemSQL || pConst.NEW_LINE || tSqlStatement || ';' || pConst.NEW_LINE 
+													||'END $$;'','''||aPgMview.parallel_dbname||''','''||aPgMview.parallel_user||''','''||tJobName||''');
+										 COMMIT;';
+				END IF;
 			END IF;
 							  
 			--RAISE INFO '%', tCronSqlStatement;
@@ -1491,6 +1517,9 @@ Revision History    Push Down List
 ------------------------------------------------------------------------------------------------------------------------------------
 Date        | Name          | Description
 ------------+---------------+-------------------------------------------------------------------------------------------------------
+15/12/2025  | D Day			| CDL specific - bug fix to prevent Array Limit from triggering in accounting tables to avoid missing
+			|               | inserts from credit/debit self-joins.
+18/09/2024  | D Day         | Change to support limiting the size of the array collection.
 09/09/2021  | D Day			| CDL specific - added additional materialized views to ignore duplicates.
 03/09/2021	| D Day			| CDL specific - ignore DML changes to prtyinst and personxx on MV_LOADINGS_DISCOUNTS as they're causing large
 			|				| delete and insert when the forename and lastname has not changed. The main joining table will reflect
@@ -1550,6 +1579,13 @@ DECLARE
 	bOuterJoined			BOOLEAN;
 	
 	iTabPkExist				INTEGER := 0;
+	iCounter	            INTEGER := 0;
+	iArrayLimit	            INTEGER;
+
+	tNameLimit          	TEXT := 'array_rowid_limit';
+	
+	tForceDefaultArrayLimit INTEGER := 100000000;
+	
 
 BEGIN
 
@@ -1576,20 +1612,28 @@ BEGIN
                         pConst.MV_LOG$_SELECT_M_ROWS_ORDER_BY;
  
  -- SELECT m_row$,sequence$,dmltype$ FROM cdl_data.log$_t1 WHERE bitmap$ &  POWER( 2, $1)::BIGINT =  POWER( 2, $2)::BIGINT ORDER BY sequence$
- 
+
+    iArrayLimit := mv$getPgMviewSettingsNameValue( tNameLimit );
+	
+	IF pViewName IN ('mv_subagent_account_entry','mv_account','mv_statement') THEN
+		iArrayLimit := tForceDefaultArrayLimit;
+	END IF;	
+
     FOR     uRowID, biSequence, tDmlType
     IN
     EXECUTE tSqlStatement
     LOOP
         biMaxSequence := biSequence;
 
-        IF tLastType =  tDmlType
-        OR tLastType IS NULL
+        IF ( tLastType =  tDmlType
+        OR tLastType IS NULL ) AND iCounter < iArrayLimit
         THEN
             tLastType               := tDmlType;
             iArraySeq               := iArraySeq + 1;
             uRowIDArray[iArraySeq]  := uRowID;
+            iCounter 				:= iCounter + 1;
         ELSE
+            iCounter := 0;
 		
 			IF pQueryJoinsMultiTabCnt > 1 THEN
 			
@@ -1649,9 +1693,10 @@ BEGIN
 
             tLastType               := tDmlType;
             iArraySeq               := 1;
+			iCounter 				:= 1;
 
-			      uRowIDArray 			:= '{}';
-			      uRowIDArray[iArraySeq]  := uRowID;
+			uRowIDArray 			:= '{}';
+			uRowIDArray[iArraySeq]  := uRowID;
 
         END IF;
 		
