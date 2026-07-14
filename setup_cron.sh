@@ -6,4 +6,4 @@ shared_preload_libraries='pg_cron'
 cron.database_name='postgres'
 EOT
 # Required to load pg_cron
-/usr/lib/postgresql/12/bin/pg_ctl -D /var/lib/postgresql/data restart
+/usr/lib/postgresql/17/bin/pg_ctl -D /var/lib/postgresql/data restart
