@@ -1,0 +1,141 @@
+name: CI - PostgreSQL 17.6 Fast Refresh Module
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+env:
+  POSTGRES_HOST_AUTH_METHOD: trust
+  PROJECT_HOME: ${{ github.workspace }}
+
+jobs:
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    container:
+      image: postgres:17.6
+      env:
+        POSTGRES_HOST_AUTH_METHOD: trust
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          apt-get -q update
+          apt-get -y -q install git python3 python3-dev python3-pip default-jre default-jdk sudo
+
+      - name: Start PostgreSQL
+        run: |
+          /usr/local/bin/docker-entrypoint.sh postgres &
+          apt-get -y install postgresql-17-cron
+          sleep 10
+
+      - name: Setup environment
+        run: |
+          chown -R postgres:postgres ${{ github.workspace }}
+          chmod 777 -R ${{ github.workspace }}
+
+      - name: Setup pg_cron
+        run: sudo -i -u postgres ${{ github.workspace }}/setup_cron.sh
+
+      - name: Configure variables
+        run: |
+          cp ${{ github.workspace }}/.pipeline_module_set_variables.sh ${{ github.workspace }}/module_set_variables.sh
+          sed -i "s|/builds/cheshire-datasystems/dba-team/pg-mv-fast-refresh-githubrunner|${{ github.workspace }}|g" ${{ github.workspace }}/module_set_variables.sh
+          chown -R postgres:postgres ${{ github.workspace }}
+          chmod 777 -R ${{ github.workspace }}
+
+      - name: Run build
+        run: sudo -i -u postgres ${{ github.workspace }}/run_pipeline_checks.sh build
+
+  mv-refresh:
+    name: MV Refresh
+    runs-on: ubuntu-latest
+    container:
+      image: postgres:17.6
+      env:
+        POSTGRES_HOST_AUTH_METHOD: trust
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          apt-get -q update
+          apt-get -y -q install git python3 python3-dev python3-pip default-jre default-jdk sudo
+
+      - name: Start PostgreSQL
+        run: |
+          /usr/local/bin/docker-entrypoint.sh postgres &
+          apt-get -y install postgresql-17-cron
+          sleep 10
+
+      - name: Setup environment
+        run: |
+          chown -R postgres:postgres ${{ github.workspace }}
+          chmod 777 -R ${{ github.workspace }}
+
+      - name: Setup pg_cron
+        run: sudo -i -u postgres ${{ github.workspace }}/setup_cron.sh
+
+      - name: Configure variables
+        run: |
+          cp .pipeline_module_set_variables.sh module_set_variables.sh
+          sed -i "s|/builds/cheshire-datasystems/dba-team/pg-mv-fast-refresh-githubrunner|${{ github.workspace }}|g" module_set_variables.sh
+          chown -R postgres:postgres ${{ github.workspace }}
+          chmod 777 -R ${{ github.workspace }}
+
+      - name: Run build
+        run: sudo -i -u postgres ${{ github.workspace }}/run_pipeline_checks.sh build
+
+      - name: Run MV refresh
+        run: sudo -i -u postgres ${{ github.workspace }}/run_pipeline_checks.sh test
+
+  module-destroy:
+    name: Module Destroy
+    runs-on: ubuntu-latest
+    container:
+      image: postgres:17.6
+      env:
+        POSTGRES_HOST_AUTH_METHOD: trust
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          apt-get -q update
+          apt-get -y -q install git python3 python3-dev python3-pip default-jre default-jdk sudo
+
+      - name: Start PostgreSQL
+        run: |
+          /usr/local/bin/docker-entrypoint.sh postgres &
+          apt-get -y install postgresql-17-cron
+          sleep 10
+
+      - name: Setup environment
+        run: |
+          chown -R postgres:postgres ${{ github.workspace }}
+          chmod 777 -R ${{ github.workspace }}
+
+      - name: Setup pg_cron
+        run: sudo -i -u postgres ${{ github.workspace }}/setup_cron.sh
+
+      - name: Configure variables
+        run: |
+          cp .pipeline_module_set_variables.sh module_set_variables.sh
+          sed -i "s|/builds/cheshire-datasystems/dba-team/pg-mv-fast-refresh-githubrunner|${{ github.workspace }}|g" module_set_variables.sh
+          chown -R postgres:postgres ${{ github.workspace }}
+          chmod 777 -R ${{ github.workspace }}
+
+      - name: Run build
+        run: sudo -i -u postgres ${{ github.workspace }}/run_pipeline_checks.sh build
+
+      - name: Run destroy
+        run: sudo -i -u postgres ${{ github.workspace }}/run_pipeline_checks.sh destroy
