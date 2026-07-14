@@ -8,6 +8,7 @@ on:
 
 env:
   POSTGRES_HOST_AUTH_METHOD: trust
+  GITLAB_PATH: /builds/cheshire-datasystems/dba-team/pg-mv-fast-refresh-githubrunner
 
 jobs:
   build:
@@ -39,23 +40,22 @@ jobs:
 
       - name: Setup pg_cron
         run: |
-          cat <<EOT >> /var/lib/postgresql/data/postgresql.conf
-          shared_preload_libraries='pg_cron'
-          cron.database_name='postgres'
-          EOT
+          echo "shared_preload_libraries='pg_cron'" >> /var/lib/postgresql/data/postgresql.conf
+          echo "cron.database_name='postgres'" >> /var/lib/postgresql/data/postgresql.conf
           su postgres -c "/usr/lib/postgresql/17/bin/pg_ctl -D /var/lib/postgresql/data restart"
           sleep 5
 
-      - name: Configure variables
+      - name: Configure environment
         run: |
+          mkdir -p /builds/cheshire-datasystems/dba-team
+          ln -sf $GITHUB_WORKSPACE /builds/cheshire-datasystems/dba-team/pg-mv-fast-refresh-githubrunner
           cp .pipeline_module_set_variables.sh module_set_variables.sh
-          sed -i "s|/builds/cheshire-datasystems/dba-team/pg-mv-fast-refresh-githubrunner|$GITHUB_WORKSPACE|g" module_set_variables.sh
           chown -R postgres:postgres $GITHUB_WORKSPACE
           chmod 777 -R $GITHUB_WORKSPACE
 
       - name: Run build
         run: |
-          sudo -i -u postgres bash -c "cd $GITHUB_WORKSPACE && $GITHUB_WORKSPACE/run_pipeline_checks.sh build"
+          sudo -i -u postgres /builds/cheshire-datasystems/dba-team/pg-mv-fast-refresh-githubrunner/run_pipeline_checks.sh build
 
   mv-refresh:
     name: MV Refresh
@@ -86,27 +86,26 @@ jobs:
 
       - name: Setup pg_cron
         run: |
-          cat <<EOT >> /var/lib/postgresql/data/postgresql.conf
-          shared_preload_libraries='pg_cron'
-          cron.database_name='postgres'
-          EOT
+          echo "shared_preload_libraries='pg_cron'" >> /var/lib/postgresql/data/postgresql.conf
+          echo "cron.database_name='postgres'" >> /var/lib/postgresql/data/postgresql.conf
           su postgres -c "/usr/lib/postgresql/17/bin/pg_ctl -D /var/lib/postgresql/data restart"
           sleep 5
 
-      - name: Configure variables
+      - name: Configure environment
         run: |
+          mkdir -p /builds/cheshire-datasystems/dba-team
+          ln -sf $GITHUB_WORKSPACE /builds/cheshire-datasystems/dba-team/pg-mv-fast-refresh-githubrunner
           cp .pipeline_module_set_variables.sh module_set_variables.sh
-          sed -i "s|/builds/cheshire-datasystems/dba-team/pg-mv-fast-refresh-githubrunner|$GITHUB_WORKSPACE|g" module_set_variables.sh
           chown -R postgres:postgres $GITHUB_WORKSPACE
           chmod 777 -R $GITHUB_WORKSPACE
 
       - name: Run build
         run: |
-          sudo -i -u postgres bash -c "cd $GITHUB_WORKSPACE && $GITHUB_WORKSPACE/run_pipeline_checks.sh build"
+          sudo -i -u postgres /builds/cheshire-datasystems/dba-team/pg-mv-fast-refresh-githubrunner/run_pipeline_checks.sh build
 
       - name: Run MV refresh
         run: |
-          sudo -i -u postgres bash -c "cd $GITHUB_WORKSPACE && $GITHUB_WORKSPACE/run_pipeline_checks.sh test"
+          sudo -i -u postgres /builds/cheshire-datasystems/dba-team/pg-mv-fast-refresh-githubrunner/run_pipeline_checks.sh test
 
   module-destroy:
     name: Module Destroy
@@ -137,24 +136,23 @@ jobs:
 
       - name: Setup pg_cron
         run: |
-          cat <<EOT >> /var/lib/postgresql/data/postgresql.conf
-          shared_preload_libraries='pg_cron'
-          cron.database_name='postgres'
-          EOT
+          echo "shared_preload_libraries='pg_cron'" >> /var/lib/postgresql/data/postgresql.conf
+          echo "cron.database_name='postgres'" >> /var/lib/postgresql/data/postgresql.conf
           su postgres -c "/usr/lib/postgresql/17/bin/pg_ctl -D /var/lib/postgresql/data restart"
           sleep 5
 
-      - name: Configure variables
+      - name: Configure environment
         run: |
+          mkdir -p /builds/cheshire-datasystems/dba-team
+          ln -sf $GITHUB_WORKSPACE /builds/cheshire-datasystems/dba-team/pg-mv-fast-refresh-githubrunner
           cp .pipeline_module_set_variables.sh module_set_variables.sh
-          sed -i "s|/builds/cheshire-datasystems/dba-team/pg-mv-fast-refresh-githubrunner|$GITHUB_WORKSPACE|g" module_set_variables.sh
           chown -R postgres:postgres $GITHUB_WORKSPACE
           chmod 777 -R $GITHUB_WORKSPACE
 
       - name: Run build
         run: |
-          sudo -i -u postgres bash -c "cd $GITHUB_WORKSPACE && $GITHUB_WORKSPACE/run_pipeline_checks.sh build"
+          sudo -i -u postgres /builds/cheshire-datasystems/dba-team/pg-mv-fast-refresh-githubrunner/run_pipeline_checks.sh build
 
       - name: Run destroy
         run: |
-          sudo -i -u postgres bash -c "cd $GITHUB_WORKSPACE && $GITHUB_WORKSPACE/run_pipeline_checks.sh destroy"
+          sudo -i -u postgres /builds/cheshire-datasystems/dba-team/pg-mv-fast-refresh-githubrunner/run_pipeline_checks.sh destroy
