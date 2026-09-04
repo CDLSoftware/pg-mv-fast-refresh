@@ -380,7 +380,7 @@ BEGIN
 		CALL mv$checkRow$ExistsOnSourceTable( pOwner, pTableName );				  
 	END IF;
     CALL mv$createMvLog$Table(       rConst, pOwner, tLog$Name,  pStorageClause );
-    CALL mv$addIndexToMvLog$Table(   rConst, pOwner, tLog$Name                  );
+--  CALL mv$addIndexToMvLog$Table(   rConst, pOwner, tLog$Name                  );  -- Disabled: btree index on bitmap$ array is never used by the bitwise (&) predicates that query this column, so it only added write overhead to the MV log.
     CALL mv$createMvLogTrigger(      rConst, pOwner, pTableName, tTriggerName   );
     CALL mv$insertPgMviewLogs
                 (
