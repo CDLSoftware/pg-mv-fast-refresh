@@ -334,6 +334,8 @@ Revision History    Push Down List
 ------------------------------------------------------------------------------------------------------------------------------------
 Date        | Name          | Description
 ------------+---------------+-------------------------------------------------------------------------------------------------------
+04/09/2026	| D Day			| Disabled the CALL to mv$addIndexToMvLog$Table. The btree index it created on the bitmap$ array column
+			|				| was never used by the bitwise (&) predicates that query this column, so it only added write overhead.
 27/07/2021	| D Day			| Added new input parameter pAddRow$ToSourceTable to support building a materialized view log without
 			|				| adding the source table m_row$ column with values.
 03/06/2020	| D Day			| Changed function to procedure to allow support/control of COMMITS within the refresh process.
